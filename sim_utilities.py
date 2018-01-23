@@ -85,7 +85,7 @@ class Detector:
         self.Kvector = tilt.dot(self.Kvector)
 
     def IntersectionIdx(self, ScatterSrc, TwoTheta, eta, bIdx=True):
-        print('eta:{0}'.format(eta))
+        #print('eta:{0}'.format(eta))
         #self.Print()
         dist = self.Norm.dot(self.CoordOrigin - ScatterSrc)
         scatterdir = np.array([np.cos(TwoTheta), np.sin(TwoTheta) * np.sin(eta), np.sin(TwoTheta) * np.cos(eta)])
