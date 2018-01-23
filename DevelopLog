@@ -1,0 +1,7 @@
+=======================================
+#20180117
+current speed:
+1e4: 1.2s
+5e4: 10s
+GPU usage is very low, possible improvements:
+  avoid variable creation...
