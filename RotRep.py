@@ -140,6 +140,11 @@ def EulerZXZ2MatVectorized(e):
     He Liu
     20180124
     vectorized verison, convert multiple euler the same time
+    for 10000 angles:
+    EulerZXZ2Mat time: 0.22568488121
+    EulerZXZ2MatVectorized time: 0.0045428276062
+
+
     :param e: [n_euler,3]matrix
     :return: [n_euler,3,3] rotation matrix
     '''
@@ -551,7 +556,36 @@ def Mat2EulerZXZ(m):
     if y < 0: y = y + 2 * np.pi
     if z < 0: z = z + 2 * np.pi
     return x, y, z
+def Mat2EulerZXZVectorized(m):
+    '''
+    he liu
+    vectorized verion of Mat2EulerZXZ
+    compute 10000 angles time difference:
+    Mat2EulerZXZ: 0.0466799736023
+    Mat2EulerZXZVectorized   0.0028178691864
 
+    :param m: [n_mat,3,3] array
+    :return: [n_mat,3] array, euler angles
+    '''
+    threshold = 0.9999999
+    euler = np.empty([m.shape[0],3])
+    idx0 = m[:,2,2] > threshold
+    idx1 = m[:,2,2] < -threshold
+    idx2 = np.bitwise_and(m[:,2,2] < threshold,m[:,2,2] > -threshold)
+    #print(m[idx0,0,0])
+    euler[idx0, 0] = 0
+    euler[idx0, 1] = 0
+    euler[idx0, 2] = np.arctan2(m[idx0, 1, 0], m[idx0, 0, 0])
+    euler[idx1, 0] = 0
+    euler[idx1, 1] = np.pi
+    euler[idx1, 2] = np.arctan2(m[idx1, 0, 1], m[idx1, 0, 0])
+    euler[idx2, 0] = np.arctan2(m[idx2, 0, 2], -m[idx2, 1, 2])
+    euler[idx2, 1] = np.arctan2(np.sqrt(m[idx2, 2, 0] ** 2 + m[idx2, 2, 1] ** 2), m[idx2, 2, 2])
+    euler[idx2, 2] = np.arctan2(m[idx2, 2, 0], m[idx2, 2, 1])
+    euler[euler[:, 0] < 0, 0] = euler[euler[:, 0] < 0, 0]+2 * np.pi
+    euler[euler[:, 1] < 0, 1] = euler[euler[:, 1] < 0, 1] + 2 * np.pi
+    euler[euler[:, 2] < 0, 2] = euler[euler[:, 2] < 0, 2] + 2 * np.pi
+    return euler
     # def plot(m,symtype='Cubic'):
     #    ops=GetSymRotMat(symtype)
     #    for op in ops:
@@ -589,8 +623,24 @@ def benchmark_e2m():
     end = time.time()
     print('EulerZXZ2MatVectorized time: {0}'.format(end - start))
     print(m[-1,:,:])
+def benchmark_m2e():
+    # benchmark speed of vectorized version m2e
+    import FZfile
+    import time
+    m = FZfile.generate_random_rot_mat(10000)
+    start = time.time()
+    for i in range(m.shape[0]):
+        e = Mat2EulerZXZ(m[i,:,:])
+    end = time.time()
+    print(end-start)
+    print(e)
+    start = time.time()
+    e = Mat2EulerZXZVectorized(m)
+    end = time.time()
+    print(end-start)
+    print(e[-1,:])
 if __name__ =='__main__':
-    benchmark_e2m()
+    benchmark_m2e()
     #Orien2FZ(np.zeros([3,3]))
  #    m1 = np.array([[ 0.94245757,  0.26655785,  0.20179359],
  # [ 0.11294816,  0.31423632, -0.94260185],
