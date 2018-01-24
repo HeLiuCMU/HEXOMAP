@@ -135,7 +135,35 @@ def EulerZXZ2Mat(e):
                   [s3 * s2, s2 * c3, c2]])
     return m
 
-
+def EulerZXZ2MatVectorized(e):
+    '''
+    He Liu
+    20180124
+    vectorized verison, convert multiple euler the same time
+    :param e: [n_euler,3]matrix
+    :return: [n_euler,3,3] rotation matrix
+    '''
+    e = e.reshape([-1,3])
+    m = np.empty([e.shape[0],3,3])
+    x = e[:,0]
+    y = e[:,1]
+    z = e[:,2]
+    s1 = np.sin(x)
+    s2 = np.sin(y)
+    s3 = np.sin(z)
+    c1 = np.cos(x)
+    c2 = np.cos(y)
+    c3 = np.cos(z)
+    m[:,0,0] = c1 * c3 - c2 * s1 * s3
+    m[:,0,1] = -c1 * s3 - c3 * c2 * s1
+    m[:,0,2] =  s1 * s2
+    m[:,1,0] = s1 * c3 + c2 * c1 * s3
+    m[:,1,1] = c1 * c2 * c3 - s1 * s3
+    m[:,1,2] = -c1 * s2
+    m[:,2,0] = s3 * s2
+    m[:,2,1] = s2 * c3
+    m[:,2,2] = c2
+    return m
 def GetSymRotMat(symtype='Cubic'):
     """
     return an array of active rotation matrices of the input crystal symmetry
@@ -304,6 +332,7 @@ def Orien2FZ(m, symtype='Cubic'):
     ops = GetSymRotMat(symtype)
     angle = 6.3
     for op in ops:
+        #print(op)
         tmp = m.dot(op)
         cosangle = 0.5 * (tmp.trace() - 1)
         cosangle = min(0.9999999, cosangle)
@@ -503,7 +532,7 @@ def Mat2Euler(m):
 
 def Mat2EulerZXZ(m):
     """
-    transform active rotation matrix to euler angles in ZXZ convention, not right
+    transform active rotation matrix to euler angles in ZXZ convention, not right(seems right now)
     """
     threshold = 0.9999999
     if m[2, 2] > threshold:
@@ -538,3 +567,35 @@ def Mat2EulerZXZ(m):
     #            x,y,z=Mat2Euler(tmp)
     #            plt.scatter(x,y+z)
     #    plt.show()
+
+def benchmark_e2m():
+    # benchmark speed of vectorized version and not
+    nEuler = 10000
+    alpha = np.random.uniform(-np.pi,np.pi,nEuler)
+    gamma = np.random.uniform(-np.pi,np.pi,nEuler)
+    z = np.random.uniform(-1,1,nEuler)
+    beta = np.arccos(z)
+    euler = np.concatenate([alpha[:,np.newaxis],beta[:,np.newaxis],gamma[:,np.newaxis]],axis=1)
+    import time
+
+    start = time.time()
+    for i in range(euler.shape[0]):
+        m = EulerZXZ2Mat(euler[i,:])
+    end = time.time()
+    print('EulerZXZ2Mat time: {0}'.format(end - start))
+    print(m)
+    start = time.time()
+    m = EulerZXZ2MatVectorized(euler)
+    end = time.time()
+    print('EulerZXZ2MatVectorized time: {0}'.format(end - start))
+    print(m[-1,:,:])
+if __name__ =='__main__':
+    benchmark_e2m()
+    #Orien2FZ(np.zeros([3,3]))
+ #    m1 = np.array([[ 0.94245757,  0.26655785,  0.20179359],
+ # [ 0.11294816,  0.31423632, -0.94260185],
+ # [-0.31466879,  0.91115446,  0.26604718]])
+ #    m2 = np.array([[ 0.99736739, -0.00341931,  0.07243343],
+ # [-0.05797104,  0.56247327,  0.82478069],
+ # [-0.04356205, -0.8268084,   0.56079427]])
+ #    print(Misorien2FZ1(Orien2FZ(m2,'Hexagonal')[0],m1,'Hexagonal'))
