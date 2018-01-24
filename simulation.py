@@ -11,6 +11,8 @@ from pycuda.compiler import SourceModule
 import sim_utilities
 import RotRep
 import IntBin
+import FZfile
+import time
 mod = SourceModule("""
 #include <stdio.h>
 const float PI = 3.14159265359;
@@ -121,6 +123,8 @@ __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,float &fOmega1, flo
 		bHit2 = false;
 		return false;
 	}
+	bHit1 = false;
+	bHit2 = false;
 	if ((-HALFPI<=fOmegaRes1) && (fOmegaRes1<=HALFPI)){
 		float fVoxelPosX = cos(fOmegaRes1)*afVoxelPos[0] - sin(fOmegaRes1)*afVoxelPos[1];
 		float fVoxelPosY = cos(fOmegaRes1)*afVoxelPos[1] + sin(fOmegaRes1)*afVoxelPos[0];
@@ -234,19 +238,21 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 	 * the dimesion of GPU grid should be iNVoxel*iNOrientation*iNG
 	 * <<< (iNVoxel,iNOrientation),(iNG)>>>;
 	 */
-	 //printf("blockIdx: %d || ",blockIdx.x);
+	//printf("blockIdx: %d || ",blockIdx.x);
 	float fOmegaRes1,fOmegaRes2,fTwoTheta,fEta,fChi;
 	float afScatteringVec[3]={0,0,0};
 	//float afOrienMat[9];
-	//printf("afVoxelPos: %f %f %f",_afVoxelPos[0],_afVoxelPos[1],_afVoxelPos[2]);
 	//original G vector
 	//rotation matrix 3x3
 	//G' = M.dot(G)
+	//printf("originG: %f,%f,%f. ||",afG[threadIdx.x*3+0],afG[threadIdx.x*3+1],afG[threadIdx.x*3+2]);
 	for (int i=0;i<3;i++){
 		for(int j=0;j<3;j++){
 			afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
+		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
 		}
 	}
+	//printf("%f,%f,%f ||",afScatteringVec[0],afScatteringVec[1],afScatteringVec[1]);
 	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
 		int i = blockIdx.x*gridDim.y*blockDim.x*2*iNDet+ blockIdx.y*blockDim.x*2*iNDet + threadIdx.x*2*iNDet;
 		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
@@ -346,17 +352,30 @@ __global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientatio
 	bool allTrue0 = true; // if a simulated peak hit all detector, allTrue0 = true;
 	bool allTrue1 = true; // if a simulated peak overlap with all expimages on all detector, allTrue1 = true;
 	if(i<iNVoxel*iNOrientation){
-	//printf("i: %d.",i);
+	    //printf("|+|i: %d.",i);
 		afHitRatio[i] = 0.0f;
 		aiPeakCnt[i] = 0;
 		for(int j=0;j<iNG*2;j++){
+		    //printf("j: %d ||",j);
 			allTrue0 = true;
 			allTrue1 = true;
 			for(int k=0;k<iNDet;k++){
+			    //printf("abHit: %f||",abHit[i*iNG*2*iNDet+j*iNDet+k]);
 				if(!abHit[i*iNG*2*iNDet+j*iNDet+k]){
 					allTrue0 = false;
+					allTrue1 = false;
 				}
-				if(acExpDetImages[aiDetStartIdx[k]
+			    //printf("imagedataIdx: %d", aiDetStartIdx[k]
+				// 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
+				//		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
+				// 		          + aiJ[i*iNG*2*iNDet+j*iNDet+k]);
+			    if(aiDetStartIdx[k]
+				 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
+				 		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
+				 		          + aiJ[i*iNG*2*iNDet+j*iNDet+k] >= 2*180*512*512){
+			        printf("detIdx: %d, rotN: %d, aiK: %d, aiJ: %d ||",k,aiRotN[i*iNG*2*iNDet+j*iNDet+k],aiK[i*iNG*2*iNDet+j*iNDet+k],aiJ[i*iNG*2*iNDet+j*iNDet+k]);
+			    }
+				else if(acExpDetImages[aiDetStartIdx[k]
 				 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
 				 		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
 				 		          + aiJ[i*iNG*2*iNDet+j*iNDet+k]]==0){
@@ -370,13 +389,15 @@ __global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientatio
 				afHitRatio[i]+=1;
 			}
 		}
-		if(aiPeakCnt[i]!=0){
-		afHitRatio[i] = afHitRatio[i]/float(aiPeakCnt[i]);
+		if(aiPeakCnt[i]>0){
+		    afHitRatio[i] = afHitRatio[i]/float(aiPeakCnt[i]);
 		}
 		else{
 			afHitRatio[i]=0;
 		}
+		//printf("afHitRatio: %f, aiPeakCnt: %d", afHitRatio[i], aiPeakCnt[i]); // so does not run to this step
 	}
+
 }
 
 """)
@@ -421,18 +442,18 @@ class Reconstructor_GPU():
         self.detectors = [sim_utilities.Detector(),sim_utilities.Detector()]
         self.NRot = 180
         self.NDet = 2
-        self.centerJ = [975.022/2,968.773/2]# center, horizental direction
-        self.centerK = [2013.83/2,2010.7/2]# center, verticle direction
+        self.centerJ = [975.022/4,968.773/4]# center, horizental direction
+        self.centerK = [2013.83/4,2010.7/4]# center, verticle direction
         self.detPos = [np.array([5.46311,0,0]),np.array([7.44617,0,0])] # in mm
         self.detRot = [np.array([91.5667, 91.2042, 359.204]),np.array([90.7728, 91.0565, 359.3])]# Euler angleZXZ
-        self.detectors[0].NPixelJ = 2048/2
-        self.detectors[0].NPixelK = 2048/2
-        self.detectors[0].PixelJ = 0.00148*2
-        self.detectors[0].PixelK = 0.00148*2
-        self.detectors[1].NPixelJ = 2048/2
-        self.detectors[1].NPixelK = 2048/2
-        self.detectors[1].PixelJ = 0.00148*2
-        self.detectors[1].PixelK = 0.00148*2
+        self.detectors[0].NPixelJ = 2048/4
+        self.detectors[0].NPixelK = 2048/4
+        self.detectors[0].PixelJ = 0.00148*4
+        self.detectors[0].PixelK = 0.00148*4
+        self.detectors[1].NPixelJ = 2048/4
+        self.detectors[1].NPixelK = 2048/4
+        self.detectors[1].PixelJ = 0.00148*4
+        self.detectors[1].PixelK = 0.00148*4
 
         self.detectors[0].Move(self.centerJ[0], self.centerK[0], self.detPos[0], RotRep.EulerZXZ2Mat(self.detRot[0] / 180.0 * np.pi))
         self.detectors[1].Move(self.centerJ[1], self.centerK[1], self.detPos[1], RotRep.EulerZXZ2Mat(self.detRot[1] / 180.0 * np.pi))
@@ -495,6 +516,13 @@ class Reconstructor_GPU():
             self.iExpDetImageSize += self.NRot*self.detectors[i].NPixelJ*self.detectors[i].NPixelK
             if i<(self.NDet-1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
+        # check is detector size boyond the number int type could hold
+        if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
+            raise ValueError("detector image size {0} is wrong, \n\
+                             possible too large detector size\n\
+                            currently use int type as detector pixel index\n\
+                            future implementation use lognlong will solve this issure")
+
         self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
         self.acExpDetImages = gpuarray.zeros(self.iExpDetImageSize,np.int8)   # experimental image data on GPUlen=sigma_i(NDet*NRot*NPixelJ[i]*NPxielK[i])
         self.aiDetStartIdxD = gpuarray.to_gpu(self.aiDetStartIdxH.astype(np.int32))
@@ -652,9 +680,10 @@ class Reconstructor_GPU():
         secs = start.time_till(end) * 1e-3
         print("SourceModule time {0} seconds.".format(secs))
         #self.print_sim_results()
-    def test_recon(self):
-        self.orientationEuler = self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
+    def test_recon_0(self):
+        #self.orientationEuler = self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
         #self.orientationEuler = np.concatenate([self.orientationEuler,[[174.956, 55.8283, 182.94]]],axis=0)
+        self.orientationEuler = np.array([[174.956, 55.8283, 182.94]])
         self.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_',6)
         #np.savetxt('/home/heliu/work/I9_test_data/expData_for_pycuda.txt', self.expData)
         self.expData[:,2:4] = self.expData[:,2:4]/2 # half the detctor size, to rescale real data
@@ -734,6 +763,138 @@ class Reconstructor_GPU():
         maxHitratioIdx = np.argmax(self.afHitRatioH)
         print('max hitratio is {0},hitcnt = {2}, euler angle is {1}'.format(self.afHitRatioH[maxHitratioIdx],self.orientationEuler[maxHitratioIdx,:],self.aiPeakCntH[maxHitratioIdx]))
         print()
+    def test_recon_1(self):
+        ######################## This is a working version of Reconstruction #################33
+        # try adding multiple stage search, first fz file, then generate random around max hitratio
+
+        self.orientationEuler = self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
+        #self.orientationEuler = np.concatenate([self.orientationEuler, [[174.956, 55.8283, 182.94]]], axis=0)
+
+        self.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
+        #self.expData = np.array([[1,2,3,4]])
+        self.cp_expdata_to_gpu()
+        # test for returning cost of each function
+        # timing tools:
+        start = cuda.Event()
+        end = cuda.Event()
+
+        # initialize Scattering Vectors
+        self.sample.getRecipVec()
+        self.sample.getGs(self.maxQ)
+
+        # initialize orientation Matrices !!! implement on GPU later
+        self.orientationMat = np.zeros([self.orientationEuler.shape[0], 3, 3])
+        if self.orientationEuler.ndim == 1:
+            print('wrong format of input orientation, should be nx3 numpy array')
+        for i in range(self.orientationEuler.shape[0]):
+            self.orientationMat[i, :, :] = RotRep.EulerZXZ2Mat(self.orientationEuler[i, :] / 180.0 * np.pi).reshape(
+                [3, 3])
+
+        # initialize device parameters and outputs
+        afOrientationMatD = gpuarray.to_gpu(self.orientationMat.astype(np.float32))
+        afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
+        afVoxelPosD = gpuarray.to_gpu(self.voxelpos.astype(np.float32))
+        afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+        self.NVoxel = self.voxelpos.shape[0]
+        self.NOrientation = self.orientationMat.shape[0] / self.NVoxel
+        self.NG = self.sample.Gs.shape[0]
+
+        # output device parameters:
+        self.afHitRatioH = np.empty(self.NVoxel*self.NOrientation,dtype=np.float32)
+        self.aiPeakCntH = np.empty(self.NVoxel*self.NOrientation,dtype=np.int32)
+        self.sim_func = mod.get_function("simulation")
+        self.hitratio_func = mod.get_function("hitratio_multi_detector")
+        # start of simulation
+        lOrientationMatD = []
+        laiJD = []
+        laiKD = []
+        lafOmegaD = []
+        labHitD = []
+        laiRotND = []
+        lafHitRatioD = []
+        laiPeakCntD = []
+        print('start of simulation \n')
+        NSelect = 100 # number of angles select for next search
+        start.record()  # start timing
+        for i in range(10):
+            print(i)
+            print('nvoxel: {0}, norientation:{1}'.format(self.NVoxel, self.NOrientation))
+            if i>0:
+                # generate random orientation around cetrain maxMat and then select self.NOrientation of them
+                print('start of generating random matrix')
+                #maxMat = self.orientationMat[:100,:,:]
+                self.orientationMat = FZfile.random_angle_around_mat(maxMat,self.NOrientation//NSelect+1,0.5*(0.7**i),'Hexagonal')[:self.NOrientation,:,:]
+                print('end of generating random matrix')
+            # check orientationMat: no problem,
+            #print(self.orientationMat)
+            lOrientationMatD.append((cuda.mem_alloc(self.orientationMat.astype(np.float32).nbytes)))
+            cuda.memcpy_htod(lOrientationMatD[i],self.orientationMat.astype(np.float32))
+            context.synchronize()
+            # output device parameters:
+            ########GPU memory should be manually allocatede for changing inputs, and output memory needs to be reallocate each time.
+            laiJD.append(cuda.mem_alloc(self.NVoxel * self.NOrientation * self.NG * 2 * self.NDet*np.int32(0).nbytes))
+            laiKD.append(cuda.mem_alloc(self.NVoxel * self.NOrientation * self.NG * 2 * self.NDet*np.int32(0).nbytes))
+            lafOmegaD.append(cuda.mem_alloc(self.NVoxel * self.NOrientation * self.NG * 2 * self.NDet*np.float32(0).nbytes))
+            labHitD.append(cuda.mem_alloc(self.NVoxel * self.NOrientation * self.NG * 2 * self.NDet*np.bool_(0).nbytes))
+            laiRotND.append(cuda.mem_alloc(self.NVoxel * self.NOrientation * self.NG * 2 * self.NDet*np.int32(0).nbytes))
+            # checked pointers, no problem
+            # print(afGD.ptr)
+            # print(afDetInfoD.ptr)
+            # print(afVoxelPosD.ptr)
+            # print(self.acExpDetImages.ptr)
+
+            self.sim_precheck()
+            self.sim_func(laiJD[i], laiKD[i], lafOmegaD[i], labHitD[i], laiRotND[i], \
+                          np.int32(self.NVoxel), np.int32(self.NOrientation), np.int32(self.NG), np.int32(self.NDet),
+                          lOrientationMatD[i], afGD,
+                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), afDetInfoD,
+                          grid=(self.NVoxel, self.NOrientation), block=(self.NG, 1, 1))
+            print('finish sim')
+            # 00-10:check sim result:
+            # aiRotNH =  np.empty(self.NVoxel * self.NOrientation * self.NG * 2 * self.NDet,dtype=np.int32)
+            # cuda.memcpy_dtoh(aiRotNH,laiRotND[i])
+            # for rotN in aiRotNH:
+            #     print(rotN)
+            NBlock = 256
+            lafHitRatioD.append(cuda.mem_alloc(self.NVoxel * self.NOrientation*np.float32(0).nbytes))
+            laiPeakCntD.append(cuda.mem_alloc(self.NVoxel * self.NOrientation*np.int32(0).nbytes))
+            # ============this part may cause memroy access error!!===========
+            self.hitratio_func(np.int32(self.NVoxel), np.int32(self.NOrientation), np.int32(self.NG),
+                               afDetInfoD, self.acExpDetImages, self.aiDetStartIdxD, np.int32(self.NDet),
+                               np.int32(self.NRot),
+                               laiJD[i], laiKD[i], laiRotND[i], labHitD[i],
+                               lafHitRatioD[i], laiPeakCntD[i],
+                               block=(NBlock, 1, 1), grid=(self.NVoxel * self.NOrientation // NBlock + 1, 1))
+            print('finish hitratio')
+
+            context.synchronize()
+
+
+            #memcpy_dtoh
+            cuda.memcpy_dtoh(self.afHitRatioH, lafHitRatioD[i])
+            cuda.memcpy_dtoh(self.aiPeakCntH,laiPeakCntD[i])
+            maxHitratioIdx = np.argsort(self.afHitRatioH)[:-(NSelect+1):-1] # from larges hit ratio to smaller
+            maxMat = self.orientationMat[maxHitratioIdx,:,:]
+            print('max hitratio: {0},maxMat: {1}'.format(self.afHitRatioH[maxHitratioIdx[0]],maxMat[0,:,:]))
+            # free up memories
+            lOrientationMatD[i].free()
+            laiRotND[i].free()
+            laiJD[i].free()
+            laiKD[i].free()
+            lafOmegaD[i].free()
+            labHitD[i].free()
+            lafHitRatioD[i].free()
+            laiPeakCntD[i].free()
+
+        end.record()  # end timing
+        end.synchronize()
+        secs = start.time_till(end) * 1e-3
+        print('end of reconstruction \n')
+        print('reconstructed euler angle {0}'.format(RotRep.Mat2EulerZXZ(maxMat[0,:,:])))
+        print('misorientation from ICENINE result is {0}'.format(RotRep.Misorien2FZ1(maxMat[0,:,:],RotRep.EulerZXZ2Mat(np.array([174.956, 55.8283, 182.94])/180*np.pi),symtype='Hexagonal')[1]))
+        print("SourceModule time {0} seconds.".format(secs))
+        # print()
     def print_sim_results(self):
         # print(self.aJH)
         # print(self.aKH)
@@ -969,6 +1130,6 @@ def calculate_misoren_euler_zxz(euler0,euler1):
     rotMat1 = RotRep.EulerZXZ2Mat(euler1 / 180.0 * np.pi)
     return RotRep.Misorien2FZ1(rotMat0,rotMat1,symtype='Hexagonal')
 if __name__ == "__main__":
-    #S = Reconstructor_GPU()
-    #S.test_recon()
-    print(calculate_misoren_euler_zxz(np.array([10.1237, 75.4599, 340.791]),np.array([174.956, 55.8283, 182.94])))
+    S = Reconstructor_GPU()
+    S.test_recon_1()
+    #print(calculate_misoren_euler_zxz(np.array([10.1237, 75.4599, 340.791]),np.array([174.956, 55.8283, 182.94])))
