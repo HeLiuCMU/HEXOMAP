@@ -148,7 +148,10 @@ def EulerZXZ2MatVectorized(e):
     :param e: [n_euler,3]matrix
     :return: [n_euler,3,3] rotation matrix
     '''
-    e = e.reshape([-1,3])
+    try:
+        e = e.reshape([-1,3])
+    except:
+        raise ValueError('input euler should be [neuler,3] array')
     m = np.empty([e.shape[0],3,3])
     x = e[:,0]
     y = e[:,1]
@@ -567,6 +570,10 @@ def Mat2EulerZXZVectorized(m):
     :param m: [n_mat,3,3] array
     :return: [n_mat,3] array, euler angles
     '''
+    try:
+        m = m.reshape([-1,3,3])
+    except:
+        raise ValueError('input mat should be [n_mat,3,3]')
     threshold = 0.9999999
     euler = np.empty([m.shape[0],3])
     idx0 = m[:,2,2] > threshold
