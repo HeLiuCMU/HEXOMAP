@@ -264,11 +264,11 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 			//printf("blockIdx: %d || ",blockIdx.x);
 			if(abHit[i+iDetIdx]){
 				////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
-				aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*afDetInfo[16]);
+				aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
 				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
 			}
 			if(abHit[i+iDetIdx+iNDet]){
-				aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*afDetInfo[16]);
+				aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
 				//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
 			}
 		}
@@ -369,12 +369,12 @@ __global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientatio
 				// 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
 				//		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
 				// 		          + aiJ[i*iNG*2*iNDet+j*iNDet+k]);
-			    if(aiDetStartIdx[k]
-				 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
-				 		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
-				 		          + aiJ[i*iNG*2*iNDet+j*iNDet+k] >= 2*180*512*512){
-			        printf("detIdx: %d, rotN: %d, aiK: %d, aiJ: %d ||",k,aiRotN[i*iNG*2*iNDet+j*iNDet+k],aiK[i*iNG*2*iNDet+j*iNDet+k],aiJ[i*iNG*2*iNDet+j*iNDet+k]);
-			    }
+			    //if(aiDetStartIdx[k]
+				// 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
+				// 		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
+				// 		          + aiJ[i*iNG*2*iNDet+j*iNDet+k] >= 2*180*512*512){
+			    //   printf("detIdx: %d, rotN: %d, aiK: %d, aiJ: %d ||",k,aiRotN[i*iNG*2*iNDet+j*iNDet+k],aiK[i*iNG*2*iNDet+j*iNDet+k],aiJ[i*iNG*2*iNDet+j*iNDet+k]);
+			    //}
 				else if(acExpDetImages[aiDetStartIdx[k]
 				 		          + aiRotN[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
 				 		          + aiK[i*iNG*2*iNDet+j*iNDet+k]*int(afDetInfo[0+19*k])
@@ -430,7 +430,7 @@ class DetectorGPU:
         #                                       (np.int32, 'iNPixelK', detector.NPixelK),
         #                                       (np.float32, 'fPixelJ', detector.PixelJ),
         #                                       (np.float32, 'fPixelK', detector.PixelK)])
-class Simulator_GPU():
+class _old_Simulator_GPU():
     def __init__(self):
         self.voxelpos = np.array([[-0.0953125, 0.00270633, 0]])    # nx3 array,
         self.orientationEuler = np.array([[89.5003, 80.7666, 266.397]])
@@ -967,29 +967,30 @@ class Simulator_GPU():
             J: 848, K: 1221, Omega: 1.19551122189'\n ")
 class Reconstructor_GPU():
     '''
-    To implement Serial Reconstruction:
     example usage:
 
     '''
     def __init__(self):
         # initialize voxel position information
-        self.voxelpos = np.array([[-0.0953125, 0.00270633, 0]])    # nx3 array,
-        self.NVoxel = self.voxelpos.shape[0]
-        self.voxelAcceptedMat = np.array([self.NVoxel,3,3])
-        self.voxelHitRatio = np.array(self.NVoxel)
+        self.voxelpos = np.array([[-0.0953125, 0.00270633, 0]])    # nx3 array, voxel positions
+        self.NVoxel = self.voxelpos.shape[0]                       # number of voxels
+        self.voxelAcceptedMat = np.zeros([self.NVoxel,3,3])        # reconstruced rotation matrices
+        self.voxelHitRatio = np.zeros(self.NVoxel)                 # reconstructed hit ratio
+        self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
         self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
-        self.orientationMat = 0 # nx3x3 array
+        self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
+        # experimental data
         self.energy = 55.587 # in kev
         self.sample = sim_utilities.CrystalStr('Ti7') # one of the following options:
-        self.maxQ = 7
+        self.maxQ = 8
         self.etalimit = 81 / 180.0 * np.pi
         self.detectors = [sim_utilities.Detector(),sim_utilities.Detector()]
         self.NRot = 180
         self.NDet = 2
-        self.centerJ = [975.022/4,968.773/4]# center, horizental direction
-        self.centerK = [2013.83/4,2010.7/4]# center, verticle direction
-        self.detPos = [np.array([5.46311,0,0]),np.array([7.44617,0,0])] # in mm
-        self.detRot = [np.array([91.5667, 91.2042, 359.204]),np.array([90.7728, 91.0565, 359.3])]# Euler angleZXZ
+        self.centerJ = [976.072/4,968.591/4]# center, horizental direction
+        self.centerK = [2014.13/4,2011.68/4]# center, verticle direction
+        self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
+        self.detRot = [np.array([91.6232, 91.2749, 359.274]),np.array([90.6067, 90.7298, 359.362])]# Euler angleZXZ
         self.detectors[0].NPixelJ = 2048/4
         self.detectors[0].NPixelK = 2048/4
         self.detectors[0].PixelJ = 0.00148*4
@@ -1024,28 +1025,51 @@ class Reconstructor_GPU():
     def load_mic(self,fName):
         '''
         load mic file
+        set voxelPos,voxelAcceptedEuler, voxelHitRatio,micEuler
         :param fNmame:
+        %% Legacy File Format:
+          %% Col 0-2 x, y, z
+          %% Col 3   1 = triangle pointing up, 2 = triangle pointing down
+          %% Col 4 generation number; triangle size = sidewidth /(2^generation number )
+          %% Col 5 Phase - 1 = exist, 0 = not fitted
+          %% Col 6-8 orientation
+          %% Col 9  Confidence
         :return:
         '''
-        micData = np.loadtxt(fName,skiprows=1)
-        if micData.ndim==1:
-            micData = micData[np.newaxis,:]
-        if micData.ndim==0:
-            raise ValueError('number of dimension of mic file is wrong')
-        self.set_voxel_pos(micData[:,:3])
+
+        # self.micData = np.loadtxt(fName,skiprows=skiprows)
+        # self.micSideWith =
+        # print(self.micData)
+        # if self.micData.ndim==1:
+        #     micData = self.micData[np.newaxis,:]
+        # if self.micData.ndim==0:
+        #     raise ValueError('number of dimension of mic file is wrong')
+        # self.set_voxel_pos(self.micData[:,:3])
+        with open(fName) as f:
+            content = f.readlines()
+        # print(content[1])
+        # print(type(content[1]))
+        sw = float(content[0])
+        try:
+            snp = np.array([[float(i) for i in s.split()] for s in content[1:]])
+        except ValueError:
+            print 'unknown deliminater'
+        if snp.ndim<2:
+            raise ValueError('snp dimension if not right, possible empty mic file or empty line in micfile')
+        self.micSideWidth = sw
+        self.micData = snp
+        self.set_voxel_pos(snp[:,:3])
+
     def save_mic(self,fName):
         '''
         save mic
         :param fName:
         :return:
         '''
-        voxelAcceptedEuler = np.zeros([self.NVoxel,3])
-        for i in range(self.voxelAcceptedMat.shape[0]):
-            voxelAcceptedEuler[i,:] = np.array(RotRep.Mat2EulerZXZ(self.voxelAcceptedMat[i,:,:]))/np.pi*180
-        try:
-            np.savetxt(fName,np.concatenate([self.voxelpos,voxelAcceptedEuler,self.voxelHitRatio[:,np.newaxis]],axis=1))
-        except:
-            print(" faile to write to mic")
+        print('======= saved to mic file: {0} ========'.format(fName))
+        np.savetxt(fName, self.micData, fmt=['%.6f'] * 2 + ['%d'] * 4 + ['%.6f'] * (self.micData.shape[1] - 6),
+                   delimiter='\t', header=str(self.micSideWidth), comments='')
+
     def load_fz(self,fName):
         # load FZ.dat file
         # self.FZEuler: n_Orientation*3 array
@@ -1133,10 +1157,9 @@ class Reconstructor_GPU():
         #check if inputs are correct
         if self.NDet!= len(self.detectors):
             raise ValueError('self.NDet does not match self.detectors')
-        if self.orientationMat.shape[0]!=self.NVoxel*self.NOrientation:
-            raise ValueError('self.orientationMat should have shape of NVoxel*NOrientation*9')
-        if self.NOrientation==0:
-            raise ValueError('self.NOrientation could not be 0')
+        if  not np.any(self.oriMatToSim):
+            raise  ValueError(' oriMatToSim not set ')
+
     def serial_recon_precheck(self):
         pass
     def run_sim(self):
@@ -1149,39 +1172,34 @@ class Reconstructor_GPU():
         self.sample.getGs(self.maxQ)
 
         # initialize orientation Matrices !!! implement on GPU later
-        self.orientationMat = np.zeros([self.orientationEuler.shape[0], 3, 3])
-        if self.orientationEuler.ndim == 1:
-            print('wrong format of input orientation, should be nx3 numpy array')
-            return 0
-        for i in range(self.orientationEuler.shape[0]):
-            self.orientationMat[i,:,:] = RotRep.EulerZXZ2Mat(self.orientationEuler[i,:]/180.0*np.pi).reshape([3,3])
 
         #initialize device parameters and outputs
-        afOrientationMatD = gpuarray.to_gpu(self.orientationMat.astype(np.float32))
+        afOrientationMatD = gpuarray.to_gpu(self.oriMatToSim.astype(np.float32))
         afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
         afVoxelPosD = gpuarray.to_gpu(self.voxelpos.astype(np.float32))
         afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
-        self.NVoxel = self.voxelpos.shape[0]
-        self.NOrientation = self.orientationMat.shape[0]/self.NVoxel
-        NG = self.sample.Gs.shape[0]
+        if self.oriMatToSim.shape[0]%self.NVoxel !=0:
+            raise ValueError('dimension of oriMatToSim should be integer number  of NVoxel')
+        NOriPerVoxel = self.oriMatToSim.shape[0]/self.NVoxel
+        self.NG = self.sample.Gs.shape[0]
         #output device parameters:
-        aiJD = gpuarray.empty(self.NVoxel*self.NOrientation*NG*2*self.NDet,np.int32)
-        aiKD = gpuarray.empty(self.NVoxel*self.NOrientation*NG*2*self.NDet,np.int32)
-        afOmegaD= gpuarray.empty(self.NVoxel*self.NOrientation*NG*2*self.NDet,np.float32)
-        abHitD = gpuarray.empty(self.NVoxel*self.NOrientation*NG*2*self.NDet,np.bool_)
-        aiRotND = gpuarray.empty(self.NVoxel*self.NOrientation*NG*2*self.NDet, np.int32)
+        aiJD = gpuarray.empty(self.NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.int32)
+        aiKD = gpuarray.empty(self.NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.int32)
+        afOmegaD= gpuarray.empty(self.NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.float32)
+        abHitD = gpuarray.empty(self.NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.bool_)
+        aiRotND = gpuarray.empty(self.NVoxel*NOriPerVoxel*self.NG*2*self.NDet, np.int32)
         sim_func = mod.get_function("simulation")
 
 
         # start of simulation
         print('============start of simulation ============= \n')
         start.record()  # start timing
-        print('nvoxel: {0}, norientation:{1}\n'.format(self.NVoxel,self.NOrientation))
+        print('nvoxel: {0}, norientation:{1}\n'.format(self.NVoxel,NOriPerVoxel))
         self.sim_precheck()
         sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND,\
-                 np.int32(self.NVoxel), np.int32(self.NOrientation), np.int32(NG), np.int32(self.NDet), afOrientationMatD,afGD,\
+                 np.int32(self.NVoxel), np.int32(NOriPerVoxel), np.int32(self.NG), np.int32(self.NDet), afOrientationMatD,afGD,\
                  afVoxelPosD,np.float32(self.energy),np.float32(self.etalimit), afDetInfoD,\
-                 grid=(self.NVoxel,self.NOrientation), block=(NG,1,1))
+                 grid=(self.NVoxel,NOriPerVoxel), block=(self.NG,1,1))
         context.synchronize()
         end.record()
         self.aJH = aiJD.get()
@@ -1194,20 +1212,33 @@ class Reconstructor_GPU():
         print('============end of simulation================ \n')
         secs = start.time_till(end) * 1e-3
         print("SourceModule time {0} seconds.".format(secs))
+
         #self.print_sim_results()
     def serial_recon_layer(self):
         '''
+        ==================working version =========================
+        Todo:
+            fix two reconstructed orientation:
+                simulate the two different reconstructed oreintation and compare peaks
+                compute their misoritentation
         serial reconstruct orientation in a layer, loaded in mic file
         example usage:
-
+        R = Reconstructor_GPU()
+        Not Implemented: Setup R experimental parameters
+        R.searchBatchSize = 20000  # number of orientations to search per GPU call
+        R.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
+        R.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
+        R.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        R.serial_recon_layer()
         :return:
         '''
         ############# search parameters ######################
-        self.searchBatchSize = 15000  # number of orientations to search per GPU call
+        self.searchBatchSize = 20000  # number of orientations to search per GPU call
         NSelect = 100 # number of orientations selected with maximum hitratio from last iteration
         # try adding multiple stage search, first fz file, then generate random around max hitratio
+        self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_Fit1_.mic.LBFS')
         #self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
-        self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
+        #self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
         self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
         # setup serial Reconstruction rotMatCandidate
         self.rotMatSearch = np.empty([self.searchBatchSize,3,3])
@@ -1260,7 +1291,6 @@ class Reconstructor_GPU():
                 if i > 0:
                     # generate random orientation around cetrain maxMat and then select self.NOrientation of them
                     print('start of generating random matrix')
-                    # maxMat = self.orientationMat[:100,:,:]
                     self.rotMatSearch = FZfile.random_angle_around_mat(maxMat, self.searchBatchSize // NSelect + 1,
                                                                          0.5 * (0.7 ** i), 'Hexagonal')[:self.searchBatchSize,
                                           :, :]
@@ -1278,7 +1308,6 @@ class Reconstructor_GPU():
                     cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.bool_(0).nbytes))
                 laiRotND.append(
                     cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.int32(0).nbytes))
-
                 # kernel calls
                 self.sim_func(laiJD[i], laiKD[i], lafOmegaD[i], labHitD[i], laiRotND[i], \
                               np.int32(1), np.int32(self.searchBatchSize), np.int32(self.NG), np.int32(self.NDet),
@@ -1305,7 +1334,7 @@ class Reconstructor_GPU():
                 maxHitratioIdx = np.argsort(self.afHitRatioH)[:-(NSelect + 1):-1]  # from larges hit ratio to smaller
                 maxMat = self.rotMatSearch[maxHitratioIdx, :, :]
                 #print('max hitratio: {0},maxMat: {1}'.format(self.afHitRatioH[maxHitratioIdx[0]], maxMat[0, :, :]))
-                print('voxelIdx: {0}, max hitratio: {1}'.format(voxelIdx,self.afHitRatioH[maxHitratioIdx[0]]))
+                print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2}'.format(voxelIdx,self.afHitRatioH[maxHitratioIdx[0]],self.aiPeakCntH[maxHitratioIdx[0]]))
 
                 # free up memories
                 lOrientationMatD[i].free()
@@ -1318,7 +1347,7 @@ class Reconstructor_GPU():
                 laiPeakCntD[i].free()
 
             print('reconstructed euler angle {0}'.format(np.array(RotRep.Mat2EulerZXZ(maxMat[0, :, :]))/np.pi*180))
-            self.voxelAcceptedMat[voxelIdx,:,:] = RotRep.Orien2FZ(maxMat[0,:,:])[0]
+            self.voxelAcceptedMat[voxelIdx,:,:] = RotRep.Orien2FZ(maxMat[0,:,:],'Hexagonal')[0]
             self.voxelHitRatio[voxelIdx] = self.afHitRatioH[maxHitratioIdx[0]]
             # update rotMatSearch for next voxel:
             self.rotMatSearch[:self.FZMat.shape[0], :, :] = self.FZMat
@@ -1329,9 +1358,10 @@ class Reconstructor_GPU():
         end.synchronize()
         secs = start.time_till(end) * 1e-3
         print("SourceModule time {0} seconds.".format(secs))
-        self.save_mic('test_recon_one_grain_20180124.txt')
-            # print()
-
+        # save roconstruction result
+        self.micData[:,6:9] = RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180
+        self.micData[:,9] = self.voxelHitRatio
+        self.save_mic('whole_layer_recon_test_20180125.txt')
     def test_recon_1(self):
         ######################## This is a working version of Reconstruction #################33
         # try adding multiple stage search, first fz file, then generate random around max hitratio
@@ -1470,10 +1500,10 @@ class Reconstructor_GPU():
         # print(self.aiRotNH)
         # print(self.aOmegaH)
         # print(self.bHitH)
-
+        NOriPerVoxel = (self.oriMatToSim.shape[0] / self.NVoxel)
         for i,hit in enumerate(self.bHitH):
             if hit:
-                print('Detector: {0}, J: {1}, K: {2},,RotN:{3}, Omega: {4}'.format(i%self.NDet, self.aJH[i],self.aKH[i],self.aiRotNH[i], self.aOmegaH[i]))
+                print('VoxelIdx:{5}, Detector: {0}, J: {1}, K: {2},,RotN:{3}, Omega: {4}'.format(i%self.NDet, self.aJH[i],self.aKH[i],self.aiRotNH[i], self.aOmegaH[i],i//(NOriPerVoxel*self.NG*2*self.NDet)))
 '''
 [ True  True  True  True  True  True  True  True]
 J: 648, K: 640,,RotN:24, Omega: -1.15093827248
@@ -1485,8 +1515,25 @@ J: 557, K: 458,,RotN:65, Omega: -0.430149376392
 J: 424, K: 610,,RotN:158, Omega: 1.19551122189
 J: 400, K: 449,,RotN:158, Omega: 1.19551122189
 '''
+import matplotlib.pyplot as plt
+class SimPlot():
+    import matplotlib.pyplot as plt
+    def __init__(self):
+        self.data = np.zeros([2,6]) # format[voxelIdx,detectorIdx,J,K,RotN,Omega
+        self.voxelID = np.unique(self.data[:,0])
+    def plot_jk(self,j,k):
+        '''
+        plot only on j and k value
+        :param
+        :return:
+        '''
+        plt.plot(j,k,'.')
+    def plot_overlap_single_voxel(self,voxelIdx):
+        self.plot_jk(self.data[self.data[:,0]==voxelIdx,:][:,2],self.data[self.data[:,0]==voxelIdx,:][:,3])
 
-class Simulator_t():
+
+
+class Simulator_old():
     def __init__(self):
         self.voxels = []     # nx3 array,
         self.orientationEuler = np.array([[89.5003, 80.7666, 266.397]])
@@ -1640,5 +1687,15 @@ def calculate_misoren_euler_zxz(euler0,euler1):
     return RotRep.Misorien2FZ1(rotMat0,rotMat1,symtype='Hexagonal')
 if __name__ == "__main__":
     S = Reconstructor_GPU()
+    # S.load_mic('/home/heliu/Dropbox/pycuda/test_recon_one_grain_20180124.txt')
+    # S.oriMatToSim = RotRep.EulerZXZ2MatVectorized(S.micData[:,6:9])
+    # S.run_sim()
+    # S.print_sim_results()
     S.serial_recon_layer()
+    #
+    #S.save_mic('test_save_mic.txt')
+    # print('voxel pos: {0}, micEuler: {1}.'.format(S.voxelpos,S.micEuler))
+    # S.oriMatToSim = RotRep.EulerZXZ2MatVectorized(self.micEuler)
+    # print('rotmatrices: {0}'.format(S.oriMatToSim))
+    # S.print_sim_results()
     #print(calculate_misoren_euler_zxz(np.array([10.1237, 75.4599, 340.791]),np.array([174.956, 55.8283, 182.94])))
