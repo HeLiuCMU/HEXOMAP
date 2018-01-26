@@ -968,6 +968,11 @@ class _old_Simulator_GPU():
 class Reconstructor_GPU():
     '''
     example usage:
+    Todo:
+        load voxelpos only once, not like now, copy every time
+        implement random matrix in GPU! high priority
+        flood filling problem, this kind of filling will actually affecto the shape of grain,
+        voxel at boundary need to compare different grains.
 
     '''
     def __init__(self):
@@ -976,6 +981,8 @@ class Reconstructor_GPU():
         self.NVoxel = self.voxelpos.shape[0]                       # number of voxels
         self.voxelAcceptedMat = np.zeros([self.NVoxel,3,3])        # reconstruced rotation matrices
         self.voxelHitRatio = np.zeros(self.NVoxel)                 # reconstructed hit ratio
+        self.voxelIdxStage0 = range(self.voxelpos.shape[0])       # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
+        self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
         self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
         self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
         self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
@@ -1011,6 +1018,22 @@ class Reconstructor_GPU():
                                                 self.detectors[i].CoordOrigin,self.detectors[i].Norm,self.detectors[i].Jvector,
                                                self.detectors[i].Kvector,np.array([self.NRot,-np.pi/2,np.pi/2])]))
         self.afDetInfoH = np.concatenate(lDetInfoTmp)
+
+        # initialize Scattering Vectors
+        self.sample.getRecipVec()
+        self.sample.getGs(self.maxQ)
+        self.NG = self.sample.Gs.shape[0]
+
+        # reconstruction parameters:
+        self.floodFillStartThreshold = 0.7 # orientation with hit ratio larger than this value is used for flood fill.
+        self.floodFillSelectThreshold = 0.6 # voxels with hitratio less than this value will be reevaluated in flood fill process.
+        self.floodFillAccptThreshold = 0.61  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
+        self.floodFillRandomRange = 0.005   # voxel in voxelIdxStage1 will generate random angles in this window
+        self.floodFillNumberAngle = 1000  # number of rangdom angles generated to voxel in voxelIdxStage1
+        self.floodFillNumberVoxel = 20000  # number of orientations for flood fill process each time, due to GPU memory issue.
+        # retrieve gpu kernel
+        self.sim_func = mod.get_function("simulation")
+        self.hitratio_func = mod.get_function("hitratio_multi_detector")
     def set_voxel_pos(self,pos):
         '''
         set voxel positions
@@ -1021,6 +1044,8 @@ class Reconstructor_GPU():
         self.NVoxel = self.voxelpos.shape[0]
         self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
         self.voxelHitRatio = np.zeros(self.NVoxel)
+        self.voxelIdxStage0 = range(self.voxelpos.shape[0])       # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
+        self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
         print("voxelpos shape is {0}".format(self.voxelpos.shape))
     def load_mic(self,fName):
         '''
@@ -1163,6 +1188,17 @@ class Reconstructor_GPU():
     def serial_recon_precheck(self):
         pass
     def run_sim(self):
+        '''
+        example usage:
+            S = Reconstructor_GPU()
+            S.load_mic('/home/heliu/Dropbox/pycuda/test_recon_one_grain_20180124.txt')
+            S.oriMatToSim = RotRep.EulerZXZ2MatVectorized(S.micData[:,6:9])[0,:,:].reshape(-1,3,3)
+            S.oriMatToSim = S.oriMatToSim.repeat(S.NVoxel,axis=0)
+            print('rotmatrices: {0}'.format(S.oriMatToSim))
+            S.run_sim()
+            S.print_sim_results()
+        :return:
+        '''
         # timing tools:
         start = cuda.Event()
         end = cuda.Event()
@@ -1236,7 +1272,8 @@ class Reconstructor_GPU():
         self.searchBatchSize = 20000  # number of orientations to search per GPU call
         NSelect = 100 # number of orientations selected with maximum hitratio from last iteration
         # try adding multiple stage search, first fz file, then generate random around max hitratio
-        self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_Fit1_.mic.LBFS')
+        #self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_Fit1_.mic.LBFS')
+        self.load_mic('test_recon_one_grain_20180124.txt')
         #self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
         #self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
         self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
@@ -1362,6 +1399,295 @@ class Reconstructor_GPU():
         self.micData[:,6:9] = RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180
         self.micData[:,9] = self.voxelHitRatio
         self.save_mic('whole_layer_recon_test_20180125.txt')
+
+    def flood_fill(self):
+        '''
+        flood fill all the voxel with confidence level lower than self.floodFillAccptThreshold
+        :return:
+        '''
+        print('====================== entering flood fill ===================================')
+
+        lFloodFillIdx = list(np.where(self.voxelHitRatio<self.floodFillSelectThreshold)[0])
+        lRotMatD = []
+        lafVoxelPosD = []
+        laiJD = []
+        laiKD = []
+        lafOmegaD = []
+        labHitD = []
+        laiRotND = []
+        lafHitRatioD = []
+        laiPeakCntD = []
+        idxToAccept = []
+        for i in range(len(lFloodFillIdx)//self.floodFillNumberVoxel+1):
+            idxTmp = lFloodFillIdx[i*self.floodFillNumberVoxel : (i+1)*self.floodFillNumberVoxel]
+            # allocate memory
+            afFloodHitRatioH = np.empty(len(idxTmp) * 1, dtype=np.float32)
+            aiFloodPeakCntH = np.empty(len(idxTmp) * 1, dtype=np.int32)
+            rotMatH = self.voxelAcceptedMat[self.voxelIdxStage0[0], :, :].reshape([-1,3,3]).repeat(len(idxTmp),
+                                                                                 axis=0).astype(np.float32)
+            lRotMatD.append(cuda.mem_alloc(rotMatH.nbytes))
+            cuda.memcpy_htod(lRotMatD[i],rotMatH)
+            voxelPosTmp = self.voxelpos[idxTmp,:].astype(np.float32)
+            lafVoxelPosD.append(cuda.mem_alloc(voxelPosTmp.nbytes))
+            cuda.memcpy_htod(lafVoxelPosD[i],voxelPosTmp)
+            # output device parameters:
+            laiJD.append(cuda.mem_alloc(len(idxTmp) * 1 * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+            laiKD.append(cuda.mem_alloc(len(idxTmp) * 1 * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+            lafOmegaD.append(
+                cuda.mem_alloc(len(idxTmp) * 1 * self.NG * 2 * self.NDet * np.float32(0).nbytes))
+            labHitD.append(
+                cuda.mem_alloc(len(idxTmp) * 1 * self.NG * 2 * self.NDet * np.bool_(0).nbytes))
+            laiRotND.append(
+                cuda.mem_alloc(len(idxTmp) * 1 * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+            # kernel calls
+            self.sim_func(laiJD[i], laiKD[i], lafOmegaD[i], labHitD[i], laiRotND[i], \
+                          np.int32(len(idxTmp)), np.int32(1), np.int32(self.NG), np.int32(self.NDet),
+                          lRotMatD[i], self.afGD,
+                          lafVoxelPosD[i], np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                          grid=(len(idxTmp), 1), block=(self.NG, 1, 1))
+            NBlock = 256
+            lafHitRatioD.append(cuda.mem_alloc(len(idxTmp) * 1 * np.float32(0).nbytes))
+            laiPeakCntD.append(cuda.mem_alloc(len(idxTmp) * 1 * np.int32(0).nbytes))
+            self.hitratio_func(np.int32(len(idxTmp)), np.int32(1), np.int32(self.NG),
+                               self.afDetInfoD, self.acExpDetImages, self.aiDetStartIdxD, np.int32(self.NDet),
+                               np.int32(self.NRot),
+                               laiJD[i], laiKD[i], laiRotND[i], labHitD[i],
+                               lafHitRatioD[i], laiPeakCntD[i],
+                               block=(NBlock, 1, 1), grid=((len(idxTmp) *1 )// NBlock + 1, 1))
+            context.synchronize()
+            # memcpy_dtoh
+            cuda.memcpy_dtoh(afFloodHitRatioH, lafHitRatioD[i])
+            cuda.memcpy_dtoh(aiFloodPeakCntH, laiPeakCntD[i])
+            # add voxel index with hitratio larger than threshold
+            print(afFloodHitRatioH)
+            print(np.sum(afFloodHitRatioH>self.floodFillAccptThreshold))
+            idxToAccept.append(np.array(idxTmp)[afFloodHitRatioH>self.floodFillAccptThreshold])
+            # freee up memory
+            lRotMatD[i].free()
+            lafVoxelPosD[i].free()
+            laiRotND[i].free()
+            laiJD[i].free()
+            laiKD[i].free()
+            lafOmegaD[i].free()
+            labHitD[i].free()
+            lafHitRatioD[i].free()
+            laiPeakCntD[i].free()
+        print('idxToAccept: {0}'.format(idxToAccept))
+        idxToAccept = np.concatenate(idxToAccept).ravel()
+        afFloodHitRatioH = np.empty(1 * self.floodFillNumberAngle, dtype=np.float32)
+        aiFloodPeakCntH = np.empty(1 * self.floodFillNumberAngle, dtype=np.int32)
+        lafRotMatD = []
+        lafVoxelPosD = []
+        laiJD = []
+        laiKD = []
+        lafOmegaD = []
+        labHitD = []
+        laiRotND = []
+        lafHitRatioD = []
+        laiPeakCntD = []
+
+        for i, idxTmp in enumerate(idxToAccept):
+            # remove from stage 0
+            try:
+                self.voxelIdxStage0.remove(idxTmp)
+            except ValueError:
+                pass
+            # do one time search:
+            voxelPosTmp = self.voxelpos[idxTmp,:].astype(np.float32)
+            lafVoxelPosD.append(cuda.mem_alloc(voxelPosTmp.nbytes))
+            cuda.memcpy_htod(lafVoxelPosD[i],voxelPosTmp)
+            rotMatH = FZfile.random_angle_around_mat(
+                self.voxelAcceptedMat[self.voxelIdxStage0[0], :, :], self.floodFillNumberAngle,
+                self.floodFillRandomRange, 'Hexagonal').astype(np.float32)
+            lafRotMatD.append(cuda.mem_alloc(rotMatH.nbytes))
+            cuda.memcpy_htod(lafRotMatD[i],rotMatH)
+            # output device parameters:
+            ########GPU memory should be manually allocatede for changing inputs, and output memory needs to be reallocate each time.
+            laiJD.append(cuda.mem_alloc(1 * self.floodFillNumberAngle * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+            laiKD.append(cuda.mem_alloc(1 * self.floodFillNumberAngle * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+            lafOmegaD.append(
+                cuda.mem_alloc(1 * self.floodFillNumberAngle * self.NG * 2 * self.NDet * np.float32(0).nbytes))
+            labHitD.append(
+                cuda.mem_alloc(1 * self.floodFillNumberAngle * self.NG * 2 * self.NDet * np.bool_(0).nbytes))
+            laiRotND.append(
+                cuda.mem_alloc(1 * self.floodFillNumberAngle * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+            # kernel calls
+            self.sim_func(laiJD[i], laiKD[i], lafOmegaD[i], labHitD[i], laiRotND[i], \
+                          np.int32(1), np.int32(self.floodFillNumberAngle), np.int32(self.NG), np.int32(self.NDet),
+                          lafRotMatD[i], self.afGD,
+                          lafVoxelPosD[i], np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                          grid=(1, self.floodFillNumberAngle), block=(self.NG, 1, 1))
+            NBlock = 256
+            lafHitRatioD.append(cuda.mem_alloc(1 * self.floodFillNumberAngle * np.float32(0).nbytes))
+            laiPeakCntD.append(cuda.mem_alloc(1 * self.floodFillNumberAngle * np.int32(0).nbytes))
+            self.hitratio_func(np.int32(1), np.int32(self.floodFillNumberAngle), np.int32(self.NG),
+                               self.afDetInfoD, self.acExpDetImages, self.aiDetStartIdxD, np.int32(self.NDet),
+                               np.int32(self.NRot),
+                               laiJD[i], laiKD[i], laiRotND[i], labHitD[i],
+                               lafHitRatioD[i], laiPeakCntD[i],
+                               block=(NBlock, 1, 1), grid=(1 * self.floodFillNumberAngle // NBlock + 1, 1))
+            context.synchronize()
+
+            # memcpy_dtoh
+            cuda.memcpy_dtoh(afFloodHitRatioH, lafHitRatioD[i])
+            cuda.memcpy_dtoh(aiFloodPeakCntH, laiPeakCntD[i])
+            maxHitratioIdx = np.argmax(afFloodHitRatioH)  # from larges hit ratio to smaller
+            maxHitRatio = afFloodHitRatioH[maxHitratioIdx]
+            maxMat = rotMatH[maxHitratioIdx, :, :]
+            print('flood fill to voxelIdx: {0}, max hitratio: {1}, peakcnt: {2}'.format(idxTmp,
+                                                                                        afFloodHitRatioH[maxHitratioIdx],
+                                                                                        aiFloodPeakCntH[maxHitratioIdx]))
+            self.voxelAcceptedMat[idxTmp,:,:] = RotRep.Orien2FZ(maxMat,'Hexagonal')[0]
+            self.voxelHitRatio[idxTmp] = maxHitRatio
+            # free up memories
+            lafRotMatD[i].free()
+            lafVoxelPosD[i].free()
+            laiRotND[i].free()
+            laiJD[i].free()
+            laiKD[i].free()
+            lafOmegaD[i].free()
+            labHitD[i].free()
+            lafHitRatioD[i].free()
+            laiPeakCntD[i].free()
+        print('fill {0} voxels'.format(idxToAccept.shape))
+        print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
+    def serial_recon_multi_stage(self):
+        # add multiple stage in serial reconstruction:
+        # Todo:
+        #   add flood fill
+        #   add post stage check, refill reconstructed orientations to each voxel.
+        ############# search parameters ######################
+
+        self.searchBatchSize = 20000  # number of orientations to search per GPU call
+        self.NSelect = 100 # number of orientations selected with maximum hitratio from last iteration
+        # try adding multiple stage search, first fz file, then generate random around max hitratio
+        self.load_mic('partial_layer_i9.mic')
+        #self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_Fit1_.mic.LBFS')
+        #self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti7_S18_whole_layer.mic')
+        #self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
+        #self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
+        self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
+        # setup serial Reconstruction rotMatCandidate
+        self.rotMatSearch = np.empty([self.searchBatchSize,3,3])
+        if self.searchBatchSize > self.FZMat.shape[0]:
+            self.rotMatSearch[:self.FZMat.shape[0], :, :] = self.FZMat
+            self.rotMatSearch[self.FZMat.shape[0]:,:,:] = FZfile.generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
+        else:
+            raise ValueError(" search batch size less than FZ file size, please increase search batch size")
+        self.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
+        #self.expData = np.array([[1,2,3,4]])
+        self.cp_expdata_to_gpu()
+
+        # initialize device parameters and outputs
+        self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
+        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+
+        # output device parameters:
+        self.afHitRatioH = np.empty(1 * self.searchBatchSize, dtype=np.float32)
+        self.aiPeakCntH = np.empty(1 * self.searchBatchSize, dtype=np.int32)
+
+        # timing tools:
+        start = cuda.Event()
+        end = cuda.Event()
+        print('==========start of reconstruction======== \n')
+        start.record()  # start timing
+        while self.voxelIdxStage0:
+            # start of simulation
+            voxelIdx = self.voxelIdxStage0[0]
+            afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx,:].astype(np.float32))
+            lOrientationMatD = []
+            laiJD = []
+            laiKD = []
+            lafOmegaD = []
+            labHitD = []
+            laiRotND = []
+            lafHitRatioD = []
+            laiPeakCntD = []
+
+            for i in range(10):
+                #print(i)
+                #print('nvoxel: {0}, norientation:{1}'.format(1, self.searchBatchSize))
+                # update rotation matrix to search
+                if i > 0:
+                    # generate random orientation around cetrain maxMat and then select self.NOrientation of them
+                    #print('start of generating random matrix')
+                    self.rotMatSearch = FZfile.random_angle_around_mat(maxMat, self.searchBatchSize // self.NSelect + 1,
+                                                                         0.5 * (0.7 ** i), 'Hexagonal')[:self.searchBatchSize,
+                                          :, :]
+                    #print('end of generating random matrix')
+                lOrientationMatD.append((cuda.mem_alloc(self.rotMatSearch.astype(np.float32).nbytes)))
+                cuda.memcpy_htod(lOrientationMatD[i], self.rotMatSearch.astype(np.float32))
+
+                # output device parameters:
+                ########GPU memory should be manually allocatede for changing inputs, and output memory needs to be reallocate each time.
+                laiJD.append(cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+                laiKD.append(cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+                lafOmegaD.append(
+                    cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.float32(0).nbytes))
+                labHitD.append(
+                    cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.bool_(0).nbytes))
+                laiRotND.append(
+                    cuda.mem_alloc(1 * self.searchBatchSize * self.NG * 2 * self.NDet * np.int32(0).nbytes))
+                # kernel calls
+                self.sim_func(laiJD[i], laiKD[i], lafOmegaD[i], labHitD[i], laiRotND[i], \
+                              np.int32(1), np.int32(self.searchBatchSize), np.int32(self.NG), np.int32(self.NDet),
+                              lOrientationMatD[i], self.afGD,
+                              afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                              grid=(1, self.searchBatchSize), block=(self.NG, 1, 1))
+                #print('finish sim')
+                NBlock = 256
+                lafHitRatioD.append(cuda.mem_alloc(1 * self.searchBatchSize * np.float32(0).nbytes))
+                laiPeakCntD.append(cuda.mem_alloc(1 * self.searchBatchSize * np.int32(0).nbytes))
+                self.hitratio_func(np.int32(1), np.int32(self.searchBatchSize), np.int32(self.NG),
+                                   self.afDetInfoD, self.acExpDetImages, self.aiDetStartIdxD, np.int32(self.NDet),
+                                   np.int32(self.NRot),
+                                   laiJD[i], laiKD[i], laiRotND[i], labHitD[i],
+                                   lafHitRatioD[i], laiPeakCntD[i],
+                                   block=(NBlock, 1, 1), grid=(1 * self.searchBatchSize // NBlock + 1, 1))
+                #print('finish hitratio')
+
+                context.synchronize()
+
+                # memcpy_dtoh
+                cuda.memcpy_dtoh(self.afHitRatioH, lafHitRatioD[i])
+                cuda.memcpy_dtoh(self.aiPeakCntH, laiPeakCntD[i])
+                maxHitratioIdx = np.argsort(self.afHitRatioH)[:-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
+                maxMat = self.rotMatSearch[maxHitratioIdx, :, :]
+                #print('max hitratio: {0},maxMat: {1}'.format(self.afHitRatioH[maxHitratioIdx[0]], maxMat[0, :, :]))
+                #print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2}'.format(voxelIdx,self.afHitRatioH[maxHitratioIdx[0]],self.aiPeakCntH[maxHitratioIdx[0]]))
+
+                # free up memories
+                lOrientationMatD[i].free()
+                laiRotND[i].free()
+                laiJD[i].free()
+                laiKD[i].free()
+                lafOmegaD[i].free()
+                labHitD[i].free()
+                lafHitRatioD[i].free()
+                laiPeakCntD[i].free()
+            # flood fill process
+            print('nromal reconstruct voxelIdx: {0}, max hitratio: {1}, peakcnt: {2}'.format(voxelIdx, self.afHitRatioH[maxHitratioIdx[0]],self.aiPeakCntH[maxHitratioIdx[0]]))
+            #print('reconstructed euler angle {0}'.format(np.array(RotRep.Mat2EulerZXZ(maxMat[0, :, :]))/np.pi*180))
+            self.voxelAcceptedMat[voxelIdx,:,:] = RotRep.Orien2FZ(maxMat[0,:,:],'Hexagonal')[0]
+            self.voxelHitRatio[voxelIdx] = self.afHitRatioH[maxHitratioIdx[0]]
+            if len(self.voxelIdxStage0)>1 and self.afHitRatioH[maxHitratioIdx[0]] > self.floodFillStartThreshold:
+                self.flood_fill()
+            del self.voxelIdxStage0[0]
+            # update rotMatSearch for next voxel:
+            self.rotMatSearch[:self.FZMat.shape[0], :, :] = self.FZMat
+            self.rotMatSearch[self.FZMat.shape[0]:,:,:] = FZfile.generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
+
+        print('===========end of reconstruction========== \n')
+        end.record()  # end timing
+        end.synchronize()
+        secs = start.time_till(end) * 1e-3
+        print("SourceModule time {0} seconds.".format(secs))
+        # save roconstruction result
+        self.micData[:,6:9] = RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180
+        self.micData[:,9] = self.voxelHitRatio
+        self.save_mic('partial_layer_gpu_outpu.mic')
+        #self.save_mic('whole_layer_recon_test_1_20180125.txt')
     def test_recon_1(self):
         ######################## This is a working version of Reconstruction #################33
         # try adding multiple stage search, first fz file, then generate random around max hitratio
@@ -1533,6 +1859,18 @@ class SimPlot():
 
 
 
+
+def profile_recon_layer():
+    S = Reconstructor_GPU()
+    pr = cProfile.Profile()
+    pr.enable()
+    S.serial_recon_layer()
+    pr.disable()
+    s = StringIO.StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    print s.getvalue()
 class Simulator_old():
     def __init__(self):
         self.voxels = []     # nx3 array,
@@ -1685,17 +2023,23 @@ def calculate_misoren_euler_zxz(euler0,euler1):
     rotMat0 = RotRep.EulerZXZ2Mat(euler0 / 180.0 * np.pi)
     rotMat1 = RotRep.EulerZXZ2Mat(euler1 / 180.0 * np.pi)
     return RotRep.Misorien2FZ1(rotMat0,rotMat1,symtype='Hexagonal')
-if __name__ == "__main__":
+
+def test_floodfill():
     S = Reconstructor_GPU()
-    # S.load_mic('/home/heliu/Dropbox/pycuda/test_recon_one_grain_20180124.txt')
-    # S.oriMatToSim = RotRep.EulerZXZ2MatVectorized(S.micData[:,6:9])
-    # S.run_sim()
-    # S.print_sim_results()
-    S.serial_recon_layer()
+    S.load_mic('/home/heliu/Dropbox/pycuda/test_recon_one_grain_20180124.txt')
+
+    S.flood_fill()
+if __name__ == "__main__":
+    profile_recon_layer()
+    #test_floodfill()
+    #S = Reconstructor_GPU()
+    # S.flood_fill()
+    # # S.oriMatToSim = RotRep.EulerZXZ2MatVectorized(S.micData[:,6:9])
+    # # S.run_sim()
+    # # S.print_sim_results()
+    #S.serial_recon_multi_stage()
     #
     #S.save_mic('test_save_mic.txt')
     # print('voxel pos: {0}, micEuler: {1}.'.format(S.voxelpos,S.micEuler))
-    # S.oriMatToSim = RotRep.EulerZXZ2MatVectorized(self.micEuler)
-    # print('rotmatrices: {0}'.format(S.oriMatToSim))
-    # S.print_sim_results()
+
     #print(calculate_misoren_euler_zxz(np.array([10.1237, 75.4599, 340.791]),np.array([174.956, 55.8283, 182.94])))
