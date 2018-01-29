@@ -135,6 +135,33 @@ def plot_mic(snp,sw,plotType,minConfidence,scattersize=2):
         ax.axis('scaled')
         plt.show()
 
+def plot_square_mic(squareMicData,minHitRatio):
+    '''
+    plot the square mic data
+    image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
+    :param squareMicData: [NVoxelX,NVoxelY,10], each Voxel conatains 10 columns:
+            0-2: voxelpos [x,y,z]
+            3-5: euler angle
+            6: hitratio
+            7: maskvalue. 0: no need for recon, 1: active recon region
+            8: voxelsize
+            9: additional information
+    :return:
+    '''
+    mat = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
+    quat = np.empty([mat.shape[0],4])
+    rod = np.empty([mat.shape[0],3])
+    for i in range(mat.shape[0]):
+        quat[i, :] = RotRep.quaternion_from_matrix(mat[i, :, :])
+        rod[i, :] = RotRep.rod_from_quaternion(quat[i, :])
+    hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
+    img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
+    # make sure display correctly
+    #img[:,:,:] = img[::-1,:,:]
+    img = np.swapaxes(img,0,1)
+    plt.imshow(img,origin='lower')
+    plt.show()
+
 class MicFile():
     def __init__(self,fname):
         self.sw, self.snp=self.read_mic_file(fname)
@@ -262,8 +289,11 @@ def combine_mic():
     plot_mic(snp,sw_77,3,0)
     save_mic_file('eulerangles',snp[:,6:9],1)
 
+def test_plot_square_mic():
+    sMic = np.load('SquareMicTest1.npy')
+    plot_square_mic(sMic, 0.5)
 if __name__ == '__main__':
-
+    test_plot_square_mic()
     # sw,snp = read_mic_file('1000micron9GenSquare0.5.mic')
     #simple_plot(snp,sw,0,0.5)
 
@@ -274,6 +304,6 @@ if __name__ == '__main__':
     #save_mic_file('Cu_combine.mic',snp,sw_82)
     #test_for_dist()
     #test_euler2mat()
-    test_plot_mic()
+    #test_plot_mic()
     #combine_mic()
 
