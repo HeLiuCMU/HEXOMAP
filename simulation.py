@@ -109,7 +109,7 @@ __device__ bool GetPeak_s(int &iJ1,int &iJ2,int &iK1, int &iK2,int &bHit1,int &b
 		const float &fTwoTheta, const float &fEta,const float &fChi,const float &fEtaLimit,
 		const float *afVoxelPos,const float *afDetInfo){
 	/*
-	 *  modified to use shared memory
+	 *  modified to use shared memory, failed to improve speed.
 	 * cDetMat:	char matrix, float[nOmega*nPixelX*nPixelY];
 	 * fVoxelPos float vector, float[3] [x,y,z];
 	 * afDetInfo:   	  	int iNPixelJ=0, iNPixelK=1;
@@ -331,8 +331,8 @@ __device__ bool print_DetInfo(DetInfo *sDetInfo){
 }
 __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *aiRotN,
 		const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
-		const float *afOrientation,const float *afG,const float *afVoxelPos,
-		const float fBeamEnergy, const float fEtaLimit, const float *afDetInfo){
+		const float* __restrict__ afOrientation,const float* __restrict__ afG,const float* __restrict__ afVoxelPos,
+		const float fBeamEnergy, const float fEtaLimit, const float* __restrict__ afDetInfo){
 	/*
 	 * int aiJ: output of J values,len =  iNVoxel*iNOrientation*iNG*2*iNDet
 				basic unit iNVoxel*iNOrientation*iNG*[omega0 of det0, omega0 of det1,omega1,det0,omega1,det1]...
@@ -421,38 +421,6 @@ __global__ void create_bin_expimages(char* acExpDetImages, const int* aiDetStart
 	}
 }
 
-__global__ void cost_val(const int iNVoxel,const int iNOrientation,const int iNG,
-		const float* afDetInfo,const char* acExpDetImages,const int iNDet,const int iNRot,
-		const int* aiJ, const int* aiK,const int* aiRotN, const bool* abHit,
-		float* afHitRatio, int* aiPeakCnt){
-	/*
-	 * acExpDetImages: iNDet*iNRot*NPixelJ*NPixelK matrix, 1 for peak, 0 for no peak;
-	 * aiJ: iNDet*iNVoxel*iNOrientation*iNG*2 ,2 is for omega1 and omega2
-	 * afHitRatio: iNVoxel*iNOrientation: #hitpeak/#allDiffractPeak
-	 * aiHitCnt: iNVoxel*iNOrientation: number of all diffraction Peaks
-	 */
-	int i = blockIdx.x*blockDim.x + threadIdx.x;
-	if(i<iNVoxel*iNOrientation){
-	//printf("i: %d.",i);
-		afHitRatio[i] = 0.0f;
-		aiPeakCnt[i] = 0;
-		for(int k=0;k<iNDet;k++){
-			for(int j=0;j<iNG*2;j++){
-				if(abHit[k*iNVoxel*iNOrientation*iNG*2+i*iNG*2+j]){
-					aiPeakCnt[i]+=1;
-					if(acExpDetImages[k*int(afDetInfo[0])*int(afDetInfo[1])*iNRot
-					                  +aiRotN[k*iNVoxel*iNOrientation*iNG+i*iNG*2+j]*int(afDetInfo[0])*int(afDetInfo[1])
-					                  +aiK[k*iNVoxel*iNOrientation*iNG+i*iNG*2+j]*int(afDetInfo[0])
-					                  +aiJ[k*iNVoxel*iNOrientation*iNG+i*iNG*2+j]] == 1){
-						afHitRatio[i] +=1;
-					}
-				}
-			}
-		}
-		afHitRatio[i] = afHitRatio[i]/float(aiPeakCnt[i]);
-	}
-
-}
 
 __global__ void hitratio_multi_detector_old_backup(const int iNVoxel,const int iNOrientation,const int iNG,
 		const float* afDetInfo,const char* __restrict__ acExpDetImages, const int* aiDetStartIdx, const int iNDet,const int iNRot,
@@ -584,7 +552,7 @@ __global__ void hitratio_multi_detector_backup_20180206(const int iNVoxel,const 
 }
 
 __global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientation,const int iNG,
-		const float* __restrict__ afDetInfo, const int* __restrict__ aiDetStartIdx, const int iNDet,const int iNRot,
+		const float* __restrict__ afDetInfo, const int iNDet,const int iNRot,
 		const int* aiJ, const int* aiK,const int* aiRotN, const bool* abHit,
 		float* afHitRatio, int* aiPeakCnt){
 	/*
@@ -1854,7 +1822,7 @@ class Reconstructor_GPU():
         aiPeakCntD = cuda.mem_alloc(NVoxel * NOrientation * np.int32(0).nbytes)
         NBlock = 256
         self.hitratio_func(np.int32(NVoxel), np.int32(NOrientation), np.int32(self.NG),
-                           self.afDetInfoD, self.aiDetStartIdxD, np.int32(self.NDet),
+                           self.afDetInfoD, np.int32(self.NDet),
                            np.int32(self.NRot),
                            aiJD, aiKD, aiRotND, abHitD,
                            afHitRatioD, aiPeakCntD,texrefs=[self.texref],
@@ -2000,7 +1968,7 @@ class Reconstructor_GPU():
         start.record()  # start timing
 
         for voxelIdx in self.voxelIdxStage0:
-            self.single_voxel_recon_acc0(voxelIdx, afFZMatD,self.searchBatchSize)
+            self.single_voxel_recon(voxelIdx, afFZMatD,self.searchBatchSize)
         print('===========end of reconstruction========== \n')
         end.record()  # end timing
         end.synchronize()
@@ -2364,7 +2332,7 @@ class Reconstructor_GPU():
 
             # this is the most time cosuming part, 0.03s per iteration
             self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
-                               self.afDetInfoD, self.aiDetStartIdxD, np.int32(self.NDet),
+                               self.afDetInfoD, np.int32(self.NDet),
                                np.int32(self.NRot),
                                aiJD, aiKD, aiRotND, abHitD,
                                afHitRatioD, aiPeakCntD,texrefs=[self.texref],
@@ -2807,7 +2775,7 @@ def test_tex_mem():
     S.create_square_mic([10,10],voxelsize=0.01)
     S.squareMicOutFile = 'SearchBatchSize_13000_10x10_0.01_tex_mem_run0.npy'
     S.searchBatchSize = 13000
-    S.serial_recon_layer_tex_mem()
+    S.serial_recon_layer()
     #S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
 
 def recon_example():
@@ -2827,7 +2795,7 @@ def recon_example():
     S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
 
 if __name__ == "__main__":
-    #test_tex_mem()
+    test_tex_mem()
     #grain_boundary()
-    recon_example()
+    #recon_example()
     #squareMicMIsOrienMap()
