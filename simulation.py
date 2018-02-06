@@ -23,7 +23,7 @@ mod = SourceModule("""
 #include <stdio.h>
 const float PI = 3.14159265359;
 const float HALFPI = 0.5*PI;
-
+texture<unsigned char, cudaTextureType3D, cudaReadModeElementType> tcExpData;
 typedef struct {
     int iNPixelJ, iNPixelK;
     float fPixelJ, fPixelK;
@@ -104,7 +104,113 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
 }
 
 
-__device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,float &fOmega1, float &fOmega2,bool &bHit1,bool &bHit2,
+__device__ bool GetPeak_s(int &iJ1,int &iJ2,int &iK1, int &iK2,int &bHit1,int &bHit2,
+		const float &fOmegaRes1, const float &fOmegaRes2,
+		const float &fTwoTheta, const float &fEta,const float &fChi,const float &fEtaLimit,
+		const float *afVoxelPos,const float *afDetInfo){
+	/*
+	 *  modified to use shared memory
+	 * cDetMat:	char matrix, float[nOmega*nPixelX*nPixelY];
+	 * fVoxelPos float vector, float[3] [x,y,z];
+	 * afDetInfo:   	  	int iNPixelJ=0, iNPixelK=1;
+    						float fPixelJ=2, fPixelK=3;
+							float afCoordOrigin[3]=[4,5,6];
+							float afNorm[3]=[7,8,9];
+							float afJVector[3][10,11,12];
+							float afKVector[3]=[13,14,15];
+	 */
+	if (fChi>= 0.5*PI){
+		bHit1 = 0;
+		bHit2 = 0;
+		return false;
+	}
+	else if(fEta>fEtaLimit){
+		bHit1 = 0;
+		bHit2 = 0;
+		return false;
+	}
+	bHit1 = 0;
+	bHit2 = 0;
+	if ((-HALFPI<=fOmegaRes1) && (fOmegaRes1<=HALFPI)){
+		float fVoxelPosX = cos(fOmegaRes1)*afVoxelPos[0] - sin(fOmegaRes1)*afVoxelPos[1];
+		float fVoxelPosY = cos(fOmegaRes1)*afVoxelPos[1] + sin(fOmegaRes1)*afVoxelPos[0];
+		float fVoxelPosZ = afVoxelPos[2];
+		float fDist;
+		fDist = afDetInfo[7]*(afDetInfo[4] - fVoxelPosX)
+				+ afDetInfo[8]*(afDetInfo[5] - fVoxelPosY)
+				+ afDetInfo[9]*(afDetInfo[6] - fVoxelPosZ);
+		float afScatterDir[3]; //scattering direction
+		afScatterDir[0] = cos(fTwoTheta);
+		afScatterDir[1] = sin(fTwoTheta) * sin(fEta);
+		afScatterDir[2] = sin(fTwoTheta) * cos(fEta);
+		float afInterPos[3];
+		float fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
+		                          + afDetInfo[8]*afScatterDir[1]
+		                          + afDetInfo[9]*afScatterDir[2];
+		afInterPos[0] = fDist / fAngleNormScatter * afScatterDir[0] + fVoxelPosX;
+		afInterPos[1] = fDist / fAngleNormScatter * afScatterDir[1] + fVoxelPosY;
+		afInterPos[2] = fDist / fAngleNormScatter * afScatterDir[2] + fVoxelPosZ;
+		float fJ,fK;
+		fJ = (afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
+				+ afDetInfo[11]*(afInterPos[1]-afDetInfo[5])
+				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2];
+		fK = (afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
+				+ afDetInfo[14]*(afInterPos[1]-afDetInfo[5])
+				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3];
+		int iJ = (int)fJ;
+		int iK = (int)fK;
+		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
+			iJ1 = iJ;
+			iK1 = iK;
+			bHit1 = 1;
+		}
+		else{
+			bHit1 = 0;
+		}
+	}
+
+	if ((-HALFPI<=fOmegaRes2) && (fOmegaRes2<=HALFPI)){
+		float fVoxelPosX = cos(fOmegaRes2)*afVoxelPos[0] - sin(fOmegaRes2)*afVoxelPos[1];
+		float fVoxelPosY = cos(fOmegaRes2)*afVoxelPos[1] + sin(fOmegaRes2)*afVoxelPos[0];
+		float fVoxelPosZ = afVoxelPos[2];
+		float fDist;
+		fDist = afDetInfo[7]*(afDetInfo[4] - fVoxelPosX)
+				+ afDetInfo[8]*(afDetInfo[5] - fVoxelPosY)
+				+ afDetInfo[9]*(afDetInfo[6] - fVoxelPosZ);
+		float afScatterDir[3]; //scattering direction
+		afScatterDir[0] = cos(fTwoTheta);
+		afScatterDir[1] = sin(fTwoTheta) * sin(-fEta);  // caution: -fEta!!!!!!
+		afScatterDir[2] = sin(fTwoTheta) * cos(-fEta);  // caution: -fEta!!!!!!
+		float afInterPos[3];
+		float fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
+		                          + afDetInfo[8]*afScatterDir[1]
+		                          + afDetInfo[9]*afScatterDir[2];
+		afInterPos[0] = fDist / fAngleNormScatter * afScatterDir[0] + fVoxelPosX;
+		afInterPos[1] = fDist / fAngleNormScatter * afScatterDir[1] + fVoxelPosY;
+		afInterPos[2] = fDist / fAngleNormScatter * afScatterDir[2] + fVoxelPosZ;
+		float fJ,fK;
+		fJ = (afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
+				+ afDetInfo[11]*(afInterPos[1]-afDetInfo[5])
+				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2];
+		fK = (afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
+				+ afDetInfo[14]*(afInterPos[1]-afDetInfo[5])
+				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3];
+		int iJ = (int)fJ;
+		int iK = (int)fK;
+		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
+			iJ2 = iJ;
+			iK2 = iK;
+			bHit2 = 1;
+		}
+		else{
+			bHit2 = 0;
+		}
+	}
+	return true;
+
+}
+
+__device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,bool &bHit1,bool &bHit2,
 		const float &fOmegaRes1, const float &fOmegaRes2,
 		const float &fTwoTheta, const float &fEta,const float &fChi,const float &fEtaLimit,
 		const float *afVoxelPos,const float *afDetInfo){
@@ -162,7 +268,7 @@ __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,float &fOmega1, flo
 		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
 			iJ1 = iJ;
 			iK1 = iK;
-			fOmega1 = fOmegaRes1;
+			//fOmega1 = fOmegaRes1;
 			bHit1 = true;
 		}
 		else{
@@ -201,7 +307,7 @@ __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,float &fOmega1, flo
 		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
 			iJ2 = iJ;
 			iK2 = iK;
-			fOmega2 = fOmegaRes2;
+			//fOmega2 = fOmegaRes2;
 			bHit2 = true;
 		}
 		else{
@@ -211,6 +317,7 @@ __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,float &fOmega1, flo
 	return true;
 
 }
+
 
 __device__ bool print_DetInfo(DetInfo *sDetInfo){
 	printf("afCoordOrigin: %f %f %f", sDetInfo->afCoordOrigin[0], sDetInfo->afCoordOrigin[1], sDetInfo->afCoordOrigin[2]);
@@ -269,17 +376,19 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 		int i = blockIdx.x*gridDim.y*blockDim.x*2*iNDet+ blockIdx.y*blockDim.x*2*iNDet + threadIdx.x*2*iNDet;
 		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
 			GetPeak(aiJ[i+iDetIdx],aiJ[i+iDetIdx+iNDet],aiK[i+iDetIdx],aiK[i+iDetIdx+iNDet],
-					afOmega[i+iDetIdx],afOmega[i+iDetIdx+iNDet],abHit[i+iDetIdx],abHit[i+iDetIdx+iNDet],
+					abHit[i+iDetIdx],abHit[i+iDetIdx+iNDet],
 					fOmegaRes1, fOmegaRes2,fTwoTheta,
 					fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
 			//printf("%f %f %f || ", (afVoxelPos+blockIdx.x*3)[0],(afVoxelPos+blockIdx.x*3)[1],(afVoxelPos+blockIdx.x*3)[2]);
 			//printf("blockIdx: %d || ",blockIdx.x);
 			if(abHit[i+iDetIdx]){
 				////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
+				afOmega[i+iDetIdx] = fOmegaRes1;
 				aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
 				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
 			}
 			if(abHit[i+iDetIdx+iNDet]){
+			    afOmega[i+iDetIdx+iNDet] = fOmegaRes2;
 				aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
 				//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
 			}
@@ -412,12 +521,13 @@ __global__ void hitratio_multi_detector_old_backup(const int iNVoxel,const int i
 	}
 }
 
-__global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientation,const int iNG,
+__global__ void hitratio_multi_detector_backup_20180206(const int iNVoxel,const int iNOrientation,const int iNG,
 		const float* __restrict__ afDetInfo,const char* __restrict__ acExpDetImages, const int* __restrict__ aiDetStartIdx, const int iNDet,const int iNRot,
 		const int* aiJ, const int* aiK,const int* aiRotN, const bool* abHit,
 		float* afHitRatio, int* aiPeakCnt){
 	/*
 	 * this version runs faster than hitratio_multi_detector_old_backup, no error so far.
+	 * now 100x100 takes 15s
 	 * If set block=(16,1,1) 100x100 will reach 25s.
 	 * 100x100 31s, original: 43s, improved!
 	 * calculate hit ratio with multiple detector input
@@ -458,6 +568,76 @@ __global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientatio
                                  + aiRotN[idx]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
                                   + aiK[idx]*int(afDetInfo[0+19*k])
                                   + aiJ[idx]];
+                k += 1;
+            }
+            iPeakCnt += allTrue0;
+			fHitRatio += allTrue1;
+		}
+		aiPeakCnt[i] = iPeakCnt;
+		if(iPeakCnt>0){
+		    afHitRatio[i] = fHitRatio/float(iPeakCnt);
+		}
+		else{
+			afHitRatio[i]=0;
+		}
+	}
+}
+
+__global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientation,const int iNG,
+		const float* __restrict__ afDetInfo, const int* __restrict__ aiDetStartIdx, const int iNDet,const int iNRot,
+		const int* aiJ, const int* aiK,const int* aiRotN, const bool* abHit,
+		float* afHitRatio, int* aiPeakCnt){
+	/*
+	 * 100x100 voxel takes 13.8123515625s
+	 * This version using texture memory to storage tcExpData
+	 * this version optimize some detail, runs faster than hitratio_multi_detector_old_backup, no error so far.
+	 * now 100x100 takes 15s
+	 * If set block=(16,1,1) 100x100 will reach 25s.
+	 * 100x100 31s, original: 43s, improved!
+	 * calculate hit ratio with multiple detector input
+	 * consider as hit only when the peak hit all the detectors
+	 * acExpDetImages: Sigma_i(iNDet*iNRot*NPixelJ[i]*NPixelK[i]),i for different detector matrix, 1 for peak, 0 for no peak;
+	 * aiDetStartIdx:   index of Detctor start postition in self.acExpDetImages,
+	 * 					e.g. 3 detectors with size 2048x2048, 180 rotations,
+	 * 			 		aiDetStartIdx = [0,180*2048*2048,2*180*2048*2048]
+	 * aiJ: iNDet*iNVoxel*iNOrientation*iNG*2*iDet ,2 is for omega1 and omega2
+	 * afHitRatio: iNVoxel*iNOrientation: #hitpeak/#allDiffractPeak
+	 * aiHitCnt: iNVoxel*iNOrientation: number of all diffraction Peaks hit on detector in the simulation
+	 */
+	 //printf("start hitratio ||");
+
+	int i = blockIdx.x*blockDim.x + threadIdx.x;
+	bool allTrue0; // if a simulated peak hit all detector, allTrue0 = true;
+	bool allTrue1; // if a simulated peak overlap with all expimages on all detector, allTrue1 = true;
+	int k;
+	int iPeakCnt;
+	float fHitRatio;
+	int idx;
+
+	if(i<iNVoxel*iNOrientation){
+	    iPeakCnt = 0;
+	    fHitRatio = 0;
+		for(int j=0;j<iNG*2;j++){
+		    //printf("j: %d ||",j);
+			allTrue0 = true;
+			allTrue1 = true;
+			k = 0;
+			while(allTrue0 && k<iNDet){
+				allTrue0 *= abHit[i*iNG*2*iNDet+j*iNDet+k];
+				k += 1;
+			}
+			allTrue1 = allTrue0;
+            k = 0;
+            while(allTrue1 && k<iNDet){
+                idx = i*iNG*2*iNDet+j*iNDet+k;
+                allTrue1 *= tex3D(tcExpData,(float)aiJ[idx], (float)aiK[idx],(float)(k*iNRot + aiRotN[idx]) );
+                //if (threadIdx.x==0 && blockIdx.x==0){
+                //    printf("%d  %d ||",tex3D(tcExpData,(float)aiJ[idx], (float)aiK[idx],(float)(k*iNRot + aiRotN[idx]) ),
+                //    acExpDetImages[aiDetStartIdx[k]
+                //                 + aiRotN[idx]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
+                //                  + aiK[idx]*int(afDetInfo[0+19*k])
+                //                  + aiJ[idx]]);
+                //}
                 k += 1;
             }
             iPeakCnt += allTrue0;
@@ -665,7 +845,7 @@ __device__ void d_misorien(float& fMisOrien, float* afM0, float* afM1, float* af
     fMisOrien = acosf(fCosAngle);
 }
 
-__global__ void sim_hitratio_unit(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *aiRotN,
+__global__ void sim_hitratio_unit_backup20180206(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *aiRotN,
 		const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
 		const float *afOrientation,const float *afG,const float *afVoxelPos,
 		const float fBeamEnergy, const float fEtaLimit, const float *afDetInfo,
@@ -700,12 +880,11 @@ __global__ void sim_hitratio_unit(int *aiJ, int *aiK, float *afOmega, bool *abHi
 		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
 		}
 	}
-	//printf("%f,%f,%f ||",afScatteringVec[0],afScatteringVec[1],afScatteringVec[1]);
 	int idx = blockIdx.x*gridDim.y*blockDim.x*2*iNDet+ blockIdx.y*blockDim.x*2*iNDet + threadIdx.x*2*iNDet;
 	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
 		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
 			GetPeak(aiJ[idx+iDetIdx],aiJ[idx+iDetIdx+iNDet],aiK[idx+iDetIdx],aiK[idx+iDetIdx+iNDet],
-					afOmega[idx+iDetIdx],afOmega[idx+iDetIdx+iNDet],abHit[idx+iDetIdx],abHit[idx+iDetIdx+iNDet],
+					abHit[idx+iDetIdx],abHit[idx+iDetIdx+iNDet],
 					fOmegaRes1, fOmegaRes2,fTwoTheta,
 					fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
 			if(abHit[idx+iDetIdx]){
@@ -742,7 +921,7 @@ __global__ void sim_hitratio_unit(int *aiJ, int *aiK, float *afOmega, bool *abHi
     }
     __syncthreads();
 
-    if(threadIdx.x==iNG-1){
+    if(threadIdx.x==0){
         int iPeakCnt = 0;
         float fHitRatio = 0;
         for(int j=0;j<2;j++){
@@ -761,6 +940,95 @@ __global__ void sim_hitratio_unit(int *aiJ, int *aiK, float *afOmega, bool *abHi
     }
 }
 
+__global__ void sim_hitratio_unit(const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
+		const float *afOrientation,const float *afG,const float *afVoxelPos,
+		const float fBeamEnergy, const float fEtaLimit, const float *afDetInfo,
+		float* afHitRatio, int* aiPeakCnt){
+	/*
+	* performance drops...
+	 *Try to use shared memory to store j,k,omega,hit, and rotN, use texture memory to access expdata
+	 * int aiJ: output of J values,len =  iNVoxel*iNOrientation*iNG*2*iNDet
+				basic unit iNVoxel*iNOrientation*iNG*[omega0 of det0, omega0 of det1,omega1,det0,omega1,det1]...
+	 * int aiK: len =  iNVoxel*iNOrientation*iNG*2*iNDet
+	 * float afOmega: len =  iNVoxel*iNOrientation*iNG*2*iNDet
+	 * bool abHit: len =  iNVoxel*iNOrientation*iNG*2*iNDet
+	 * int *aiRotN, the number of image that the peak is on, len=iNVoxel*iNOrientation*2*iNDet
+	 * int iNVoxel: number of voxels
+	 * int iNOrientation: number of orientations on each voxel
+	 * int iNG: number of reciprocal vector on each diffraction process
+	 * float *afOrientation: the array of all the orientation matrices of all the voxels,len=iNVoxel*iNOrientaion*9
+	 * float *afG: list of reciprical vector len=iNG*3
+	 * float *afVoxelPos: location of the voxels, len=iNVoxel*3;
+	 * afDetInfo: [det0,det1,...], iNDet*19;
+	 * number of
+	 * the dimesion of GPU grid should be iNVoxel*iNOrientation*iNG
+	 * <<< (iNVoxel,iNOrientation),(iNG)>>>;
+	 */
+	 //////////////////////////// simulation part ////////////////////////////////////////
+	extern __shared__ int aiSimResult[]; // iNG*2*4*iNDet, each storage is [jo0d0,ko0d0,Ro0d0,ho0d0,jo0d1,ko0d1...jo1d0,ko1d0...]
+	float fOmegaRes1,fOmegaRes2,fTwoTheta,fEta,fChi;
+	float afScatteringVec[3]={0,0,0};
+	for (int i=0;i<3;i++){
+		for(int j=0;j<3;j++){
+			afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
+		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
+		}
+	}
+	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
+		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
+			GetPeak_s(aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 0], aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 0],
+			        aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 1], aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 1],
+					aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 3], aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 3],
+					fOmegaRes1,fOmegaRes2,
+                    fTwoTheta,fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
+			if( aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 3]){
+				////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
+				aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 2] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
+			}
+			if( aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 3]){
+				aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 2] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
+			}
+		}
+	}
+	__syncthreads();
+	/////////////////////////////// hit ratio part ///////////////////////////////////////
+	/*
+	if(threadIdx.x==0){
+	    int i = blockIdx.x * blockDim.y + blockIdx.y;
+		bool allTrue0; // if a simulated peak hit all detector, allTrue0 = true;
+        bool allTrue1; // if a simulated peak overlap with all expimages on all detector, allTrue1 = true;
+        int k;
+        int iPeakCnt = 0;
+        float fHitRatio = 0;
+        int iNRot = (int)afDetInfo[16];
+		for(int j=0;j<iNG*2;j++){
+		    //printf("j: %d ||",j);
+			allTrue0 = true;
+			allTrue1 = true;
+			k = 0;
+			while(allTrue0 && k<iNDet){
+				allTrue0 *= aiSimResult[j*4*iNDet + k*4 + 3]; //abHit[i*iNG*2*iNDet+j*iNDet+k];
+				k += 1;
+			}
+			allTrue1 = allTrue0;
+            k = 0;
+            while(allTrue1 && k<iNDet){
+                allTrue1 *= tex3D(tcExpData,(float)aiSimResult[j*4*iNDet + k*4 + 0], (float)aiSimResult[j*4*iNDet + k*4 + 1],(float)(k*iNRot + aiSimResult[j*4*iNDet + k*4 + 2]) );
+                k += 1;
+            }
+            iPeakCnt += allTrue0;
+			fHitRatio += allTrue1;
+		}
+		aiPeakCnt[i] = iPeakCnt;
+		if(iPeakCnt>0){
+		    afHitRatio[i] = fHitRatio/float(iPeakCnt);
+		}
+		else{
+			afHitRatio[i]=0;
+		}
+	}
+	*/
+}
 
 
 """)
@@ -858,7 +1126,7 @@ class Reconstructor_GPU():
         self.floodFillStartThreshold = 0.61 # orientation with hit ratio larger than this value is used for flood fill.
         self.floodFillSelectThreshold = 0.6 # voxels with hitratio less than this value will be reevaluated in flood fill process.
         self.floodFillAccptThreshold = 0.6  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
-        self.floodFillRandomRange = 0.001   # voxel in fill process will generate random angles in this window
+        self.floodFillRandomRange = 0.005   # voxel in fill process will generate random angles in this window
         self.floodFillNumberAngle = 1000 # number of rangdom angles generated to voxel in voxelIdxStage1
         self.floodFillNumberVoxel = 20000  # number of orientations for flood fill process each time, due to GPU memory size.
         self.floodFillNIteration = 2       # number of iteration for flood fill angles
@@ -884,6 +1152,13 @@ class Reconstructor_GPU():
         # initialize device parameters and outputs
         self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+
+    def geometry_optimizer(self):
+        '''
+        optimize geometry of HEDM setup
+        :return:
+        '''
+        pass
 
     def hitratio_cpu(self, aJ, aK, aRotN, aHit, NVoxel, NOrientation):
         '''
@@ -988,7 +1263,7 @@ class Reconstructor_GPU():
                 rotMatSeed = accMat[xMin[i]:xMin[i]+self.postOriSeedWindow,yMin[i]:yMin[i]+self.postOriSeedWindow,:].astype(np.float32)
                 rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
                 rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom,self.postRandomRange)
-                self.single_voxel_recon_acc0(idx,rotMatSearchD,self.postNRandom * self.postOriSeedWindow ** 2,
+                self.single_voxel_recon(idx,rotMatSearchD,self.postNRandom * self.postOriSeedWindow ** 2,
                                         NIteration=self.postNIteration, BoundStart=self.postRandomRange)
             accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
             misOrienTmpNew = misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
@@ -1210,7 +1485,7 @@ class Reconstructor_GPU():
         self.expData = np.concatenate([np.concatenate(lDet,axis=0),np.concatenate(lRot,axis=0),np.concatenate(lJ,axis=0),np.concatenate(lK,axis=0)],axis=1)
         print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
 
-    def cp_expdata_to_gpu(self):
+    def cp_expdata_to_gpu_bakcup_20180206(self):
         # require have defiend self.NDet,self.NRot, and Detctor informations;
         #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
@@ -1333,7 +1608,7 @@ class Reconstructor_GPU():
 
         #self.print_sim_results()
 
-    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
+    def single_voxel_recon_v20180205(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
         # This is the most robust version of single voxel recon
         # reconstruction of single voxel
         afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
@@ -1364,7 +1639,7 @@ class Reconstructor_GPU():
         self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], 'Hexagonal')[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
         del afVoxelPosD
-    def single_voxel_recon_acc0(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
+    def single_voxel_recon_v20180206(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
         '''
         THis is a working version, no error so far as 20180130
         try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
@@ -1396,7 +1671,7 @@ class Reconstructor_GPU():
                 rotMatSearchD = afFZMatD.copy()
             else:
                 rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.7 ** i))
+                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
 
             #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
             # kernel calls
@@ -1453,8 +1728,10 @@ class Reconstructor_GPU():
         self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], 'Hexagonal')[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
         del afVoxelPosD
+
     def single_voxel_recon_acc1(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
         '''
+        # this version tries to use kernal that combines sim and hit ratio.
         THis is a working version, no error so far as 20180130
         try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
         :param voxelIdx:
@@ -1540,7 +1817,7 @@ class Reconstructor_GPU():
         :param afFZMatD:
         :return:
         '''
-        self.single_voxel_recon_acc0(voxelIdx, afFZMatD, self.searchBatchSize)
+        self.single_voxel_recon(voxelIdx, afFZMatD, self.searchBatchSize)
         if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
             self.flood_fill(voxelIdx)
             self.NFloodFill += 1
@@ -1577,10 +1854,10 @@ class Reconstructor_GPU():
         aiPeakCntD = cuda.mem_alloc(NVoxel * NOrientation * np.int32(0).nbytes)
         NBlock = 256
         self.hitratio_func(np.int32(NVoxel), np.int32(NOrientation), np.int32(self.NG),
-                           self.afDetInfoD, self.acExpDetImages, self.aiDetStartIdxD, np.int32(self.NDet),
+                           self.afDetInfoD, self.aiDetStartIdxD, np.int32(self.NDet),
                            np.int32(self.NRot),
                            aiJD, aiKD, aiRotND, abHitD,
-                           afHitRatioD, aiPeakCntD,
+                           afHitRatioD, aiPeakCntD,texrefs=[self.texref],
                            block=(NBlock, 1, 1), grid=((NVoxel * NOrientation - 1) // NBlock + 1, 1))
         # print('finish sim')
         # memcpy_dtoh
@@ -1734,6 +2011,7 @@ class Reconstructor_GPU():
         self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
         self.save_square_mic(self.squareMicOutFile)
         #self.save_mic('test_recon_one_grain_gpu_random_out.txt')
+
     def fill_neighbour(self):
         '''
         NOT FINISHED, seems no need.
@@ -1831,7 +2109,7 @@ class Reconstructor_GPU():
             # do one time search:
             rotMatSearchD = self.gen_random_matrix(gpuarray.to_gpu(self.voxelAcceptedMat[voxelIdx, :, :].astype(np.float32)),
                                                    1, self.floodFillNumberAngle, self.floodFillRandomRange)
-            self.single_voxel_recon_acc0(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
+            self.single_voxel_recon(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
             # if self.voxelHitRatio[idxTmp]>self.floodFillSelectThreshold:
             try:
                 self.voxelIdxStage0.remove(idxTmp)
@@ -1877,7 +2155,7 @@ class Reconstructor_GPU():
         while self.voxelIdxStage0:
             # start of simulation
             voxelIdx = random.choice(self.voxelIdxStage0)
-            self.single_voxel_recon_acc0(voxelIdx, afFZMatD,self.searchBatchSize)
+            self.single_voxel_recon(voxelIdx, afFZMatD,self.searchBatchSize)
             if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
                 self.flood_fill(voxelIdx)
                 self.NFloodFill += 1
@@ -1988,6 +2266,220 @@ class Reconstructor_GPU():
         afRandD = self.randomGenerator.gen_uniform(NNeighbour * NMatIn * 3, np.float32)
         self.rand_mat_neighb_from_euler(eulerD, matOutD, afRandD, np.float32(bound), grid=(NNeighbour, 1), block=(NMatIn, 1, 1))
         return matOutD
+
+    def cp_expdata_to_gpu(self):
+        # try to use texture memory, assuming all detector have same size.
+        # require have defiend self.NDet,self.NRot, and Detctor informations;
+        #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
+        #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
+        print('=============start of copy exp data to gpu ===========')
+        if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
+            raise ValueError(' This version requare all detector have same dimension')
+        if self.expData.shape[1]!=4:
+            raise ValueError('expdata shape should be n_peaks*4')
+        if np.max(self.expData[:,0])>self.NDet-1:
+            raise ValueError('expData contains detector index out of bound')
+        if np.max(self.expData[:,1])>self.NRot-1:
+            raise  ValueError('expData contaisn rotation number out of bound')
+        self.aiDetStartIdxH = [0] # index of Detctor start postition in self.acExpDetImages, e.g. 3 detectors with size 2048x2048, 180 rotations, self.aiDetStartIdx = [0,180*2048*2048,2*180*2048*2048]
+        self.iExpDetImageSize = 0
+        for i in range(self.NDet):
+            self.iExpDetImageSize += self.NRot*self.detectors[i].NPixelJ*self.detectors[i].NPixelK
+            if i<(self.NDet-1):
+                self.aiDetStartIdxH.append(self.iExpDetImageSize)
+        # check is detector size boyond the number int type could hold
+        if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
+            raise ValueError("detector image size {0} is wrong, \n\
+                             possible too large detector size\n\
+                            currently use int type as detector pixel index\n\
+                            future implementation use lognlong will solve this issure")
+
+        self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
+        self.acExpDetImages = gpuarray.zeros([self.NDet*self.NRot,self.detectors[0].NPixelK,self.detectors[0].NPixelJ],np.int8)   # experimental image data on GPUlen=sigma_i(NDet*NRot*NPixelJ[i]*NPxielK[i])
+        self.aiDetStartIdxD = gpuarray.to_gpu(self.aiDetStartIdxH.astype(np.int32))
+        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+
+        self.aiDetIndxD = gpuarray.to_gpu(self.expData[:, 0].ravel().astype(np.int32))
+        self.aiRotND = gpuarray.to_gpu(self.expData[:, 1].ravel().astype(np.int32))
+        self.aiJExpD = gpuarray.to_gpu(self.expData[:, 2].ravel().astype(np.int32))
+        self.aiKExpD = gpuarray.to_gpu(self.expData[:, 3].ravel().astype(np.int32))
+        self.iNPeak = np.int32(self.expData.shape[0])
+        create_bin_expimages = mod.get_function("create_bin_expimages")
+        create_bin_expimages(self.acExpDetImages, self.aiDetStartIdxD, self.afDetInfoD, np.int32(self.NDet), np.int32(self.NRot),
+                             self.aiDetIndxD, self.aiRotND, self.aiJExpD, self.aiKExpD, self.iNPeak, block=(256,1,1),grid=(self.iNPeak//256+1,1))
+        # create texture memory
+        self.texref = mod.get_texref("tcExpData")
+        print('start of creating texture memory')
+        self.texref.set_array(cuda.gpuarray_to_array(self.acExpDetImages,order='C'))
+        self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
+        del self.acExpDetImages
+        print('end of creating texture memory')
+        #del self.acExpDetImages
+        print('=============end of copy exp data to gpu ===========')
+    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
+        '''
+        This version tries to use texture memory
+        THis is a working version, no error so far as 20180130
+        try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
+        :param voxelIdx:
+        :param afFZMatD:
+        :param NSearchOrien:
+        :param NIteration:
+        :param BoundStart:
+        :return:
+        '''
+        # reconstruction of single voxel
+        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
+        NVoxel = 1
+        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
+        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
+        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
+        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
+        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
+        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
+        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
+        for i in range(NIteration):
+            # print(i)
+            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
+            # update rotation matrix to search
+            if i == 0:
+                rotMatSearchD = afFZMatD.copy()
+            else:
+                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
+                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
+
+            #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
+            # kernel calls
+            #start = time.time()
+            self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
+                          np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
+                          rotMatSearchD, self.afGD,
+                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                          grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
+
+            # this is the most time cosuming part, 0.03s per iteration
+            self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
+                               self.afDetInfoD, self.aiDetStartIdxD, np.int32(self.NDet),
+                               np.int32(self.NRot),
+                               aiJD, aiKD, aiRotND, abHitD,
+                               afHitRatioD, aiPeakCntD,texrefs=[self.texref],
+                               block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
+
+            # print('finish sim')
+            # memcpy_dtoh
+            context.synchronize()
+
+            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
+            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
+            #end = time.time()
+            #print("SourceModule time {0} seconds.".format(end-start))
+            maxHitratioIdx = np.argsort(afHitRatioH)[
+                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
+            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
+            for jj in range(1, 9):
+                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
+            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
+            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
+            del rotMatSearchD
+        aiJD.free()
+        aiKD.free()
+        afOmegaD.free()
+        abHitD.free()
+        aiRotND.free()
+        afHitRatioD.free()
+        aiPeakCntD.free()
+        maxMat = maxMatD.get().reshape([-1, 3, 3])
+        print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
+                                                                                                    afHitRatioH[
+                                                                                                        maxHitratioIdx[
+                                                                                                            0]],
+                                                                                                    aiPeakCntH[
+                                                                                                        maxHitratioIdx[
+                                                                                                            0]],
+                                                                                                    np.array(
+                                                                                                        RotRep.Mat2EulerZXZ(
+                                                                                                            maxMat[0, :,
+                                                                                                            :])) / np.pi * 180))
+        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], 'Hexagonal')[0]
+        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
+        del afVoxelPosD
+
+    def single_voxel_recon_acc3(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
+        '''
+        failed!
+        combine shared memory and texture memory
+        # this version tries to use kernal that combines sim and hit ratio.
+        THis is a working version, no error so far as 20180130
+        try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
+        :param voxelIdx:
+        :param afFZMatD:
+        :param NSearchOrien:
+        :param NIteration:
+        :param BoundStart:
+        :return:
+        '''
+        # reconstruction of single voxel
+        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
+        NVoxel = 1
+        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
+        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
+        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
+        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
+        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
+        for i in range(NIteration):
+            # print(i)
+            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
+            # update rotation matrix to search
+            if i == 0:
+                rotMatSearchD = afFZMatD.copy()
+            else:
+                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
+                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.7 ** i))
+
+            #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
+            # kernel calls
+            self.sim_hitratio_unit(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
+                          rotMatSearchD, self.afGD,
+                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                          afHitRatioD, aiPeakCntD,texrefs=[self.texref],
+                          grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1),shared=self.NG*8*self.NDet*(np.int32(0).nbytes))
+            # memcpy_dtoh
+            context.synchronize()
+            #end = time.time()
+            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
+            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
+
+            #print("SourceModule time {0} seconds.".format(end-start))
+            maxHitratioIdx = np.argsort(afHitRatioH)[
+                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
+            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
+            for jj in range(1, 9):
+                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
+            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
+            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
+            del rotMatSearchD
+        afHitRatioD.free()
+        aiPeakCntD.free()
+        maxMat = maxMatD.get().reshape([-1, 3, 3])
+        print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
+                                                                                                    afHitRatioH[
+                                                                                                        maxHitratioIdx[
+                                                                                                            0]],
+                                                                                                    aiPeakCntH[
+                                                                                                        maxHitratioIdx[
+                                                                                                            0]],
+                                                                                                    np.array(
+                                                                                                        RotRep.Mat2EulerZXZ(
+                                                                                                            maxMat[0, :,
+                                                                                                            :])) / np.pi * 180))
+        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], 'Hexagonal')[0]
+        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
+        del afVoxelPosD
 
 
 def profile_recon_layer():
@@ -2237,21 +2729,7 @@ def squareMicMIsOrienMap():
     symMat = RotRep.GetSymRotMat('Hexagonal')
     misOrien = misorien(m0,m1,symMat).reshape([squareMic0.shape[0],squareMic0.shape[1]])
     np.save('misOrien_SearchBatchSize_13000_100x100_0.01_differentRun.npy',misOrien)
-def recon_example():
-    '''
-    This is an example of how to use Reconstructor_GPU
-    :return:
-    '''
-    S = Reconstructor_GPU()
-    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
-    S.expdataNDigit = 6
-    S.create_square_mic([100,100],voxelsize=0.01)
-    S.squareMicOutFile = 'SearchBatchSize_13000_100x100_0.01_optimize_hitratio_run_0.npy'
-    S.searchBatchSize = 13000
-    #S.serial_recon_layer()
-    #S.serial_recon_multi_stage()
-    S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
+
 def profile_gen_random_gpu():
     '''
     10 time generate 20000 (total200000) random orientation takes 0.01s
@@ -2272,6 +2750,7 @@ def profile_gen_random_gpu():
     end.synchronize()
     secs = start.time_till(end) * 1e-3
     print("SourceModule time {0} seconds.".format(secs))
+
 
 class SquareMic():
     def __init__(self,squareMicData, symtype='Hexagonal'):
@@ -2317,7 +2796,38 @@ def grain_boundary():
     sMic0.save_misOrienMap('SearchBatchSize_13000_1000x1000_0.001_misOrienMap.npy')
     sMic1.save_misOrienMap('SearchBatchSize_13000_1000x1000_0.001_repeatrun_1_misOrienMap.npy')
 
+def misorien_vs_hitratio():
+    pass
+
+def test_tex_mem():
+    S = Reconstructor_GPU()
+    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
+    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
+    S.expdataNDigit = 6
+    S.create_square_mic([10,10],voxelsize=0.01)
+    S.squareMicOutFile = 'SearchBatchSize_13000_10x10_0.01_tex_mem_run0.npy'
+    S.searchBatchSize = 13000
+    S.serial_recon_layer_tex_mem()
+    #S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
+
+def recon_example():
+    '''
+    This is an example of how to use Reconstructor_GPU
+    :return:
+    '''
+    S = Reconstructor_GPU()
+    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
+    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
+    S.expdataNDigit = 6
+    S.create_square_mic([100,100],voxelsize=0.01)
+    S.squareMicOutFile = 'SearchBatchSize_13000_100x100_0.01_tex_mem_run0.npy'
+    S.searchBatchSize = 13000
+    #S.serial_recon_layer()
+    #S.serial_recon_multi_stage()
+    S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
+
 if __name__ == "__main__":
+    #test_tex_mem()
     #grain_boundary()
     recon_example()
     #squareMicMIsOrienMap()
