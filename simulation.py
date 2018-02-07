@@ -58,7 +58,7 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
   float fScatteringVecMag = sqrt(aScatteringVec[0]*aScatteringVec[0] + aScatteringVec[1]*aScatteringVec[1] +aScatteringVec[2]*aScatteringVec[2]);
 
   float fSinTheta = fScatteringVecMag / ( (float)2.0 * 0.506773182 * fBeamEnergy);   // Bragg angle
-  float fCosTheta = sqrt( 1.f - fSinTheta * fSinTheta);
+  //float fCosTheta = sqrt( 1.f - fSinTheta * fSinTheta);
   float fCosChi = aScatteringVec[2] / fScatteringVecMag;             // Tilt angle of G relative to z-axis
   float fSinChi = sqrt( 1.f - fCosChi * fCosChi );
   //float fSinChiLaue = sin( fBeamDeflectionChiLaue );     // ! Tilt angle of k_i (+ means up)
@@ -66,21 +66,22 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
 
   if( fabsf( fSinTheta ) <= fabsf( fSinChi) )
   {
-	float fPhi = acosf(fSinTheta / fSinChi);
-	float fSinPhi = sin(fPhi);
-	fEta = asinf(fSinChi * fSinPhi / fCosTheta);
+	//float fPhi = acosf(fSinTheta / fSinChi);
+	float fSinPhi = sin(acosf(fSinTheta / fSinChi));
+	//float fCosTheta = sqrt( 1.f - fSinTheta * fSinTheta);
+	fEta = asinf(fSinChi * fSinPhi / sqrt( 1.f - fSinTheta * fSinTheta)); 
 	// [-pi:pi]: angle to bring G to nominal position along +y-axis
 	float fDeltaOmega0 = atan2f( aScatteringVec[0], aScatteringVec[1]);
 
 	//  [0:pi/2] since arg >0: phi goes from above to Bragg angle
 	float fDeltaOmega_b1 = asinf( fSinTheta/fSinChi );
 
-	float fDeltaOmega_b2 = PI -  fDeltaOmega_b1;
+	//float fDeltaOmega_b2 = PI -  fDeltaOmega_b1;
 
 	fOmegaRes1 = fDeltaOmega_b1 + fDeltaOmega0;  // oScatteringVec.m_fY > 0
-	fOmegaRes2 = fDeltaOmega_b2 + fDeltaOmega0;  // oScatteringVec.m_fY < 0
-    //fOmegaRes1 -= 2.f * PI*(trunc(fOmegaRes1/PI));
-    //fOmegaRes2 -= 2.f * PI*(trunc(fOmegaRes2/PI));
+	fOmegaRes2 = PI - fDeltaOmega_b1 + fDeltaOmega0;  // oScatteringVec.m_fY < 0
+    	//fOmegaRes1 -= 2.f * PI*(trunc(fOmegaRes1/PI));
+    	//fOmegaRes2 -= 2.f * PI*(trunc(fOmegaRes2/PI));
 	if ( fOmegaRes1 > PI )          // range really doesn't matter
 	  fOmegaRes1 -=  2.f * PI;
 
@@ -2857,9 +2858,9 @@ def recon_example():
 
 if __name__ == "__main__":
     #S = Reconstructor_GPU()
-    test_tex_mem()
+    #test_tex_mem()
     #context.detach()
     #cuda.stop_profiler()
     #grain_boundary()
-    #recon_example()
+    recon_example()
     #squareMicMIsOrienMap()
