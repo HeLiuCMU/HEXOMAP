@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # implemente simulation code with pycuda
 # TODO:
 #   optimize hitratio, this part takes most of the reconstruction time.
@@ -24,6 +25,7 @@ mod = SourceModule("""
 const float PI = 3.14159265359;
 const float HALFPI = 0.5*PI;
 texture<unsigned char, cudaTextureType3D, cudaReadModeElementType> tcExpData;
+texture<float, cudaTextureType2D, cudaReadModeElementType> tfG;  // texture to store scattering vectors;
 typedef struct {
     int iNPixelJ, iNPixelK;
     float fPixelJ, fPixelK;
@@ -56,9 +58,9 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
   float fScatteringVecMag = sqrt(aScatteringVec[0]*aScatteringVec[0] + aScatteringVec[1]*aScatteringVec[1] +aScatteringVec[2]*aScatteringVec[2]);
 
   float fSinTheta = fScatteringVecMag / ( (float)2.0 * 0.506773182 * fBeamEnergy);   // Bragg angle
-  float fCosTheta = sqrt( (float)1.0 - fSinTheta * fSinTheta);
+  float fCosTheta = sqrt( 1.f - fSinTheta * fSinTheta);
   float fCosChi = aScatteringVec[2] / fScatteringVecMag;             // Tilt angle of G relative to z-axis
-  float fSinChi = sqrt( (float)1.0 - fCosChi * fCosChi );
+  float fSinChi = sqrt( 1.f - fCosChi * fCosChi );
   //float fSinChiLaue = sin( fBeamDeflectionChiLaue );     // ! Tilt angle of k_i (+ means up)
   //float fCosChiLaue = cos( fBeamDeflectionChiLaue );
 
@@ -77,7 +79,8 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
 
 	fOmegaRes1 = fDeltaOmega_b1 + fDeltaOmega0;  // oScatteringVec.m_fY > 0
 	fOmegaRes2 = fDeltaOmega_b2 + fDeltaOmega0;  // oScatteringVec.m_fY < 0
-
+    //fOmegaRes1 -= 2.f * PI*(trunc(fOmegaRes1/PI));
+    //fOmegaRes2 -= 2.f * PI*(trunc(fOmegaRes2/PI));
 	if ( fOmegaRes1 > PI )          // range really doesn't matter
 	  fOmegaRes1 -=  2.f * PI;
 
@@ -213,7 +216,7 @@ __device__ bool GetPeak_s(int &iJ1,int &iJ2,int &iK1, int &iK2,int &bHit1,int &b
 __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,bool &bHit1,bool &bHit2,
 		const float &fOmegaRes1, const float &fOmegaRes2,
 		const float &fTwoTheta, const float &fEta,const float &fChi,const float &fEtaLimit,
-		const float *afVoxelPos,const float *afDetInfo){
+		const float *afVoxelPos,const float* __restrict__ afDetInfo){
 	/*
 	 *  TEST PASSED 20171215
 	 * cDetMat:	char matrix, float[nOmega*nPixelX*nPixelY];
@@ -225,94 +228,67 @@ __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,bool &bHit1,bool &b
 							float afJVector[3][10,11,12];
 							float afKVector[3]=[13,14,15];
 	 */
-	if (fChi>= 0.5*PI){
-		bHit1 = false;
-		bHit2 = false;
-		return false;
-	}
-	else if(fEta>fEtaLimit){
-		bHit1 = false;
-		bHit2 = false;
-		return false;
-	}
 	bHit1 = false;
 	bHit2 = false;
+	if (fChi>= 0.5*PI || fEta>fEtaLimit){
+		return false;
+	}
+	float fVoxelPosX,fVoxelPosY,fVoxelPosZ,fDist,fAngleNormScatter;
+	int iJ,iK;
+	float afScatterDir[3]; //scattering direction
+	float afInterPos[3];
 	if ((-HALFPI<=fOmegaRes1) && (fOmegaRes1<=HALFPI)){
-		float fVoxelPosX = cos(fOmegaRes1)*afVoxelPos[0] - sin(fOmegaRes1)*afVoxelPos[1];
-		float fVoxelPosY = cos(fOmegaRes1)*afVoxelPos[1] + sin(fOmegaRes1)*afVoxelPos[0];
-		float fVoxelPosZ = afVoxelPos[2];
-		float fDist;
+		fVoxelPosX = cos(fOmegaRes1)*afVoxelPos[0] - sin(fOmegaRes1)*afVoxelPos[1];
+		fVoxelPosY = cos(fOmegaRes1)*afVoxelPos[1] + sin(fOmegaRes1)*afVoxelPos[0];
+		fVoxelPosZ = afVoxelPos[2];
 		fDist = afDetInfo[7]*(afDetInfo[4] - fVoxelPosX)
 				+ afDetInfo[8]*(afDetInfo[5] - fVoxelPosY)
 				+ afDetInfo[9]*(afDetInfo[6] - fVoxelPosZ);
-		float afScatterDir[3]; //scattering direction
 		afScatterDir[0] = cos(fTwoTheta);
 		afScatterDir[1] = sin(fTwoTheta) * sin(fEta);
 		afScatterDir[2] = sin(fTwoTheta) * cos(fEta);
-		float afInterPos[3];
-		float fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
+		fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
 		                          + afDetInfo[8]*afScatterDir[1]
 		                          + afDetInfo[9]*afScatterDir[2];
 		afInterPos[0] = fDist / fAngleNormScatter * afScatterDir[0] + fVoxelPosX;
 		afInterPos[1] = fDist / fAngleNormScatter * afScatterDir[1] + fVoxelPosY;
 		afInterPos[2] = fDist / fAngleNormScatter * afScatterDir[2] + fVoxelPosZ;
-		float fJ,fK;
-		fJ = (afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
+		iJ = floor((afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
 				+ afDetInfo[11]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2];
-		fK = (afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
+				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2]);
+		iK = floor((afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
 				+ afDetInfo[14]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3];
-		int iJ = (int)fJ;
-		int iK = (int)fK;
-		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
-			iJ1 = iJ;
-			iK1 = iK;
-			//fOmega1 = fOmegaRes1;
-			bHit1 = true;
-		}
-		else{
-			bHit1 = false;
-		}
+				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3]);
+		bHit1 = (0<=iJ ) && (iJ<afDetInfo[0]) && (0<=iK) && (iK<afDetInfo[1]);
+		iJ1 = iJ;
+		iK1 = iK;
 	}
 
 	if ((-HALFPI<=fOmegaRes2) && (fOmegaRes2<=HALFPI)){
-		float fVoxelPosX = cos(fOmegaRes2)*afVoxelPos[0] - sin(fOmegaRes2)*afVoxelPos[1];
-		float fVoxelPosY = cos(fOmegaRes2)*afVoxelPos[1] + sin(fOmegaRes2)*afVoxelPos[0];
-		float fVoxelPosZ = afVoxelPos[2];
-		float fDist;
+		fVoxelPosX = cos(fOmegaRes2)*afVoxelPos[0] - sin(fOmegaRes2)*afVoxelPos[1];
+		fVoxelPosY = cos(fOmegaRes2)*afVoxelPos[1] + sin(fOmegaRes2)*afVoxelPos[0];
+		fVoxelPosZ = afVoxelPos[2];
 		fDist = afDetInfo[7]*(afDetInfo[4] - fVoxelPosX)
 				+ afDetInfo[8]*(afDetInfo[5] - fVoxelPosY)
 				+ afDetInfo[9]*(afDetInfo[6] - fVoxelPosZ);
-		float afScatterDir[3]; //scattering direction
 		afScatterDir[0] = cos(fTwoTheta);
 		afScatterDir[1] = sin(fTwoTheta) * sin(-fEta);  // caution: -fEta!!!!!!
 		afScatterDir[2] = sin(fTwoTheta) * cos(-fEta);  // caution: -fEta!!!!!!
-		float afInterPos[3];
-		float fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
+		fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
 		                          + afDetInfo[8]*afScatterDir[1]
 		                          + afDetInfo[9]*afScatterDir[2];
 		afInterPos[0] = fDist / fAngleNormScatter * afScatterDir[0] + fVoxelPosX;
 		afInterPos[1] = fDist / fAngleNormScatter * afScatterDir[1] + fVoxelPosY;
 		afInterPos[2] = fDist / fAngleNormScatter * afScatterDir[2] + fVoxelPosZ;
-		float fJ,fK;
-		fJ = (afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
+		iJ = floor((afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
 				+ afDetInfo[11]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2];
-		fK = (afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
+				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2]);
+		iK = floor((afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
 				+ afDetInfo[14]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3];
-		int iJ = (int)fJ;
-		int iK = (int)fK;
-		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
-			iJ2 = iJ;
-			iK2 = iK;
-			//fOmega2 = fOmegaRes2;
-			bHit2 = true;
-		}
-		else{
-			bHit2 = false;
-		}
+				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3]);
+		bHit2 = (0<=iJ ) && (iJ<afDetInfo[0]) && (0<=iK) && (iK<afDetInfo[1]);
+		iJ2 = iJ;
+		iK2 = iK;
 	}
 	return true;
 
@@ -330,6 +306,84 @@ __device__ bool print_DetInfo(DetInfo *sDetInfo){
 	return true;
 }
 __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *aiRotN,
+		const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
+		const float* afOrientation,const float* afVoxelPos,
+		const float fBeamEnergy, const float fEtaLimit, const float* __restrict__ afDetInfo){
+	/*
+	 * int aiJ: output of J values,len =  iNVoxel*iNOrientation*iNG*2*iNDet
+				basic unit iNVoxel*iNOrientation*iNG*[omega0 of det0, omega0 of det1,omega1,det0,omega1,det1]...
+	 * int aiK: len =  iNVoxel*iNOrientation*iNG*2*iNDet
+	 * float afOmega: len =  iNVoxel*iNOrientation*iNG*2*iNDet
+	 * bool abHit: len =  iNVoxel*iNOrientation*iNG*2*iNDet
+	 * int *aiRotN, the number of image that the peak is on, len=iNVoxel*iNOrientation*2*iNDet
+	 * int iNVoxel: number of voxels
+	 * int iNOrientation: number of orientations on each voxel
+	 * int iNG: number of reciprocal vector on each diffraction process
+	 * float *afOrientation: the array of all the orientation matrices of all the voxels,len=iNVoxel*iNOrientaion*9
+	 * float *afG: list of reciprical vector len=iNG*3
+	 * float *afVoxelPos: location of the voxels, len=iNVoxel*3;
+	 * afDetInfo: [det0,det1,...], iNDet*19;
+	 * number of
+	 * the dimesion of GPU grid should be iNVoxel*iNOrientation*iNG
+	 * <<< (iNVoxel,iNOrientation),(iNG)>>>;
+	 */
+	 //printf("start sim");
+	 //if(blockIdx.x==0 && threadIdx.x==0){
+	 //   printf(" %f, %f, %f||",afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+0],
+	 //   afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+1],
+	 //   afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+2]);
+	 // }
+	//printf("blockIdx: %d || ",blockIdx.x);
+	float fOmegaRes1,fOmegaRes2,fTwoTheta,fEta,fChi;
+	float afScatteringVec[3]={0,0,0};
+	//float afOrienMat[9];
+	//original G vector
+	//rotation matrix 3x3
+	//G' = M.dot(G)
+	//printf("originG: %f,%f,%f. ||",afG[threadIdx.x*3+0],afG[threadIdx.x*3+1],afG[threadIdx.x*3+2]);
+	for (int i=0;i<3;i++){
+		for(int j=0;j<3;j++){
+		    afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*tex2D(tfG,(float)j,(float)threadIdx.x);
+			//afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
+		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
+		}
+	}
+	//printf("%f,%f,%f ||",afScatteringVec[0],afScatteringVec[1],afScatteringVec[1]);
+	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
+		int i = blockIdx.x*gridDim.y*blockDim.x*2*iNDet+ blockIdx.y*blockDim.x*2*iNDet + threadIdx.x*2*iNDet;
+		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
+			GetPeak(aiJ[i+iDetIdx],aiJ[i+iDetIdx+iNDet],aiK[i+iDetIdx],aiK[i+iDetIdx+iNDet],
+					abHit[i+iDetIdx],abHit[i+iDetIdx+iNDet],
+					fOmegaRes1, fOmegaRes2,fTwoTheta,
+					fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
+			//printf("%f %f %f || ", (afVoxelPos+blockIdx.x*3)[0],(afVoxelPos+blockIdx.x*3)[1],(afVoxelPos+blockIdx.x*3)[2]);
+			//printf("blockIdx: %d || ",blockIdx.x);
+			//	////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
+			afOmega[i+iDetIdx] = fOmegaRes1;
+			aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
+				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
+			//}
+			//if(abHit[i+iDetIdx+iNDet]){
+			afOmega[i+iDetIdx+iNDet] = fOmegaRes2;
+			aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
+			//	//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
+			//}
+			//if(abHit[i+iDetIdx]){
+			//	////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
+			//	afOmega[i+iDetIdx] = fOmegaRes1;
+			//	aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
+				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
+			//}
+			//if(abHit[i+iDetIdx+iNDet]){
+			 //   afOmega[i+iDetIdx+iNDet] = fOmegaRes2;
+			//	aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
+			//	//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
+			//}
+		}
+	}
+}
+
+__global__ void simulation_backup_20180206(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *aiRotN,
 		const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
 		const float* __restrict__ afOrientation,const float* __restrict__ afG,const float* __restrict__ afVoxelPos,
 		const float fBeamEnergy, const float fEtaLimit, const float* __restrict__ afDetInfo){
@@ -367,7 +421,8 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 	//printf("originG: %f,%f,%f. ||",afG[threadIdx.x*3+0],afG[threadIdx.x*3+1],afG[threadIdx.x*3+2]);
 	for (int i=0;i<3;i++){
 		for(int j=0;j<3;j++){
-			afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
+		    afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*tex2D(tfG,(float)j,(float)threadIdx.x);
+			//afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
 		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
 		}
 	}
@@ -395,6 +450,7 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 		}
 	}
 }
+
 
 __global__ void create_bin_expimages(char* acExpDetImages, const int* aiDetStartIdx,
 		const float* afDetInfo,const int iNDet, const int iNRot,
@@ -1118,7 +1174,12 @@ class Reconstructor_GPU():
         # GPU random generator
         self.randomGenerator = MRG32k3aRandomNumberGenerator()
         # initialize device parameters and outputs
-        self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
+        #self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
+        # initialize tfG
+        self.tfG = mod.get_texref("tfG")
+        self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
+        self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
+        print(self.sample.Gs.shape)
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
     def geometry_optimizer(self):
@@ -1815,9 +1876,9 @@ class Reconstructor_GPU():
         # kernel calls
         self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
                       np.int32(NVoxel), np.int32(NOrientation), np.int32(self.NG), np.int32(self.NDet),
-                      rotMatSearchD, self.afGD,
+                      rotMatSearchD,
                       afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                      grid=(NVoxel, NOrientation), block=(self.NG, 1, 1))
+                      texrefs=[self.tfG], grid=(NVoxel, NOrientation), block=(self.NG, 1, 1))
         afHitRatioD = cuda.mem_alloc(NVoxel * NOrientation * np.float32(0).nbytes)
         aiPeakCntD = cuda.mem_alloc(NVoxel * NOrientation * np.int32(0).nbytes)
         NBlock = 256
@@ -2326,9 +2387,9 @@ class Reconstructor_GPU():
             #start = time.time()
             self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
                           np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                          rotMatSearchD, self.afGD,
+                          rotMatSearchD,
                           afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                          grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
+                          texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
 
             # this is the most time cosuming part, 0.03s per iteration
             self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
@@ -2795,7 +2856,10 @@ def recon_example():
     S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
 
 if __name__ == "__main__":
+    #S = Reconstructor_GPU()
     test_tex_mem()
+    #context.detach()
+    #cuda.stop_profiler()
     #grain_boundary()
     #recon_example()
     #squareMicMIsOrienMap()
