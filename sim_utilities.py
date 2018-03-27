@@ -146,7 +146,7 @@ class CrystalStr:
             self.addAtom([0, 0.5, 0.5], 29)
             self.addAtom([0.5, 0, 0.5], 29)
             self.addAtom([0.5, 0.5, 0], 29)
-        elif material == 'stanless_steel':
+        elif material == 'stainless_steel':
             self.PrimA = 3.59 * np.array([1, 0, 0])
             self.PrimB = 3.59 * np.array([0, 1, 0])
             self.PrimC = 3.59 * np.array([0, 0, 1])
