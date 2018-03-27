@@ -130,7 +130,9 @@ class CrystalStr:
     def __init__(self, material='new'):
         self.AtomPos = []
         self.AtomZs = []
+        self.symtype = None
         if material == 'gold':
+            self.symtype = 'Cubic'
             self.PrimA = 4.08 * np.array([1, 0, 0])
             self.PrimB = 4.08 * np.array([0, 1, 0])
             self.PrimC = 4.08 * np.array([0, 0, 1])
@@ -139,6 +141,7 @@ class CrystalStr:
             self.addAtom([0.5, 0, 0.5], 79)
             self.addAtom([0.5, 0.5, 0], 79)
         elif material == 'copper':
+            self.symtype = 'Cubic'
             self.PrimA = 3.61 * np.array([1, 0, 0])
             self.PrimB = 3.61 * np.array([0, 1, 0])
             self.PrimC = 3.61 * np.array([0, 0, 1])
@@ -147,6 +150,7 @@ class CrystalStr:
             self.addAtom([0.5, 0, 0.5], 29)
             self.addAtom([0.5, 0.5, 0], 29)
         elif material == 'stainless_steel':
+            self.symtype = 'Cubic'
             self.PrimA = 3.59 * np.array([1, 0, 0])
             self.PrimB = 3.59 * np.array([0, 1, 0])
             self.PrimC = 3.59 * np.array([0, 0, 1])
@@ -155,6 +159,7 @@ class CrystalStr:
             self.addAtom([0.5, 0, 0.5], 26)
             self.addAtom([0.5, 0.5, 0], 26)
 	elif material == 'Ti7':
+            self.symtype = 'Hexagonal'
             self.PrimA = 2.92539 * np.array([1, 0, 0])
             self.PrimB = 2.92539 * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
             self.PrimC = 4.67399 * np.array([0, 0, 1])
