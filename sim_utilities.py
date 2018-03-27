@@ -3,7 +3,7 @@
 import numpy as np
 from fractions import Fraction
 from math import floor
-from matplotlib import path
+# from matplotlib import path
 
 
 def frankie_angles_from_g(g, verbo=True, **exp):
@@ -146,7 +146,15 @@ class CrystalStr:
             self.addAtom([0, 0.5, 0.5], 29)
             self.addAtom([0.5, 0, 0.5], 29)
             self.addAtom([0.5, 0.5, 0], 29)
-        elif material == 'Ti7':
+        elif material == 'stanless_steel':
+            self.PrimA = 3.59 * np.array([1, 0, 0])
+            self.PrimB = 3.59 * np.array([0, 1, 0])
+            self.PrimC = 3.59 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 26)
+            self.addAtom([0, 0.5, 0.5], 26)
+            self.addAtom([0.5, 0, 0.5], 26)
+            self.addAtom([0.5, 0.5, 0], 26)
+	elif material == 'Ti7':
             self.PrimA = 2.92539 * np.array([1, 0, 0])
             self.PrimB = 2.92539 * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
             self.PrimC = 4.67399 * np.array([0, 0, 1])
@@ -263,55 +271,55 @@ def GetProjectedVertex(Det1, sample, orien, etalimit, grainpos, getPeaksInfo=Fal
     return Peaks, Gs
 
 
-def digitize(xy):
-    """
-    xy: ndarray shape(4,2)
-        J and K indices in float, four points. This digitize method is far from ideal
-
-    Returns
-    -------------
-    f: list
-        list of integer tuples (J,K) that is hitted. (filled polygon)
-
-    """
-    p = path.Path(xy)
-
-    def line(pixels, x0, y0, x1, y1):
-        if x0 == x1 and y0 == y1:
-            pixels.append((x0, y0))
-            return
-        brev = True
-        if abs(y1 - y0) <= abs(x1 - x0):
-            x0, y0, x1, y1 = y0, x0, y1, x1
-            brev = False
-        if x1 < x0:
-            x0, y0, x1, y1 = x1, y1, x0, y0
-        leny = abs(y1 - y0)
-        for i in range(leny + 1):
-            if brev:
-                pixels.append(
-                    tuple((int(round(Fraction(i, leny) * (x1 - x0))) + x0, int(1 if y1 > y0 else -1) * i + y0)))
-            else:
-                pixels.append(
-                    tuple((int(1 if y1 > y0 else -1) * i + y0, int(round(Fraction(i, leny) * (x1 - x0))) + x0)))
-
-    bnd = p.get_extents().get_points().astype(int)
-    ixy = xy.astype(int)
-    pixels = []
-    line(pixels, ixy[0, 0], ixy[0, 1], ixy[1, 0], ixy[1, 1])
-    line(pixels, ixy[1, 0], ixy[1, 1], ixy[2, 0], ixy[2, 1])
-    line(pixels, ixy[2, 0], ixy[2, 1], ixy[3, 0], ixy[3, 1])
-    line(pixels, ixy[3, 0], ixy[3, 1], ixy[0, 0], ixy[0, 1])
-    points = []
-    for jj in range(bnd[0, 0], bnd[1, 0] + 1):
-        for kk in range(bnd[0, 1], bnd[1, 1] + 1):
-            points.append((jj, kk))
-    points = np.asarray(points)
-    mask = p.contains_points(points)
-
-    ipoints = points[mask]
-
-    f = list([tuple(ii) for ii in ipoints])
-    f.extend(pixels)
-
-    return f
+# def digitize(xy):
+#     """
+#     xy: ndarray shape(4,2)
+#         J and K indices in float, four points. This digitize method is far from ideal
+#
+#     Returns
+#     -------------
+#     f: list
+#         list of integer tuples (J,K) that is hitted. (filled polygon)
+#
+#     """
+#     p = path.Path(xy)
+#
+#     def line(pixels, x0, y0, x1, y1):
+#         if x0 == x1 and y0 == y1:
+#             pixels.append((x0, y0))
+#             return
+#         brev = True
+#         if abs(y1 - y0) <= abs(x1 - x0):
+#             x0, y0, x1, y1 = y0, x0, y1, x1
+#             brev = False
+#         if x1 < x0:
+#             x0, y0, x1, y1 = x1, y1, x0, y0
+#         leny = abs(y1 - y0)
+#         for i in range(leny + 1):
+#             if brev:
+#                 pixels.append(
+#                     tuple((int(round(Fraction(i, leny) * (x1 - x0))) + x0, int(1 if y1 > y0 else -1) * i + y0)))
+#             else:
+#                 pixels.append(
+#                     tuple((int(1 if y1 > y0 else -1) * i + y0, int(round(Fraction(i, leny) * (x1 - x0))) + x0)))
+#
+#     bnd = p.get_extents().get_points().astype(int)
+#     ixy = xy.astype(int)
+#     pixels = []
+#     line(pixels, ixy[0, 0], ixy[0, 1], ixy[1, 0], ixy[1, 1])
+#     line(pixels, ixy[1, 0], ixy[1, 1], ixy[2, 0], ixy[2, 1])
+#     line(pixels, ixy[2, 0], ixy[2, 1], ixy[3, 0], ixy[3, 1])
+#     line(pixels, ixy[3, 0], ixy[3, 1], ixy[0, 0], ixy[0, 1])
+#     points = []
+#     for jj in range(bnd[0, 0], bnd[1, 0] + 1):
+#         for kk in range(bnd[0, 1], bnd[1, 1] + 1):
+#             points.append((jj, kk))
+#     points = np.asarray(points)
+#     mask = p.contains_points(points)
+#
+#     ipoints = points[mask]
+#
+#     f = list([tuple(ii) for ii in ipoints])
+#     f.extend(pixels)
+#
+#     return f
