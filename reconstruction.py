@@ -37,7 +37,7 @@ def idx_flat_to_coord_2d(idx,shape):
     '''
     idx = np.array(idx).ravel()
     x = idx//shape[0]
-    y = idx%shape[1]
+    y = idx%shape[0]
     return x,y
 def misorien(m0, m1,symMat):
     '''
@@ -63,6 +63,91 @@ def misorien(m0, m1,symMat):
     #print(symMat[0].dot(np.matrix(m1)))
     return np.amin(afMisOrienD.get(), axis=1)
 
+def misorien_map(m0, symType):
+    '''
+    map the misorienation map
+    e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
+    but it will still return 100x100, filling 0 to the last row/column
+    the misorientatino on that voxel is the max misorientation to its right or up side voxel
+    :param axis: 0 for x direction, 1 for y direction.
+    :return:
+    '''
+    symMat = RotRep.GetSymRotMat(symType)
+    if m0.ndim != 3:
+        raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
+    NVoxelX = m0.shape[0]
+    NVoxelY = m0.shape[1]
+    # m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
+    m1 = np.empty([NVoxelX, NVoxelY, 9])
+    # x direction misorientatoin
+    m1[:-1, :, :] = m0[1:, :, :]
+    m1[-1, :, :] = m0[-1, :, :]
+    misorienX = misorien(m0, m1, symMat)
+    # y direction misorientation
+    m1[:, :-1, :] = m0[:, 1:, :]
+    m1[:, -1, :] = m0[:, -1, :]
+    misorienY = misorien(m0, m1, symMat)
+    misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
+    return misOrien
+
+def segment_grain(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='default_segment_grain.npy'):
+    mShape = m0.shape[0:2]
+    mask = np.zeros(mShape)
+    result = np.empty(mShape)
+    symMat = RotRep.GetSymRotMat(symType)
+    id = 0
+    while np.sum((mask==0).ravel()) > 0:
+        x,y = np.where(mask==0)
+        mTmp = m0[x[0],y[0],:].repeat(mShape[0]*mShape[1])
+        misOrien = misorien(mTmp,m0,symMat).reshape(mShape)
+        result[misOrien<threshold] = id
+        mask[misOrien<threshold] = 1
+        id += 1
+    if save:
+        np.save(outFile, result)
+    return result
+
+def segment_grain_1(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='default_segment_grain.npy',mask=None):
+    '''
+
+    :return:
+    '''
+    #self.recon_prepare()
+
+    # timing tools:
+
+    NX = m0.shape[0]
+    NY = m0.shape[1]
+    visited = np.zeros(NX * NY)
+    result = np.empty(NX * NY)
+    m0 = m0.reshape([-1,9])
+    id = 0
+    if mask is None:
+        mask = np.ones(NX*NY)
+    else:
+        mask = mask.ravel()
+    visited[mask==0] = 1
+    while(np.sum(visited.ravel()==0)>0):
+        idxs,  = np.where(visited.ravel()==0)
+        startIdx = idxs[0]
+        q = [startIdx]
+        visited[startIdx] = 1
+        result[startIdx] = id
+        while q:
+            n = q.pop(0)
+            for x in [min(n + 1, n-n%NY + NY-1), max(n-n%NY, n - 1), min(n//NY+1, NX-1)*NY + n%NY, max(0,n//NY-1)*NY + n%NY]:
+                _, misorientation = RotRep.Misorien2FZ1(m0[n,:].reshape([3,3]), m0[x,:].reshape([3,3]), symType)
+                #print(misorientation)
+                if misorientation<threshold and visited[x] == 0:
+                    q.append(x)
+                    visited[x] = 1
+                    result[x] = id
+        id +=1
+        print(id)
+    result = result.reshape([NX,NY])
+    if save:
+        np.save(outFile, result)
+    return result
 class Reconstructor_GPU():
     '''
     example usage:
@@ -89,8 +174,9 @@ class Reconstructor_GPU():
         self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
         self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
         # experimental data
-        self.energy = 55.587 # in kev
-        self.sample = sim_utilities.CrystalStr('Ti7') # one of the following options:
+        self.energy = 71.676  # in kev
+        #self.energy = 55.587 # in kev
+        self.sample = sim_utilities.CrystalStr('gold') # one of the following options:
         #self.symtype = self.sample.symtype
         self.maxQ = 8
         self.etalimit = 81 / 180.0 * np.pi
@@ -98,10 +184,14 @@ class Reconstructor_GPU():
         self.NRot = 180
         self.NDet = 2
         self.detScale = 0.25  # the pixel size will be 1/self.detScale and NPixelJ = NPixelJ*self.detScale
-        self.centerJ = [976.072*self.detScale,968.591*self.detScale]# center, horizental direction
-        self.centerK = [2014.13*self.detScale,2011.68*self.detScale]# center, verticle direction
-        self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
-        self.detRot = [np.array([91.6232, 91.2749, 359.274]),np.array([90.6067, 90.7298, 359.362])]# Euler angleZXZ
+        self.centerJ = [935.166*self.detScale,949.46*self.detScale]# center, horizental direction
+        self.centerK = [1998.96*self.detScale,1996.15*self.detScale]# center, verticle direction
+        self.detPos = [np.array([4.72573,0,0]),np.array([6.67079,0,0])] # in mm
+        self.detRot = [np.array([90.6659, 89.4069, 359.073]),np.array([89.4765, 90.2675, 359.22])]# Euler angleZXZ
+        #self.centerJ = [976.072*self.detScale,968.591*self.detScale]# center, horizental direction
+        #self.centerK = [2014.13*self.detScale,2011.68*self.detScale]# center, verticle direction
+        #self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
+        #self.detRot = [np.array([91.6232, 91.2749, 359.274]),np.array([90.6067, 90.7298, 359.362])]# Euler angleZXZ
         self.detectors[0].NPixelJ = int(2048*self.detScale)
         self.detectors[0].NPixelK = int(2048*self.detScale)
         self.detectors[0].PixelJ = 0.00148/self.detScale
@@ -813,7 +903,7 @@ class Reconstructor_GPU():
             8: voxelsize
             9: additional information
         :param shape: array like [NVoxelX,NVxoelY]
-        :param shift: arraylike, [dx,dy,dz]
+        :param shift: arraylike, [dx,dy,dz], in mm
         :param voxelsize: in mm
         :param mask:
         :return:
@@ -2100,6 +2190,22 @@ def grain_boundary():
 def misorien_vs_hitratio():
     pass
 
+def test_segment_grain():
+
+    #squareMicData = np.load('SearchBatchSize_13000_100x100_0.01_tex_mem_run0.npy')
+    #m0 = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6]/180*np.pi).reshape([squareMicData.shape[0],squareMicData.shape[1],9])
+    eulerRadian = np.load('midas.npy')[:,:,:3]
+    mask = np.load('midas.npy')[:,:,3]
+    m0 = RotRep.EulerZXZ2MatVectorized(eulerRadian).reshape([eulerRadian.shape[0],eulerRadian.shape[1],9])
+    retult = segment_grain_1(m0, symType='Cubic',outFile='midas_grain_id.npy', mask=mask)
+
+def test_misorient_map():
+    eulerRadian = np.load('midas.npy')[:,:,:3]
+    rotMat = RotRep.EulerZXZ2MatVectorized(eulerRadian.reshape([-1,3])).reshape([eulerRadian.shape[0], eulerRadian.shape[1],9])
+    misOrienMap = misorien_map(rotMat,'Cubic')
+    np.save('midas_misOrienMap.npy', misOrienMap)
+    #plt.imshow(misOrienMap)
+    #plt.show()
 ############ example usages ###################
 def test_tex_mem():
     S = Reconstructor_GPU()
@@ -2118,12 +2224,14 @@ def recon_example():
     :return:
     '''
     S = Reconstructor_GPU()
-    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
+    S.FZFile = '/home/heliu/work/I9_test_data/Au_Mar17/DataFiles/MyFZ.dat'
+    S.expDataInitial = '/home/heliu/work/I9_test_data/Au_Mar17/Integrated_1_degree/Au_Int_z0_'
+    #S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
+    #S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
     S.expdataNDigit = 6
-    S.create_square_mic([500,500],voxelsize=0.002)
-    S.squareMicOutFile = 'SearchBatchSize_13000_500x500_0.002_tex_mem_run0.npy'
-    S.searchBatchSize = 13000
+    S.create_square_mic([100,100],voxelsize=0.002,shift=[0.1,0.1,0])
+    S.squareMicOutFile = 'Au_Mar17_100_100_0.002.npy'
+    S.searchBatchSize = 6000
     S.recon_prepare()
     #S.serial_recon_layer()
     S.serial_recon_multi_stage()
@@ -2149,14 +2257,15 @@ def geo_opt_test():
     S.squareMicOutFile = 'SearchBatchSize_13000_100x100_0.01_tex_mem_run0.npy'
     S.searchBatchSize = 13000
     S.recon_prepare()
-
     S.geometry_optimizer()
 if __name__ == "__main__":
-    geo_opt_test()
+    #geo_opt_test()
     #S = Reconstructor_GPU()
     #test_tex_mem()
     #context.detach()
     #cuda.stop_profiler()
     #grain_boundary()
+    test_segment_grain()
+    #test_misorient_map()
     #recon_example()
     #squareMicMIsOrienMap()
