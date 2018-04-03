@@ -7,6 +7,7 @@
 # He Liu CMU
 # 20180117
 import cProfile, pstats, StringIO
+import cPickle
 import pycuda.gpuarray as gpuarray
 from pycuda.autoinit import context
 import pycuda.driver as cuda
@@ -174,20 +175,20 @@ class Reconstructor_GPU():
         self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
         self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
         # experimental data
-        self.energy = 71.676  # in kev
-        #self.energy = 55.587 # in kev
-        self.sample = sim_utilities.CrystalStr('gold') # one of the following options:
+        #self.energy = 71.676  # in kev
+        self.energy = 55.587 # in kev
+        self.sample = sim_utilities.CrystalStr('Ti7') # one of the following options:
         #self.symtype = self.sample.symtype
         self.maxQ = 8
         self.etalimit = 81 / 180.0 * np.pi
         self.detectors = [sim_utilities.Detector(),sim_utilities.Detector()]
         self.NRot = 180
         self.NDet = 2
-        self.detScale = 0.25  # the pixel size will be 1/self.detScale and NPixelJ = NPixelJ*self.detScale
-        self.centerJ = [935.166*self.detScale,949.46*self.detScale]# center, horizental direction
-        self.centerK = [1998.96*self.detScale,1996.15*self.detScale]# center, verticle direction
-        self.detPos = [np.array([4.72573,0,0]),np.array([6.67079,0,0])] # in mm
-        self.detRot = [np.array([90.6659, 89.4069, 359.073]),np.array([89.4765, 90.2675, 359.22])]# Euler angleZXZ
+        self.detScale = 1  # the pixel size will be 1/self.detScale and NPixelJ = NPixelJ*self.detScale
+        self.centerJ = [976.072*self.detScale,968.591*self.detScale]# center, horizental direction
+        self.centerK = [2014.13*self.detScale,2011.68*self.detScale]# center, verticle direction
+        self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
+        self.detRot = [np.array([91.6232, 91.2749, 359.274]),np.array([90.6067, 90.7298, 359.362])]# Euler angleZXZ
         #self.centerJ = [976.072*self.detScale,968.591*self.detScale]# center, horizental direction
         #self.centerK = [2014.13*self.detScale,2011.68*self.detScale]# center, verticle direction
         #self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
@@ -329,84 +330,16 @@ class Reconstructor_GPU():
             4. ...
         :return:
         '''
-        # if mask is None:
-        #     mask = np.zeros([self.squareMicData.shape[0],self.squareMicData.shape[1]])
-        #     x,y  = mask.shape
-        #     mask[x//4: 3*x//4, y//4: 3*x//4] = 1
-        # centerL = np.array([[5, 7]]) #mm
-        # centerJ = np.array([[1000*self.detScale, 1000*self.detScale]]) #pixel
-        # centerK = np.array([[2000*self.detScale, 2000*self.detScale]]) #pixel
-        # rangeL = 2 #mm
-        # rangeJ = 200 * self.detScale #pixel
-        # rangeK = 100 * self.detScale #pixel
-        # dL = np.linspace(-rangeL, rangeL, 10).reshape([-1, 1]).repeat(2, axis=1)
-        # dJ = np.linspace(-rangeJ, rangeJ, 10).reshape([-1, 1]).repeat(2, axis=1)
-        # dK = np.linspace(-rangeK, rangeK, 10).reshape([-1, 1]).repeat(2, axis=1)
-        # aDetRot = np.array([[[91.6232, 91.2749, 359.274], [90.6067, 90.7298, 359.362]]])
-        # NPhase0Iteration = 0
-        # maxHitRatio = 0
-        # ##################### phase 0 #########################################
-        # while NPhase0Iteration < 2 and maxHitRatio < 0.75:
-        #     aJ = centerJ.repeat(dJ.shape[0], axis=0) + dJ
-        #     aL = centerL.repeat(dL.shape[0], axis=0) + dL
-        #     aK = centerK.repeat(dK.shape[0], axis=0) + dK
-        #     centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot)
-        #     NPhase0Iteration +=1
-        # if NPhase0Iteration==3:
-        #     raise RuntimeError('faile to find parameter in phase 0')
-        # print(centerL, centerJ, centerK)
+
         centerL, centerJ, centerK, centerRot = self.geo_opt_phase_0(mask)
-        #################### recon part of layer ############################
-        # # centerL = np.array([[ 5.43914556,  7.44848999]])
-        # # centerJ = np.array([[ 247.51157141,  244.07219775]])
-        # # centerK = np.array([[ 502.74845754,  502.27719785]])
-        # for idxDet in range(self.NDet):
-        #     self.detPos[idxDet][0] = centerL[0, idxDet]
-        #     self.centerJ[idxDet] = centerJ[0, idxDet]
-        #     self.centerK[idxDet] = centerK[0, idxDet]
-        #     self.detRot[idxDet] = centerRot[0, idxDet]
-        # self.set_det()
-        # self.serial_recon_multi_stage()
-        # self.save_square_mic('geo_opt_test.npy')
-        # misOrienTmp = self.get_misorien_map(self.accMat)
-        # grainBoundary = (misOrienTmp>0.1).astype(int)
-        # #grainBoundary = ndi.maximum_filter(grainBoundary,size=3)
-        # #lowHitRatioMask = (self.squareMicData[:,:,6]< 0.65).astype(int)
-        # #lowHitRatioMask = ndi.maximum_filter(lowHitRatioMask,size=3)
-        # maskFinal = grainBoundary * mask # lowHitRatioMask
-        # #plt.imshow(lowHitRatioMask)
-        # scipy.misc.imsave('geo_opt_test_maskFinal.png', maskFinal)
-        # scipy.misc.imsave('geo_opt_test_hitratio.png', self.squareMicData[:,:,6])
-        # x,y = np.where(maskFinal==1)
-        # idxVoxel = x * self.squareMicData.shape[1] + y
+
         idxVoxel = self.geo_opt_phase_1(centerL, centerJ, centerK, centerRot)
-        ######################## refine boundary voxel, ########################
-        # use misorientation to find grain boundary
-        # use initial geuss similar to post-process. e.g. use orietations of neighbour voxels to speed up.
-        # NPhase0Iteration = 0
-        # maxHitRatio = 0
-        # rangeL = 0.5 #mm
-        # rangeJ = 20 * self.detScale #pixel
-        # rangeK = 10 * self.detScale #pixel
-        # dL = np.linspace(-rangeL, rangeL, 10).reshape([-1, 1]).repeat(2, axis=1)
-        # dJ = np.linspace(-rangeJ, rangeJ, 10).reshape([-1, 1]).repeat(2, axis=1)
-        # dK = np.linspace(-rangeK, rangeK, 10).reshape([-1, 1]).repeat(2, axis=1)
-        # while NPhase0Iteration < 10:
-        #     dL = dL * 0.7
-        #     dJ = dJ * 0.7
-        #     dK = dK * 0.7
-        #     aJ = centerJ.repeat(dJ.shape[0], axis=0) + dJ
-        #     aL = centerL.repeat(dL.shape[0], axis=0) + dL
-        #     aK = centerK.repeat(dK.shape[0], axis=0) + dK
-        #     aDetRot = centerRot
-        #     centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel,geoSearchNVoxel=5,
-        #                                                                              rate=1,NIteration=15,useNeighbour=True, NOrienIteration=2,BoundStart=0.01)
-        #     #centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel)
-        #     NPhase0Iteration +=1
-        # print(centerL, centerJ, centerK)
+
         centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK
-    def geo_opt_phase_0(self, mask=None,centerL=None, centerJ=None, centerK=None, centerRot=None, rangeL=None, rangeJ=None, rangeK=None):
+    def geo_opt_phase_0(self, mask=None,centerL=None, centerJ=None, centerK=None, centerRot=None,
+                        rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
+                        rotOptimization=False):
         '''
         phase 0: line search through each parameter
         :param mask:
@@ -430,17 +363,19 @@ class Reconstructor_GPU():
         if centerK is None:
             centerK = np.array([[2000*self.detScale, 2000*self.detScale]]) #pixel
         if centerRot is None:
-            centerRot = np.array([[[91.6232, 91.2749, 359.274], [90.6067, 90.7298, 359.362]]])
+            centerRot = np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]])
         if rangeL is None:
             rangeL = 2 #mm
         if rangeJ is None:
             rangeJ = 200 * self.detScale #pixel
         if rangeK is None:
             rangeK = 100 * self.detScale #pixel
+        if rangeRot is None:
+            rangeRot = 0.003
         dL = np.linspace(-rangeL, rangeL, 10).reshape([-1, 1]).repeat(2, axis=1)
         dJ = np.linspace(-rangeJ, rangeJ, 10).reshape([-1, 1]).repeat(2, axis=1)
         dK = np.linspace(-rangeK, rangeK, 10).reshape([-1, 1]).repeat(2, axis=1)
-        aDetRot = centerRot
+        aDetRot = RotRep.generarte_random_eulerZXZ(centerRot, rangeRot, 10).reshape([-1,self.NDet,3])
         NPhase0Iteration = 0
         maxHitRatio = 0
         ##################### phase 0 #########################################
@@ -448,7 +383,7 @@ class Reconstructor_GPU():
             aJ = centerJ.repeat(dJ.shape[0], axis=0) + dJ
             aL = centerL.repeat(dL.shape[0], axis=0) + dL
             aK = centerK.repeat(dK.shape[0], axis=0) + dK
-            centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot)
+            centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,rotOptimization=rotOptimization)
             NPhase0Iteration +=1
         print(centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK, centerRot
@@ -481,7 +416,9 @@ class Reconstructor_GPU():
         x,y = np.where(maskFinal==1)
         aIdxVoxel = x * self.squareMicData.shape[1] + y
         return aIdxVoxel
-    def geo_opt_phase_2(self,idxVoxel, centerL, centerJ, centerK, centerRot,  NIterationPhase2=10, rangeL=None, rangeJ=None, rangeK=None, factor0=0.7):
+    def geo_opt_phase_2(self,idxVoxel, centerL, centerJ, centerK, centerRot,
+                        NIterationPhase2=10, rangeL=None, rangeJ=None, rangeK=None, factor0=0.7,
+                        rotOptimization=True):
         '''
         phase2: refine the geometry with voxels at grain boundaries.
         :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
@@ -512,7 +449,8 @@ class Reconstructor_GPU():
             aK = centerK.repeat(dK.shape[0], axis=0) + dK
             aDetRot = centerRot
             centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel,geoSearchNVoxel=5,
-                                                                                     rate=1,NIteration=15,useNeighbour=True, NOrienIteration=2,BoundStart=0.01)
+                                                                                     rate=1,NIteration=15,useNeighbour=True, NOrienIteration=2,BoundStart=0.01,
+                                                                                               rotOptimization=rotOptimization)
             #centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel)
             ii +=1
         print(centerL, centerJ, centerK)
@@ -542,7 +480,7 @@ class Reconstructor_GPU():
                            relativeL=0.05,relativeJ=15, relativeK=5,
                            rate = 1,NIteration=30,factor=0.85, NStep=10, geoSearchNVoxel=1,
                            lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
-                           NOrienIteration=10, BoundStart=0.5):
+                           NOrienIteration=10, BoundStart=0.5, rangeRot=1.0,rotOptimization=False):
         '''
         optimize the geometry of
         kind of similar to Coordinate Gradient Descent
@@ -591,7 +529,7 @@ class Reconstructor_GPU():
         L = aL[aL.shape[0]//2,:].reshape([1,self.NDet])
         J = aJ[aJ.shape[0]//2,:].reshape([1,self.NDet])
         K = aK[aK.shape[0]//2,:].reshape([1,self.NDet])
-        rot = aDetRot[aDetRot.shape[0]//2,:,:].reshape([1,self.NDet,3])
+        rot = aDetRot[0,:,:].reshape([1,self.NDet,3])
         rangeL = (aL[:, 0].max() - aL[:, 0].min()) / 2
         rangeJ = (aJ[:, 0].max() - aJ[:, 0].min()) / 2
         rangeK = (aK[:, 0].max() - aK[:, 0].min()) / 2
@@ -604,6 +542,7 @@ class Reconstructor_GPU():
             #y = np.random.choice(np.arange(10, 90, 1), geoSearchNVoxel)
             #lVoxelIdx = x * self.squareMicData.shape[0] + y
             lVoxelIdx = np.random.choice(lVoxel, geoSearchNVoxel)
+            # use neighbour rotation, speedup reconstruction
             if useNeighbour:
                 rotMatSeed = self.get_neighbour_orien(lVoxelIdx, self.accMat, size=5).astype(np.float32)
                 print(rotMatSeed.shape)
@@ -671,10 +610,22 @@ class Reconstructor_GPU():
             J = (1 - rate*maxHitRatio ** 3) * J + (rate*maxHitRatio ** 3) * aJ[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
                 [1, self.NDet])
             print('update J to {0}, max hitratio is  {1} ||'.format(J, maxHitRatio))
+            # update rotation
+            if rotOptimization:
+                self.geometry_grid_search(L, J, K, aDetRot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
+                # maxHitRatioPre = min(maxHitRatio, 0.7)
+                maxHitRatio = self.geoSearchHitRatio.max()
+                # if(maxHitRatio>maxHitRatioPre):
+                rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :,:].reshape([1, self.NDet, 3])
+                print('update rot to {0}, max hitratio is  {1} ,shape or rot is {2}||'.format(rot, maxHitRatio, rot.shape))
+                #rangeRot = rangeRot * factor
+                aDetRot = RotRep.generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), rangeRot, aDetRot.shape[0]).reshape(aDetRot.shape)
+                aDetRot[0,:,:] = rot
             # update relative Range
             rangeL = rangeL * factor
             rangeJ = rangeJ * factor
             rangeK = rangeK * factor
+
             relativeJ *= factor
             relativeK *= factor
             print(rangeL, rangeJ, rangeK)
@@ -684,6 +635,8 @@ class Reconstructor_GPU():
             aL = L.repeat(dL.shape[0], axis=0) + dL
             aJ = J.repeat(dJ.shape[0], axis=0) + dJ
             aK = K.repeat(dK.shape[0], axis=0) + dK
+
+
         # for idxDet in range(self.NDet):
         #     self.detPos[idxDet][0] = L[0, idxDet]
         #     self.centerJ[idxDet] = J[0, idxDet]
@@ -719,7 +672,7 @@ class Reconstructor_GPU():
                             self.detPos[idxDet][0] = aL[idxl,idxDet]
                             self.centerJ[idxDet] = aJ[idxJ,idxDet]
                             self.centerK[idxDet] = aK[idxK, idxDet]
-                            self.detRot[idxDet] = aDetRot[idxRot, idxDet]
+                            self.detRot[idxDet] = aDetRot[idxRot, idxDet,:]
                         self.set_det()
                         for ii, voxelIdx in enumerate(lVoxelIdx):
                             self.single_voxel_recon(voxelIdx,lSearchMatD[ii], NSearchOrien,NIteration, BoundStart)
@@ -947,6 +900,7 @@ class Reconstructor_GPU():
     def load_square_mic(self, fName, format='npy'):
         if format=='npy':
             self.squareMicData = np.load(fName)
+
             print('load as npy format')
         elif format=='txt':
             print('not implemented')
@@ -1584,10 +1538,11 @@ class Reconstructor_GPU():
                 check neighbour and fill the neighbour
                 :return:
         '''
-        print('====================== entering flood fill ===================================')
+        sys.stdout.write('\r ====================== entering flood fill ===================================')
+        sys.stdout.flush()
         # select voxels to conduct filling
-        print('indexstage0 {0}'.format(len(self.voxelIdxStage0)))
-
+        sys.stdout.write(' \r indexstage0 {0}'.format(len(self.voxelIdxStage0)))
+        sys.stdout.flush()
         #lFloodFillIdx = list()
         lFloodFillIdx = list(
             np.where(np.logical_and(self.voxelHitRatio < self.floodFillSelectThreshold, self.voxelMask == 1))[0])
@@ -1633,7 +1588,8 @@ class Reconstructor_GPU():
                                     NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
             del rotMatSearchD
         # print('fill {0} voxels'.format(idxToAccept.shape))
-        print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
+        sys.stdout.write(' \r ++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
+        sys.stdout.flush()
         return 1
     def flood_fill(self, voxelIdx):
         '''
@@ -2029,6 +1985,9 @@ class Reconstructor_GPU():
         :return:
         '''
         pass
+
+    def save_reconstructor(self,outFile='DefaultSavedObject.p'):
+        pass
 ############## test section ###############
 def test_load_fz():
     S = Reconstructor_GPU()
@@ -2260,12 +2219,13 @@ def geo_opt_test():
     S.geometry_optimizer()
 if __name__ == "__main__":
     #geo_opt_test()
+    recon_example()
     #S = Reconstructor_GPU()
     #test_tex_mem()
     #context.detach()
     #cuda.stop_profiler()
     #grain_boundary()
-    test_segment_grain()
+    #test_segment_grain()
     #test_misorient_map()
     #recon_example()
     #squareMicMIsOrienMap()
