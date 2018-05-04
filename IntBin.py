@@ -8,9 +8,9 @@ Note:
 3. Due to the same reason, the Peak IDs will be messed up (Peak ID from several images are put together to one image)
 4. Although issues 2 and 3 exist, I9 still works fine with integerated binary files. Look at "ImageData.cpp".
 """
-output='IntS13/S13_Int_z1_'
-ImagePar={'nDetectors':3,
-        'sBinFilePrefix':'/home/fyshen13/Dec_16/S13z1Bin/Ti7_S13_Reduced_z1_',
+output='/home/hedm/work/allison_apr18/WE43Reduced_int_z19/WE43_z19_'
+ImagePar={'nDetectors':2,
+        'sBinFilePrefix':'/home/hedm/work/allison_apr18/WE43Reduced_1/WE43_z19_',
         'nReductionNSUM':4,
         'nBinFileIndexStart':0,
         'fOmegaStart':-90,
@@ -28,20 +28,20 @@ def IntegrateBinFiles(oPar,outputprefix):
         for i in range(nDegrees):
             integ=[[],[],[],[]]
             for j in range(oPar['nReductionNSUM']):
-                print 'Reading:',oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k)
+                print('Reading:',oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
                 try:
                     bi=ReadI9BinaryFiles(oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
                 except:
-                    print 'Reading failed'
+                    print('Reading failed')
                 for ii in range(4):
                     integ[ii].extend(bi[ii])
                 indx=indx+1
-            print 'Writing:',outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k)
+            print('Writing:',outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
             filename=outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k)
             try:
                 WritePeakBinaryFile(integ,filename)
             except:
-                print 'Writing failed'
+                print('Writing failed')
             remap_indx=remap_indx+1
 
 def ReadI9BinaryFiles(filename):
@@ -72,6 +72,9 @@ def ReadI9BinaryFiles(filename):
     ReadUFFHeader(fid,Header1)
 #    print Header1['NameSize']
     nElements=(Header1['DataSize']-Header1['NameSize'])/2
+    #print(nElements)
+    #print(fid.read(2*nElements))
+    nElements = int(nElements)
     x=struct.unpack('{0:d}H'.format(nElements),fid.read(2*nElements))
 
     Header1={}

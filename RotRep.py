@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from math import atan2
 
@@ -36,6 +35,31 @@ def rod_from_quaternion(quat):
     else:
         rod = quat[1:4, :] / np.repeat(np.expand_dims(quat[0, :], axis=0), 3, axis=0)
     return rod
+
+def generarte_random_eulerZXZ(eulerIn, range, NAngle=10):
+    '''
+    generate random euler angles, for detector geometry optimization
+    :param eulerIn: in degree!!!, in shape[:,3]
+    :param range:
+    :return:
+    '''
+    eulerIn = eulerIn.reshape([-1,3])
+    shape = eulerIn.shape
+    eulerIn = eulerIn * np.pi / 180.0
+    eulerOut = np.repeat(eulerIn, NAngle, axis=0)
+    range = range * np.pi / 180.0
+    #randomAngle = np.random.rand(eulerOut.shape[0], eulerOut.shape[1])
+    randomAngle = np.random.normal(0.5, 0.2, eulerOut.shape).reshape(eulerOut.shape)
+    #print(randomAngle)
+    eulerOut[:, 0] = eulerOut[:, 0] + range * (randomAngle[:, 0] * 2 - 1)
+    eulerOut[:, 2] = eulerOut[:, 2] + range * (randomAngle[:, 2] * 2 - 1)
+    z = np.cos(eulerOut[:, 1]) + range * (randomAngle[:, 1] * 2 - 1) * np.sin(eulerOut[:, 1])
+    z[z>1] = 1
+    z[z<-1] = -1
+    eulerOut[:, 1] = np.arccos(z)
+    eulerOut[0,:] = eulerIn[0,:]
+    eulerOut = eulerOut * 180.0 / np.pi
+    return eulerOut
 
 
 def quaternion_from_matrix(matrix, isprecise=False):
@@ -145,7 +169,7 @@ def EulerZXZ2MatVectorized(e):
     EulerZXZ2MatVectorized time: 0.0045428276062
 
 
-    :param e: [n_euler,3]matrix
+    :param e: [n_euler,3]matrix, in radian
     :return: [n_euler,3,3] rotation matrix
     '''
     try:
@@ -311,7 +335,7 @@ def GetSymRotMat(symtype='Cubic'):
 
         return m
     else:
-        print "not implemented yet"
+        print("not implemented yet")
         return 0
 
 
@@ -385,7 +409,7 @@ def Misorien2FZ1(m1, m2, symtype='Cubic'):
     angle:  scalar
             The misorientation angle.
     """
-    m2 = np.matrix(m2)
+    #m2 = np.matrix(m2)
     ops = GetSymRotMat(symtype)
     angle = 6.3
     for op in ops:
@@ -421,7 +445,7 @@ def Misorien2FZ2(m1, m2, symtype='Cubic'):
             The misorientation angle. (0~180 degree)
     """
     if symtype != 'Cubic':
-        print "only calculate axis for cubic symmetry"
+        print("only calculate axis for cubic symmetry")
         return
     m2 = np.matrix(m2)
     dm = (m2.T).dot(m1)
@@ -473,7 +497,7 @@ def Misorien2FZ3(m1, m2, symtype='Cubic'):
             The misorientation angle. (0~180 degree)
     """
     if symtype != 'Cubic':
-        print "only calculate axis for cubic symmetry"
+        print("only calculate axis for cubic symmetry")
         return
     m2 = np.matrix(m2)
     dm = (m2.T).dot(m1)
@@ -537,6 +561,19 @@ def Mat2Euler(m):
     if z < 0: z = z + 2 * np.pi
     return x, y, z
 
+def MisorinEulerZXZ(euler1,euler2, symtype='Cubic', degree=True):
+    if euler2.shape != euler1.shape:
+        raise  ValueError('input euler shape need to be the same')
+    if degree:
+        m1 = EulerZXZ2MatVectorized(euler1 * np.pi / 180.0)
+        m2 = EulerZXZ2MatVectorized(euler2 * np.pi / 180.0)
+        misorien = np.empty(m1.shape[0])
+        for i in range(m1.shape[0]):
+            _, misorien[i] = Misorien2FZ1(m1[i,:],m2[i,:],symtype)
+        print('misorien in degree')
+        return misorien * 180.0 / np.pi
+    else:
+        print('to be implemented')
 
 def Mat2EulerZXZ(m):
     """
@@ -593,22 +630,6 @@ def Mat2EulerZXZVectorized(m):
     euler[euler[:, 1] < 0, 1] = euler[euler[:, 1] < 0, 1] + 2 * np.pi
     euler[euler[:, 2] < 0, 2] = euler[euler[:, 2] < 0, 2] + 2 * np.pi
     return euler
-    # def plot(m,symtype='Cubic'):
-    #    ops=GetSymRotMat(symtype)
-    #    for op in ops:
-    #        tmp=op.dot(m)
-    #        x,y,z=Mat2Euler(tmp)
-    #        plt.scatter(x,y+z)
-    #    plt.show()
-    # def plot2(m,symtype='Cubic'):
-    #    ops=GetSymRotMat(symtype)
-    #    for op1 in ops:
-    #        for op2 in ops:
-    #            tmp=op1.dot(m.dot(op2))
-    #            x,y,z=Mat2Euler(tmp)
-    #            plt.scatter(x,y+z)
-    #    plt.show()
-
 def benchmark_e2m():
     # benchmark speed of vectorized version and not
     nEuler = 10000
@@ -646,13 +667,13 @@ def benchmark_m2e():
     end = time.time()
     print(end-start)
     print(e[-1,:])
+
+def test_gen_random_eulerzxz():
+    euler = np.array([[90.0,90.0,0.0]])
+    eulerOut = generarte_random_eulerZXZ(euler, 1)
+    print(MisorinEulerZXZ(euler.repeat(10,axis=0),eulerOut,symtype='Hexagonal'))
+    print(eulerOut)
+
 if __name__ =='__main__':
-    benchmark_m2e()
-    #Orien2FZ(np.zeros([3,3]))
- #    m1 = np.array([[ 0.94245757,  0.26655785,  0.20179359],
- # [ 0.11294816,  0.31423632, -0.94260185],
- # [-0.31466879,  0.91115446,  0.26604718]])
- #    m2 = np.array([[ 0.99736739, -0.00341931,  0.07243343],
- # [-0.05797104,  0.56247327,  0.82478069],
- # [-0.04356205, -0.8268084,   0.56079427]])
- #    print(Misorien2FZ1(Orien2FZ(m2,'Hexagonal')[0],m1,'Hexagonal'))
+    #benchmark_m2e()
+    test_gen_random_eulerzxz()

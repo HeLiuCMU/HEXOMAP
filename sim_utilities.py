@@ -6,64 +6,6 @@ from math import floor
 # from matplotlib import path
 
 
-def frankie_angles_from_g(g, verbo=True, **exp):
-    """
-    Converted from David's code, which converted from Bob's code.
-    I9 internal simulation coordinates: x ray direction is positive x direction, positive z direction is upward, y direction can be determined by right hand rule.
-    I9 mic file coordinates: x, y directions are the same as the simulation coordinates.
-    I9 detector images (include bin and ascii files): J is the same as y, K is the opposite z direction.
-    The omega is along positive z direction.
-
-    Parameters
-    ------------
-    g: array
-       One recipropcal vector in the sample frame when omega==0. Unit is ANGSTROM^-1.
-    exp:
-        Experimental parameters. If use 'wavelength', the unit is 10^-10 meter; if use 'energy', the unit is keV.
-
-    Returns
-    -------------
-    2Theta and eta are in radian, chi, omega_a and omega_b are in degree. omega_a corresponding to positive y direction scatter, omega_b is negative y direction scatter.
-    """
-    ghat = g / np.linalg.norm(g);
-    if 'wavelength' in exp:
-        sin_theta = np.linalg.norm(g) * exp['wavelength'] / (4 * np.pi);
-    elif 'energy' in exp:
-        sin_theta = np.linalg.norm(g) / (exp['energy'] * 0.506773182) / 2
-    cos_theta = np.sqrt(1 - sin_theta ** 2);
-    cos_chi = ghat[2];
-    sin_chi = np.sqrt(1 - cos_chi ** 2);
-    omega_0 = np.arctan2(ghat[0], ghat[1]);
-
-    if np.fabs(sin_theta) <= np.fabs(sin_chi):
-        phi = np.arccos(sin_theta / sin_chi);
-        sin_phi = np.sin(phi);
-        eta = np.arcsin(sin_chi * sin_phi / cos_theta);
-        delta_omega = np.arctan2(ghat[0], ghat[1]);
-        delta_omega_b1 = np.arcsin(sin_theta / sin_chi);
-        delta_omega_b2 = np.pi - delta_omega_b1;
-        omega_res1 = delta_omega + delta_omega_b1;
-        omega_res2 = delta_omega + delta_omega_b2;
-        if omega_res1 > np.pi:
-            omega_res1 -= 2 * np.pi;
-        if omega_res1 < -np.pi:
-            omega_res1 += 2 * np.pi;
-        if omega_res2 > np.pi:
-            omega_res2 -= 2 * np.pi;
-        if omega_res2 < -np.pi:
-            omega_res2 += 2 * np.pi;
-    else:
-        return -1
-    if verbo == True:
-        print '2theta: ', 2 * np.arcsin(sin_theta) * 180 / np.pi
-        print 'chi: ', np.arccos(cos_chi) * 180 / np.pi
-        print 'phi: ', phi * 180 / np.pi
-        print 'omega_0: ', omega_0 * 180 / np.pi
-        print 'omega_a: ', omega_res1 * 180 / np.pi
-        print 'omega_b: ', omega_res2 * 180 / np.pi
-        print 'eta: ', eta * 180 / np.pi
-    return {'chi': np.arccos(cos_chi) * 180 / np.pi, '2Theta': 2 * np.arcsin(sin_theta), 'eta': eta,
-            'omega_a': omega_res1 * 180 / np.pi, 'omega_b': omega_res2 * 180 / np.pi, 'omega_0': omega_0 * 180 / np.pi}
 
 
 class Detector:
@@ -120,14 +62,15 @@ class Detector:
         self.__init__()
 
     def Print(self):
-        print "Norm: ", self.Norm
-        print "CoordOrigin: ", self.CoordOrigin
-        print "J vector: ", self.Jvector
-        print "K vector: ", self.Kvector
+        print("Norm: ", self.Norm)
+        print("CoordOrigin: ", self.CoordOrigin)
+        print("J vector: ", self.Jvector)
+        print("K vector: ", self.Kvector)
 
 
 class CrystalStr:
     def __init__(self, material='new'):
+        self.name = material
         self.AtomPos = []
         self.AtomZs = []
         self.symtype = None
@@ -158,13 +101,23 @@ class CrystalStr:
             self.addAtom([0, 0.5, 0.5], 26)
             self.addAtom([0.5, 0, 0.5], 26)
             self.addAtom([0.5, 0.5, 0], 26)
-	elif material == 'Ti7':
+        elif material == 'Ti7':
             self.symtype = 'Hexagonal'
             self.PrimA = 2.92539 * np.array([1, 0, 0])
             self.PrimB = 2.92539 * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
             self.PrimC = 4.67399 * np.array([0, 0, 1])
             self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 22)
             self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 22)
+        elif material == 'WE43':
+            # not tested, use Mg to approximate
+            self.symtype = 'Hexagonal'
+            a = 3.2094
+            c = 5.2107 
+            self.PrimA = a * np.array([1, 0, 0])
+            self.PrimB = a * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
+            self.PrimC = c * np.array([0, 0, 1])
+            self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 12)
+            self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 12)
         else:
             pass
 
