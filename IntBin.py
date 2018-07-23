@@ -179,7 +179,7 @@ def WriteUFFHeader(fid,header):
     fid.write(struct.pack('I',header['DataSize']))
     fid.write(struct.pack('H',header['ChunkNumber']))
     fid.write(struct.pack('H',header['TotalChunks']))
-    fid.write(struct.pack('{0:d}s'.format(header['NameSize']),header['BlockName']))
+    fid.write(struct.pack('{0:d}s'.format(header['NameSize']),str.encode(header['BlockName'])))
 
 def main():
     IntegrateBinFiles(ImagePar,output)
