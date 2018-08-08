@@ -118,14 +118,14 @@ class CrystalStr:
             self.PrimC = c * np.array([0, 0, 1])
             self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 12)
             self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 12)
-	elif material == 'Ti64_alpha':
+        elif material == 'Ti64_alpha':
             self.symtype = 'Hexagonal'
             self.PrimA = 2.930 * np.array([1, 0, 0])
             self.PrimB = 2.930 * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
             self.PrimC = 4.677 * np.array([0, 0, 1])
             self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 22)
             self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 22)
-        elif material == 'Ti64_beta:
+        elif material == 'Ti64_beta':
             # bcc lattice
             self.symtype = 'Cubic'
             self.PrimA = 3.224 * np.array([1, 0, 0])
