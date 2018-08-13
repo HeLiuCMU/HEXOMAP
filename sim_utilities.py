@@ -101,6 +101,23 @@ class CrystalStr:
             self.addAtom([0, 0.5, 0.5], 26)
             self.addAtom([0.5, 0, 0.5], 26)
             self.addAtom([0.5, 0.5, 0], 26)
+        elif material == 'iron_bcc':
+            # bcc lattice
+            self.symtype = 'Cubic'
+            self.PrimA = 2.856 * np.array([1, 0, 0])
+            self.PrimB = 2.856 * np.array([0, 1, 0])
+            self.PrimC = 2.856 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 26)
+            self.addAtom([0.5, 0.5, 0.5], 26)
+        elif material == 'iron_fcc':
+            self.symtype = 'Cubic'
+            self.PrimA = 2.856 * np.array([1, 0, 0])
+            self.PrimB = 2.856 * np.array([0, 1, 0])
+            self.PrimC = 2.856 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 26)
+            self.addAtom([0, 0.5, 0.5], 26)
+            self.addAtom([0.5, 0, 0.5], 26)
+            self.addAtom([0.5, 0.5, 0], 26)
         elif material == 'Ti7':
             self.symtype = 'Hexagonal'
             self.PrimA = 2.92539 * np.array([1, 0, 0])
