@@ -135,7 +135,16 @@ def plot_mic(snp,sw,plotType,minConfidence,scattersize=2):
         ax.axis('scaled')
         plt.show()
 
-def plot_square_mic(squareMicData,minHitRatio):
+        
+def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
+    plt.imshow(squareMicData[:,:,6].T,origin='lower')
+    if colorbar:
+        plt.colorbar()
+    if saveName is not None:
+        plt.savefig(saveName)
+    plt.show()
+    
+def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     '''
     plot the square mic data
     image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
@@ -160,6 +169,8 @@ def plot_square_mic(squareMicData,minHitRatio):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     plt.imshow(img,origin='lower')
+    if saveName is not None:
+        plt.savefig(saveName)
     plt.show()
 
 class MicFile():
