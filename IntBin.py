@@ -17,6 +17,7 @@ ImagePar={'nDetectors':2,
         'fOmegaStop':90,
         }
 
+
 def IntegrateBinFiles(oPar,outputprefix):
     """
     Note: only can integrate to one degree

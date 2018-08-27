@@ -171,6 +171,7 @@ class Reconstructor_GPU():
         self.voxelAcceptedMat = np.zeros([self.NVoxel,3,3])        # reconstruced rotation matrices
         self.voxelHitRatio = np.zeros(self.NVoxel)                 # reconstructed hit ratio
         self.voxelIdxStage0 = range(self.voxelpos.shape[0])       # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
+        self.NTotalVoxel2Recon = None                             # the total number of voxels neeeded for reconstruction, set by self.set_voxel_pos()
         self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
         self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
         self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
@@ -296,7 +297,7 @@ class Reconstructor_GPU():
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
-        print(self.sample.Gs.astype(np.float32))
+        #print(self.sample.Gs.astype(np.float32))
         self.NG = self.sample.Gs.shape[0]
         self.tfG = mod.get_texref("tfG")
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
@@ -312,6 +313,16 @@ class Reconstructor_GPU():
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
 
     def set_det_param(self,L,J,K, rot):
+        '''
+        set geometry parameters,
+        :param L: array, [1,nDet]
+        :param J: array, [1,nDet]
+        :param K: array, [1,nDet]
+        :param rot: array, [1,nDet,], eulerangle, degree
+        '''
+        # check shape:
+        if L.shape!=(1,self.NDet) or J.shape!=(1,self.NDet) or K.shape!=(1,self.NDet) or rot.shape!=(1,self.NDet,3):
+            raise ValueError('L,J,K shape should be (1,nDet), rot shape should be (1,nDet,3)')
         for idxDet in range(self.NDet):
             self.detPos[idxDet][0] = L[0,idxDet]
             self.centerJ[idxDet] = J[0,idxDet]
@@ -450,9 +461,10 @@ class Reconstructor_GPU():
             NPhase0Iteration +=1
         print(centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK, centerRot
-    def geo_opt_phase_1(self, centerL, centerJ, centerK, centerRot, mask=None):
+    def geo_opt_phase_1(self, centerL, centerJ, centerK, centerRot, mask=None,expandSize=1):
         '''
         with an acceptable parameter, reconstruct an area and select grain boundaries for further refinement
+        :param: expandSize: expand the size of grain boundaries so more voxel can be included.
         :return:
         '''
         if mask is None:
@@ -469,6 +481,7 @@ class Reconstructor_GPU():
         self.save_square_mic('geo_opt_test.npy')
         misOrienTmp = self.get_misorien_map(self.accMat)
         grainBoundary = (misOrienTmp>0.1).astype(int)
+        grainBoundary = ndi.maximum_filter(grainBoundary,size=expandSize)
         #grainBoundary = ndi.maximum_filter(grainBoundary,size=3)
         #lowHitRatioMask = (self.squareMicData[:,:,6]< 0.65).astype(int)
         #lowHitRatioMask = ndi.maximum_filter(lowHitRatioMask,size=3)
@@ -477,6 +490,7 @@ class Reconstructor_GPU():
         scipy.misc.imsave('geo_opt_test_maskFinal.png', maskFinal)
         scipy.misc.imsave('geo_opt_test_hitratio.png', self.squareMicData[:,:,6])
         x,y = np.where(maskFinal==1)
+
         aIdxVoxel = x * self.squareMicData.shape[1] + y
         return aIdxVoxel
     def geo_opt_phase_2(self,idxVoxel, centerL, centerJ, centerK, centerRot,
@@ -518,6 +532,187 @@ class Reconstructor_GPU():
             ii +=1
         print(centerL, centerJ, centerK)
         return centerL, centerJ, centerK, centerRot
+
+    def twiddle_loss(self, idxVoxel, centerL, centerJ, centerK, centerRot):
+        '''
+        calculate the twiddle loss function, while conduct a rotation search in the process:
+        :param idxVoxel:
+        :param centerL:
+        :param centerJ:
+        :param centerK:
+        :param centerRot:
+        :return:
+        '''
+        ########  generate search orientation
+        rotMatSeed = self.get_neighbour_orien(idxVoxel, self.accMat, size=2).astype(np.float32)
+        lSearchMatD = []
+        for i in range(len(idxVoxel)):
+            rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
+            searchMatD = self.gen_random_matrix(rotMatSeedD,
+                                                rotMatSeed.shape[0] * rotMatSeed.shape[1] * rotMatSeed.shape[2],
+                                                40, 0.1)
+            lSearchMatD.append(searchMatD)
+        NSearchOrien = rotMatSeed.shape[1] * rotMatSeed.shape[2] * 40
+
+        ######### generate detecter rotation
+        aDetRot = RotRep.generarte_random_eulerZXZ(centerRot, 0.3, 2).reshape([-1, self.NDet, 3])
+
+        #aDetRot = RotRep.generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), 0.3, 10).reshape([-1, self.NDet, 3])
+
+        ######### calculate cost, take the maximum hit ratio
+        self.geometry_grid_search(centerL, centerJ, centerK, aDetRot, idxVoxel, lSearchMatD, NSearchOrien, NIteration=2, BoundStart=0.01)
+        maxHitRatio = self.geoSearchHitRatio.max()
+        rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :, :].reshape([1, self.NDet, 3])
+        return 1.0 - maxHitRatio, rot
+
+    def twiddle_refine(self,idxVoxelIn, centerL, centerJ, centerK, centerRot,
+                            rangeL=None, rangeJ=None, rangeK=None):
+        '''
+        This is an implementation of whiddle algorithm for finding parameters for a single value cost function:
+        example usage:
+            with open('geometry_run2_0.91.p', 'rb') as input:
+            centerL, centerJ, centerK, centerRot  = pickle.load(input)
+            S = reconstruction.Reconstructor_GPU()
+            S.set_det_param(centerL, centerJ, centerK, centerRot)
+            S.set_Q(7)
+            print(S.maxQ)
+            S.FZFile = '/home/hedm/work/I9_test_data/Au_Mar17/DataFiles/MyFZ.dat'         # fundamental zone file
+            S.set_sample('iron_bcc')
+            S.energy = 65.351
+            S.expDataInitial = '/home/hedm/work/suter_aug18/johnson_aug18/SB1_postheat_V1__z0_1degree/' # reduced binary data
+            S.expdataNDigit = 6                                                       # number of digit in the binary file name
+            S.create_square_mic([50,50],voxelsize=0.01,shift=[0.0,0.0,0])                             # resolution of reconstruction and voxel size
+            S.squareMicOutFile = 'SB1_V1_Z0_johnson_aug17_100x100_0.005_shift_0_0_0.npy'             # output file name
+            S.searchBatchSize = 6000          # number of orientations search at each iteration, larger number will take longer time.
+            #S.intensity_threshold = 2
+            S.recon_prepare(reverseRot=True)  # at 1ID, left hand rotation needs reverseRot=True
+            S.set_Q(8)
+            aIdxVoxel = np.random.choice(aIdxVoxel,50)
+            centerL, centerJ, centerK, centerRot = S.twiddle_refine(aIdxVoxel,centerL, centerJ, centerK, centerRot)
+        :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
+        :param NIterationPhase2: number of iteratio
+        :param rangeL: mm
+        :param rangeJ: pixel
+        :param rangeK: pixel
+        :param factor0: search box shrick by factor0 during each search
+        :return:
+        '''
+        ii = 0
+        maxHitRatio = 0
+        if rangeL is None:
+            rangeL = 0.05 #mm
+        if rangeJ is None:
+            rangeJ = 20 * self.detScale #pixel
+            rangeRelativeJ = 2
+        if rangeK is None:
+            rangeK = 5 * self.detScale #pixel
+            rangeRelativeK = 1
+        
+        p = [centerL, centerJ, centerK]
+        dp = [rangeL, rangeJ, rangeK, rangeRelativeJ, rangeRelativeK]
+        # Calculate the error
+
+        threshold = 0.1
+
+        while sum(dp) > threshold and dp[0]>0.0005:
+            #idxVoxel = np.random.choice(idxVoxelIn, nVoxel)
+            best_err, centerRot = self.twiddle_loss(idxVoxel, p[0], p[1], p[2], centerRot)
+            for i in range(len(p)):
+                if dp[i]<0.0005:
+                    dp[i] = 0.0005
+                if i<3:
+                    p[i] += dp[i] # update L,J,K together
+                else:
+                    p[i-2][0,1] += dp[i] # update relative J,K
+                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], p[1], p[2], centerRot)
+
+                if err < best_err:  # There was some improvement
+                    best_err = err
+                    centerRot = rotTmp
+                    dp[i] *= 1.1
+                    print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], p[1], p[2],sum(dp)))
+                else:  # There was no improvement
+                    if i<3:
+                        p[i] -= 2 * dp[i] # update L,J,K together
+                    else:
+                        p[i-2][0,1] -= 2 * dp[i] # update relative J,K
+                        
+                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], p[1], p[2], centerRot)
+
+                    if err < best_err:  # There was an improvement
+                        best_err = err
+                        centerRot = rotTmp
+                        dp[i] *= 1.05
+                        print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], p[1], p[2],sum(dp)))
+                    else:  # There was no improvement
+                        if i<3:
+                            p[i] += dp[i] # update L,J,K together
+                        else:
+                            p[i-2][0,1] += dp[i] # update relative J,K
+                        # As there was no improvement, the step size in either
+                        # direction, the step size might simply be too big.
+                        dp[i] *= 0.95
+            #sys.stdout.flush()
+        print(p)
+        return p[0], p[1], p[2], centerRot
+    def twiddle_refine_backup(self,idxVoxel, centerL, centerJ, centerK, centerRot,
+                            rangeL=None, rangeJ=None, rangeK=None):
+        '''
+        phase2: refine the geometry with voxels at grain boundaries., wribble search
+        :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
+        :param NIterationPhase2: number of iteratio
+        :param rangeL: mm
+        :param rangeJ: pixel
+        :param rangeK: pixel
+        :param factor0: search box shrick by factor0 during each search
+        :return:
+        '''
+        ii = 0
+        maxHitRatio = 0
+        if rangeL is None:
+            rangeL = 0.05 #mm
+        if rangeJ is None:
+            rangeJ = 5 * self.detScale #pixel
+        if rangeK is None:
+            rangeK = 2 * self.detScale #pixel
+        p = [centerL, centerJ[0,0].reshape([1,1]), centerJ[0,1].reshape([1,1]), 
+                      centerK[0,0].reshape([1,1]), centerK[0,1].reshape([1,1])]
+        dp = [rangeL, rangeJ, rangeJ, rangeK, rangeK]
+        # Calculate the error
+        best_err, centerRot = self.twiddle_loss(idxVoxel, centerL, centerJ, centerK, centerRot)###
+
+        threshold = 0.01
+
+        while sum(dp) > threshold and dp[0]>0.0005:
+            for i in range(len(p)):
+                if dp[i]<0.0005:
+                    dp[i] = 0.0005
+                p[i] += dp[i]
+                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
+
+                if err < best_err:  # There was some improvement
+                    best_err = err
+                    centerRot = rotTmp
+                    dp[i] *= 1.1
+                    print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
+                else:  # There was no improvement
+                    p[i] -= 2 * dp[i]  # Go into the other direction
+                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
+
+                    if err < best_err:  # There was an improvement
+                        best_err = err
+                        centerRot = rotTmp
+                        dp[i] *= 1.05
+                        print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
+                    else:  # There was no improvement
+                        p[i] += dp[i]
+                        # As there was no improvement, the step size in either
+                        # direction, the step size might simply be too big.
+                        dp[i] *= 0.95
+            #sys.stdout.flush()
+        print(p)
+        return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
+
     def get_neighbour_orien(self,lIdxVoxel, accMat, size=3):
         '''
         get the orientations of the neighbours of a voxel
@@ -538,6 +733,7 @@ class Reconstructor_GPU():
         # rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
         # rotMatSearchD = self.gen_random_matrix(rotMatSeedD, self.postOriSeedWindow ** 2, self.postNRandom,
         #                                        self.postRandomRange)
+
         return rotMatSeed
     def geo_opt_coordinate_search_backup(self, aL, aJ, aK, aDetRot,
                            relativeL=0.05,relativeJ=15, relativeK=5,
@@ -1105,8 +1301,9 @@ class Reconstructor_GPU():
         else:
             raise ValueError(' mask should have the same number of voxel as self.voxelpos')
         self.voxelIdxStage0 = list(np.where(self.voxelMask==1)[0])   # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
+        self.NTotalVoxel2Recon = len(self.voxelIdxStage0)
         self.voxelIdxStage1 = []                                # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
-        print("voxelpos shape is {0}".format(self.voxelpos.shape))
+        #print("voxelpos shape is {0}".format(self.voxelpos.shape))
 
     def create_square_mic(self,shape=(100,100), shift=[0,0,0], voxelsize=0.01,mask=None):
         '''
@@ -1243,12 +1440,13 @@ class Reconstructor_GPU():
         #         [3, 3])
         return self.FZEuler
 
-    def load_exp_data_reverse(self,fInitials,digits,intensity_threshold=0):
+    def load_exp_data_reverse(self,fInitials,digits,intensity_threshold=0,remove_overlap=True):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
         these data are NOT transfered to GPU yet.
         :param fInitials: e.g./home/heliu/work/I9_test_data/Integrated/S18_z1_
         :param digits: number of digits in file name, usually 6,
+        :param remove_overlap: if true,remove overlap peaks. Sometimes too many peaks may overflow the gpu memory
         :return:
         '''
         lJ = []
@@ -1259,9 +1457,21 @@ class Reconstructor_GPU():
         lID = []
         for i in range(self.NDet):
             for j in range(self.NRot):
-                print('loading det {0}, rotation {1}'.format(i,j))
+                sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i,j,self.NDet,self.NRot))
+                sys.stdout.flush()
                 fName = fInitials+str(j).zfill(digits) + '.bin' + str(i)
+                
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
+                #print(x.shape)
+                if remove_overlap==True:
+                    concat = np.hstack([a.reshape(-1,1) for a in [x, y]])
+                    #print(concat.shape)
+                    u, indices = np.unique(concat, return_index=True,axis=0)
+                    x = x[indices]
+                    y = y[indices]
+                    intensity = intensity[indices]
+                    id = id[indices]
+                    #print(x.shape)
                 select = intensity>intensity_threshold
                 x = x[select]
                 y = y[select]
@@ -1273,9 +1483,10 @@ class Reconstructor_GPU():
                 lRot.append((self.NRot-j-1)*np.ones(x[:,np.newaxis].shape))
                 lIntensity.append(intensity[:,np.newaxis])
                 lID.append(id)
+                
         self.expData = np.concatenate([np.concatenate(lDet,axis=0),np.concatenate(lRot,axis=0),np.concatenate(lJ,axis=0),np.concatenate(lK,axis=0)],axis=1)
-        print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
-    def load_exp_data(self,fInitials,digits, intensity_threshold=0):
+        print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
+    def load_exp_data(self,fInitials,digits, intensity_threshold=0,remove_overlap=True):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
         these data are NOT transfered to GPU yet.
@@ -1291,9 +1502,19 @@ class Reconstructor_GPU():
         lID = []
         for i in range(self.NDet):
             for j in range(self.NRot):
-                print('loading det {0}, rotation {1}'.format(i,j))
+                sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i+1,j+1,self.NDet,self.NRot))
+                sys.stdout.flush()
                 fName = fInitials+str(j).zfill(digits) + '.bin' + str(i)
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
+                if remove_overlap==True:
+                    concat = np.hstack([a.reshape(-1,1) for a in [x, y]])
+                    #print(concat.shape)
+                    u, indices = np.unique(concat, return_index=True,axis=0)
+                    x = x[indices]
+                    y = y[indices]
+                    intensity = intensity[indices]
+                    id = id[indices]
+                    #print(x.shape)
                 select = intensity>intensity_threshold
                 x = x[select]
                 y = y[select]
@@ -1901,23 +2122,23 @@ class Reconstructor_GPU():
         flood fill all the voxel with confidence level lower than self.floodFillAccptThreshold
         :return:
         '''
-        print('====================== entering flood fill ===================================')
+        #print('====================== entering flood fill ===================================')
         # select voxels for filling
         lFloodFillIdx = list(np.where(np.logical_and(self.voxelHitRatio<self.floodFillSelectThreshold, self.voxelMask==1))[0])
         if not lFloodFillIdx:
             return 0
         idxToAccept = []
-        print(len(lFloodFillIdx))
+        #print(len(lFloodFillIdx))
         # try orientation to fill on all other voxels
         for i in range((len(lFloodFillIdx)-1)//self.floodFillNumberVoxel+1):     #make sure memory is enough
 
             idxTmp = lFloodFillIdx[i*self.floodFillNumberVoxel: (i+1)*self.floodFillNumberVoxel]
             if len(idxTmp)==0:
-                print('no voxel to reconstruct')
+                #print('no voxel to reconstruct')
                 return 0
             elif len(idxTmp)<350:
                 idxTmp = idxTmp * (349//len(idxTmp)+1)
-            print('select group: {0}, number of voxel: {1}'.format(i,len(idxTmp)))
+            #print('select group: {0}, number of voxel: {1}'.format(i,len(idxTmp)))
             afVoxelPosD = gpuarray.to_gpu(self.voxelpos[idxTmp,:].astype(np.float32))
             rotMatH = self.voxelAcceptedMat[voxelIdx, :, :].reshape([-1, 3, 3]).repeat(len(idxTmp),
                                                                                                      axis=0).astype(
@@ -1942,9 +2163,9 @@ class Reconstructor_GPU():
             except ValueError:
                 pass
             del rotMatSearchD
-        print('this process fill {0} voxels'.format(idxToAccept.shape))
-        print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
-        print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
+        #print('this process fill {0} voxels'.format(idxToAccept.shape))
+        #print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
+        #print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
         return 1
     def serial_recon_multi_stage(self):
         '''
@@ -2196,7 +2417,7 @@ class Reconstructor_GPU():
         afHitRatioD.free()
         aiPeakCntD.free()
         maxMat = maxMatD.get().reshape([-1, 3, 3])
-        sys.stdout.write('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3} \r'.format(voxelIdx,
+        sys.stdout.write('\r voxelIdx: {0}, voxelLeft: {4}/{5}.  max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
                                                                                                     afHitRatioH[
                                                                                                         maxHitratioIdx[
                                                                                                             0]],
@@ -2206,7 +2427,7 @@ class Reconstructor_GPU():
                                                                                                     np.array(
                                                                                                         RotRep.Mat2EulerZXZ(
                                                                                                             maxMat[0, :,
-                                                                                                            :])) / np.pi * 180))
+                                                                                                            :])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon))
         sys.stdout.flush()
         self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
