@@ -64,8 +64,8 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
 
 	fOmegaRes1 = fDeltaOmega_b1 + fDeltaOmega0;  // oScatteringVec.m_fY > 0
 	fOmegaRes2 = PI - fDeltaOmega_b1 + fDeltaOmega0;  // oScatteringVec.m_fY < 0
-    	//fOmegaRes1 -= 2.f * PI*(trunc(fOmegaRes1/PI));
-    	//fOmegaRes2 -= 2.f * PI*(trunc(fOmegaRes2/PI));
+    //fOmegaRes1 = fmodf(2.f * PI + fmodf( fOmegaRes1 + PI, 2.f * PI), 2.f * PI) - PI; // this is actually slower.
+    //fOmegaRes2 = fmodf(2.f * PI + fmodf( fOmegaRes2 + PI, 2.f * PI), 2.f * PI) - PI;
 	if ( fOmegaRes1 > PI )          // range really doesn't matter
 	  fOmegaRes1 -=  2.f * PI;
 
@@ -87,115 +87,6 @@ __device__ bool GetScatteringOmegas( float &fOmegaRes1, float &fOmegaRes2,
 	fTwoTheta = fEta = fChi = 0;
 	return false;
   }
-
-
-}
-
-
-__device__ bool GetPeak_s(int &iJ1,int &iJ2,int &iK1, int &iK2,int &bHit1,int &bHit2,
-		const float &fOmegaRes1, const float &fOmegaRes2,
-		const float &fTwoTheta, const float &fEta,const float &fChi,const float &fEtaLimit,
-		const float *afVoxelPos,const float *afDetInfo){
-	/*
-	 *  modified to use shared memory, failed to improve speed.
-	 * cDetMat:	char matrix, float[nOmega*nPixelX*nPixelY];
-	 * fVoxelPos float vector, float[3] [x,y,z];
-	 * afDetInfo:   	  	int iNPixelJ=0, iNPixelK=1;
-    						float fPixelJ=2, fPixelK=3;
-							float afCoordOrigin[3]=[4,5,6];
-							float afNorm[3]=[7,8,9];
-							float afJVector[3][10,11,12];
-							float afKVector[3]=[13,14,15];
-	 */
-	if (fChi>= 0.5*PI){
-		bHit1 = 0;
-		bHit2 = 0;
-		return false;
-	}
-	else if(fEta>fEtaLimit){
-		bHit1 = 0;
-		bHit2 = 0;
-		return false;
-	}
-	bHit1 = 0;
-	bHit2 = 0;
-	if ((-HALFPI<=fOmegaRes1) && (fOmegaRes1<=HALFPI)){
-		float fVoxelPosX = cos(fOmegaRes1)*afVoxelPos[0] - sin(fOmegaRes1)*afVoxelPos[1];
-		float fVoxelPosY = cos(fOmegaRes1)*afVoxelPos[1] + sin(fOmegaRes1)*afVoxelPos[0];
-		float fVoxelPosZ = afVoxelPos[2];
-		float fDist;
-		fDist = afDetInfo[7]*(afDetInfo[4] - fVoxelPosX)
-				+ afDetInfo[8]*(afDetInfo[5] - fVoxelPosY)
-				+ afDetInfo[9]*(afDetInfo[6] - fVoxelPosZ);
-		float afScatterDir[3]; //scattering direction
-		afScatterDir[0] = cos(fTwoTheta);
-		afScatterDir[1] = sin(fTwoTheta) * sin(fEta);
-		afScatterDir[2] = sin(fTwoTheta) * cos(fEta);
-		float afInterPos[3];
-		float fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
-		                          + afDetInfo[8]*afScatterDir[1]
-		                          + afDetInfo[9]*afScatterDir[2];
-		afInterPos[0] = fDist / fAngleNormScatter * afScatterDir[0] + fVoxelPosX;
-		afInterPos[1] = fDist / fAngleNormScatter * afScatterDir[1] + fVoxelPosY;
-		afInterPos[2] = fDist / fAngleNormScatter * afScatterDir[2] + fVoxelPosZ;
-		float fJ,fK;
-		fJ = (afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
-				+ afDetInfo[11]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2];
-		fK = (afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
-				+ afDetInfo[14]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3];
-		int iJ = (int)fJ;
-		int iK = (int)fK;
-		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
-			iJ1 = iJ;
-			iK1 = iK;
-			bHit1 = 1;
-		}
-		else{
-			bHit1 = 0;
-		}
-	}
-
-	if ((-HALFPI<=fOmegaRes2) && (fOmegaRes2<=HALFPI)){
-		float fVoxelPosX = cos(fOmegaRes2)*afVoxelPos[0] - sin(fOmegaRes2)*afVoxelPos[1];
-		float fVoxelPosY = cos(fOmegaRes2)*afVoxelPos[1] + sin(fOmegaRes2)*afVoxelPos[0];
-		float fVoxelPosZ = afVoxelPos[2];
-		float fDist;
-		fDist = afDetInfo[7]*(afDetInfo[4] - fVoxelPosX)
-				+ afDetInfo[8]*(afDetInfo[5] - fVoxelPosY)
-				+ afDetInfo[9]*(afDetInfo[6] - fVoxelPosZ);
-		float afScatterDir[3]; //scattering direction
-		afScatterDir[0] = cos(fTwoTheta);
-		afScatterDir[1] = sin(fTwoTheta) * sin(-fEta);  // caution: -fEta!!!!!!
-		afScatterDir[2] = sin(fTwoTheta) * cos(-fEta);  // caution: -fEta!!!!!!
-		float afInterPos[3];
-		float fAngleNormScatter = afDetInfo[7]*afScatterDir[0]
-		                          + afDetInfo[8]*afScatterDir[1]
-		                          + afDetInfo[9]*afScatterDir[2];
-		afInterPos[0] = fDist / fAngleNormScatter * afScatterDir[0] + fVoxelPosX;
-		afInterPos[1] = fDist / fAngleNormScatter * afScatterDir[1] + fVoxelPosY;
-		afInterPos[2] = fDist / fAngleNormScatter * afScatterDir[2] + fVoxelPosZ;
-		float fJ,fK;
-		fJ = (afDetInfo[10]*(afInterPos[0]-afDetInfo[4])
-				+ afDetInfo[11]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[12]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[2];
-		fK = (afDetInfo[13]*(afInterPos[0]-afDetInfo[4])
-				+ afDetInfo[14]*(afInterPos[1]-afDetInfo[5])
-				+ afDetInfo[15]*(afInterPos[2]-afDetInfo[6]) )/afDetInfo[3];
-		int iJ = (int)fJ;
-		int iK = (int)fK;
-		if ((0<=iJ )&&(iJ<afDetInfo[0]) &&(0<=iK) && (iK<afDetInfo[1])){
-			iJ2 = iJ;
-			iK2 = iK;
-			bHit2 = 1;
-		}
-		else{
-			bHit2 = 0;
-		}
-	}
-	return true;
-
 }
 
 __device__ bool GetPeak(int &iJ1,int &iJ2,int &iK1, int &iK2,bool &bHit1,bool &bHit2,
@@ -312,28 +203,13 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 	 * the dimesion of GPU grid should be iNVoxel*iNOrientation*iNG
 	 * <<< (iNVoxel,iNOrientation),(iNG)>>>;
 	 */
-	 //printf("start sim");
-	 //if(blockIdx.x==0 && threadIdx.x==0){
-	 //   printf(" %f, %f, %f||",afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+0],
-	 //   afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+1],
-	 //   afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+2]);
-	 // }
-	//printf("blockIdx: %d || ",blockIdx.x);
 	float fOmegaRes1,fOmegaRes2,fTwoTheta,fEta,fChi;
 	float afScatteringVec[3]={0,0,0};
-	//float afOrienMat[9];
-	//original G vector
-	//rotation matrix 3x3
-	//G' = M.dot(G)
-	//printf("originG: %f,%f,%f. ||",afG[threadIdx.x*3+0],afG[threadIdx.x*3+1],afG[threadIdx.x*3+2]);
 	for (int i=0;i<3;i++){
 		for(int j=0;j<3;j++){
 		    afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*tex2D(tfG,(float)j,(float)threadIdx.x);
-			//afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
-		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
 		}
 	}
-	//printf("%f,%f,%f ||",afScatteringVec[0],afScatteringVec[1],afScatteringVec[1]);
 	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
 		int i = blockIdx.x*gridDim.y*blockDim.x*2*iNDet+ blockIdx.y*blockDim.x*2*iNDet + threadIdx.x*2*iNDet;
 		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
@@ -341,97 +217,11 @@ __global__ void simulation(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *
 					abHit[i+iDetIdx],abHit[i+iDetIdx+iNDet],
 					fOmegaRes1, fOmegaRes2,fTwoTheta,
 					fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
-			//printf("%f %f %f || ", (afVoxelPos+blockIdx.x*3)[0],(afVoxelPos+blockIdx.x*3)[1],(afVoxelPos+blockIdx.x*3)[2]);
-			//printf("blockIdx: %d || ",blockIdx.x);
 			//	////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
 			afOmega[i+iDetIdx] = fOmegaRes1;
 			aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
-			//}
-			//if(abHit[i+iDetIdx+iNDet]){
 			afOmega[i+iDetIdx+iNDet] = fOmegaRes2;
 			aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-			//	//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
-			//}
-			//if(abHit[i+iDetIdx]){
-			//	////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
-			//	afOmega[i+iDetIdx] = fOmegaRes1;
-			//	aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
-			//}
-			//if(abHit[i+iDetIdx+iNDet]){
-			 //   afOmega[i+iDetIdx+iNDet] = fOmegaRes2;
-			//	aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-			//	//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
-			//}
-		}
-	}
-}
-
-__global__ void simulation_backup_20180206(int *aiJ, int *aiK, float *afOmega, bool *abHit,int *aiRotN,
-		const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
-		const float* __restrict__ afOrientation,const float* __restrict__ afG,const float* __restrict__ afVoxelPos,
-		const float fBeamEnergy, const float fEtaLimit, const float* __restrict__ afDetInfo){
-	/*
-	 * int aiJ: output of J values,len =  iNVoxel*iNOrientation*iNG*2*iNDet
-				basic unit iNVoxel*iNOrientation*iNG*[omega0 of det0, omega0 of det1,omega1,det0,omega1,det1]...
-	 * int aiK: len =  iNVoxel*iNOrientation*iNG*2*iNDet
-	 * float afOmega: len =  iNVoxel*iNOrientation*iNG*2*iNDet
-	 * bool abHit: len =  iNVoxel*iNOrientation*iNG*2*iNDet
-	 * int *aiRotN, the number of image that the peak is on, len=iNVoxel*iNOrientation*2*iNDet
-	 * int iNVoxel: number of voxels
-	 * int iNOrientation: number of orientations on each voxel
-	 * int iNG: number of reciprocal vector on each diffraction process
-	 * float *afOrientation: the array of all the orientation matrices of all the voxels,len=iNVoxel*iNOrientaion*9
-	 * float *afG: list of reciprical vector len=iNG*3
-	 * float *afVoxelPos: location of the voxels, len=iNVoxel*3;
-	 * afDetInfo: [det0,det1,...], iNDet*19;
-	 * number of
-	 * the dimesion of GPU grid should be iNVoxel*iNOrientation*iNG
-	 * <<< (iNVoxel,iNOrientation),(iNG)>>>;
-	 */
-	 //printf("start sim");
-	 //if(blockIdx.x==0 && threadIdx.x==0){
-	 //   printf(" %f, %f, %f||",afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+0],
-	 //   afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+1],
-	 //   afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+0*3+2]);
-	 // }
-	//printf("blockIdx: %d || ",blockIdx.x);
-	float fOmegaRes1,fOmegaRes2,fTwoTheta,fEta,fChi;
-	float afScatteringVec[3]={0,0,0};
-	//float afOrienMat[9];
-	//original G vector
-	//rotation matrix 3x3
-	//G' = M.dot(G)
-	//printf("originG: %f,%f,%f. ||",afG[threadIdx.x*3+0],afG[threadIdx.x*3+1],afG[threadIdx.x*3+2]);
-	for (int i=0;i<3;i++){
-		for(int j=0;j<3;j++){
-		    afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*tex2D(tfG,(float)j,(float)threadIdx.x);
-			//afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
-		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
-		}
-	}
-	//printf("%f,%f,%f ||",afScatteringVec[0],afScatteringVec[1],afScatteringVec[1]);
-	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
-		int i = blockIdx.x*gridDim.y*blockDim.x*2*iNDet+ blockIdx.y*blockDim.x*2*iNDet + threadIdx.x*2*iNDet;
-		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
-			GetPeak(aiJ[i+iDetIdx],aiJ[i+iDetIdx+iNDet],aiK[i+iDetIdx],aiK[i+iDetIdx+iNDet],
-					abHit[i+iDetIdx],abHit[i+iDetIdx+iNDet],
-					fOmegaRes1, fOmegaRes2,fTwoTheta,
-					fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
-			//printf("%f %f %f || ", (afVoxelPos+blockIdx.x*3)[0],(afVoxelPos+blockIdx.x*3)[1],(afVoxelPos+blockIdx.x*3)[2]);
-			//printf("blockIdx: %d || ",blockIdx.x);
-			if(abHit[i+iDetIdx]){
-				////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
-				afOmega[i+iDetIdx] = fOmegaRes1;
-				aiRotN[i+iDetIdx] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-				//printf("iJ1: %d, iK1 %d, fOmega1 %f, iRotN %d",aiJ[i],aiK[i],afOmega[i],aiRotN[i]);
-			}
-			if(abHit[i+iDetIdx+iNDet]){
-			    afOmega[i+iDetIdx+iNDet] = fOmegaRes2;
-				aiRotN[i+iDetIdx+iNDet] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-				//printf("iJ2: %d, iK2 %d, fOmega2 %f, iRotN %d ",aiJ[i+1],aiK[i+1],afOmega[i+1],aiRotN[i+1]);
-			}
 		}
 	}
 }
@@ -510,13 +300,6 @@ __global__ void hitratio_multi_detector(const int iNVoxel,const int iNOrientatio
             while(allTrue1 && k<iNDet){
                 idx = i*iNG*2*iNDet+j*iNDet+k;
                 allTrue1 *= tex3D(tcExpData,(float)aiJ[idx], (float)aiK[idx],(float)(k*iNRot + aiRotN[idx]) );
-                //if (threadIdx.x==0 && blockIdx.x==0){
-                //    printf("%d  %d ||",tex3D(tcExpData,(float)aiJ[idx], (float)aiK[idx],(float)(k*iNRot + aiRotN[idx]) ),
-                //    acExpDetImages[aiDetStartIdx[k]
-                //                 + aiRotN[idx]*int(afDetInfo[0+19*k])*int(afDetInfo[1+19*k])
-                //                  + aiK[idx]*int(afDetInfo[0+19*k])
-                //                  + aiJ[idx]]);
-                //}
                 k += 1;
             }
             iPeakCnt += allTrue0;
@@ -723,96 +506,5 @@ __device__ void d_misorien(float& fMisOrien, float* afM0, float* afM1, float* af
     fCosAngle = max(-0.99999999999, fCosAngle);
     fMisOrien = acosf(fCosAngle);
 }
-
-__global__ void sim_hitratio_unit(const int iNVoxel, const int iNOrientation, const int iNG, const int iNDet,
-		const float *afOrientation,const float *afG,const float *afVoxelPos,
-		const float fBeamEnergy, const float fEtaLimit, const float *afDetInfo,
-		float* afHitRatio, int* aiPeakCnt){
-	/*
-	* performance drops...
-	 *Try to use shared memory to store j,k,omega,hit, and rotN, use texture memory to access expdata
-	 * int aiJ: output of J values,len =  iNVoxel*iNOrientation*iNG*2*iNDet
-				basic unit iNVoxel*iNOrientation*iNG*[omega0 of det0, omega0 of det1,omega1,det0,omega1,det1]...
-	 * int aiK: len =  iNVoxel*iNOrientation*iNG*2*iNDet
-	 * float afOmega: len =  iNVoxel*iNOrientation*iNG*2*iNDet
-	 * bool abHit: len =  iNVoxel*iNOrientation*iNG*2*iNDet
-	 * int *aiRotN, the number of image that the peak is on, len=iNVoxel*iNOrientation*2*iNDet
-	 * int iNVoxel: number of voxels
-	 * int iNOrientation: number of orientations on each voxel
-	 * int iNG: number of reciprocal vector on each diffraction process
-	 * float *afOrientation: the array of all the orientation matrices of all the voxels,len=iNVoxel*iNOrientaion*9
-	 * float *afG: list of reciprical vector len=iNG*3
-	 * float *afVoxelPos: location of the voxels, len=iNVoxel*3;
-	 * afDetInfo: [det0,det1,...], iNDet*19;
-	 * number of
-	 * the dimesion of GPU grid should be iNVoxel*iNOrientation*iNG
-	 * <<< (iNVoxel,iNOrientation),(iNG)>>>;
-	 */
-	 //////////////////////////// simulation part ////////////////////////////////////////
-	extern __shared__ int aiSimResult[]; // iNG*2*4*iNDet, each storage is [jo0d0,ko0d0,Ro0d0,ho0d0,jo0d1,ko0d1...jo1d0,ko1d0...]
-	float fOmegaRes1,fOmegaRes2,fTwoTheta,fEta,fChi;
-	float afScatteringVec[3]={0,0,0};
-	for (int i=0;i<3;i++){
-		for(int j=0;j<3;j++){
-			afScatteringVec[i] += afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]*afG[threadIdx.x*3+j];
-		    //printf("%d,%d: %f. ||",i,j,afOrientation[blockIdx.x*gridDim.y*9+blockIdx.y*9+i*3+j]);
-		}
-	}
-	if(GetScatteringOmegas( fOmegaRes1, fOmegaRes2, fTwoTheta, fEta, fChi , afScatteringVec,fBeamEnergy)){
-		for(int iDetIdx=0;iDetIdx<iNDet;iDetIdx++){
-			GetPeak_s(aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 0], aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 0],
-			        aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 1], aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 1],
-					aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 3], aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 3],
-					fOmegaRes1,fOmegaRes2,
-                    fTwoTheta,fEta,fChi,fEtaLimit,afVoxelPos+blockIdx.x*3,afDetInfo+19*iDetIdx);
-			if( aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 3]){
-				////////assuming they are using the same rotation number in all the detectors!!!!!!!///////////////////
-				aiSimResult[threadIdx.x*2*4*iNDet + iDetIdx*4 + 2] = floor((fOmegaRes1-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-			}
-			if( aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 3]){
-				aiSimResult[threadIdx.x*2*4*iNDet + iNDet*4 + iDetIdx*4 + 2] = floor((fOmegaRes2-afDetInfo[17])/(afDetInfo[18]-afDetInfo[17])*(afDetInfo[16]-1));
-			}
-		}
-	}
-	__syncthreads();
-	/////////////////////////////// hit ratio part ///////////////////////////////////////
-	/*
-	if(threadIdx.x==0){
-	    int i = blockIdx.x * blockDim.y + blockIdx.y;
-		bool allTrue0; // if a simulated peak hit all detector, allTrue0 = true;
-        bool allTrue1; // if a simulated peak overlap with all expimages on all detector, allTrue1 = true;
-        int k;
-        int iPeakCnt = 0;
-        float fHitRatio = 0;
-        int iNRot = (int)afDetInfo[16];
-		for(int j=0;j<iNG*2;j++){
-		    //printf("j: %d ||",j);
-			allTrue0 = true;
-			allTrue1 = true;
-			k = 0;
-			while(allTrue0 && k<iNDet){
-				allTrue0 *= aiSimResult[j*4*iNDet + k*4 + 3]; //abHit[i*iNG*2*iNDet+j*iNDet+k];
-				k += 1;
-			}
-			allTrue1 = allTrue0;
-            k = 0;
-            while(allTrue1 && k<iNDet){
-                allTrue1 *= tex3D(tcExpData,(float)aiSimResult[j*4*iNDet + k*4 + 0], (float)aiSimResult[j*4*iNDet + k*4 + 1],(float)(k*iNRot + aiSimResult[j*4*iNDet + k*4 + 2]) );
-                k += 1;
-            }
-            iPeakCnt += allTrue0;
-			fHitRatio += allTrue1;
-		}
-		aiPeakCnt[i] = iPeakCnt;
-		if(iPeakCnt>0){
-		    afHitRatio[i] = fHitRatio/float(iPeakCnt);
-		}
-		else{
-			afHitRatio[i]=0;
-		}
-	}
-	*/
-}
-
 
 """)

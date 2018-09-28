@@ -230,12 +230,12 @@ class Reconstructor_GPU():
         self.searchBatchSize = 20000      # number of orientations to search per GPU call, due to GPU memory size
         self.NSelect = 100                 # number of orientations selected with maximum hitratio from last iteration
         self.postMisOrienThreshold = 0.02  # voxel with misorientation larger than this will be post processed seeds voxel
-        self.postWindow = 3                #voxels in the nxn window around the seeds voxels selected above will be processed
-        self.postRandomRange = 0.001       # the random angle range generated in post process
-        self.postConvergeMisOrien = 0.01   # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
+        self.postWindow = 20                #voxels in the nxn window around the seeds voxels selected above will be processed
+        self.postRandomRange = 0.01       # the random angle range generated in post process
+        self.postConvergeMisOrien = 0.001   # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
         self.postNRandom = 50             # number of random angle generated in each orientation seed
         self.postOriSeedWindow = 4         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
-        self.postNIteration = 1            # number of iteration to optimize in post process
+        self.postNIteration = 2            # number of iteration to optimize in post process
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
         self.sim_func = mod.get_function("simulation")
@@ -243,7 +243,6 @@ class Reconstructor_GPU():
         self.mat_to_euler_ZXZ = mod.get_function("mat_to_euler_ZXZ")
         self.rand_mat_neighb_from_euler = mod.get_function("rand_mat_neighb_from_euler")
         self.euler_zxz_to_mat_gpu = mod.get_function("euler_zxz_to_mat")
-        self.sim_hitratio_unit = mod.get_function("sim_hitratio_unit")
         # GPU random generator
         self.randomGenerator = MRG32k3aRandomNumberGenerator()
         # initialize device parameters and outputs
@@ -1172,23 +1171,27 @@ class Reconstructor_GPU():
             if i<(self.NDet-1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
         # check is detector size boyond the number int type could hold
-        if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
-            raise ValueError("detector image size {0} is wrong, \n\
-                             possible too large detector size\n\
-                            currently use int type as detector pixel index\n\
-                            future implementation use lognlong will solve this issure")
+        # if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
+        #     raise ValueError("detector image size {0} is wrong, \n\
+        #                      possible too large detector size\n\
+        #                     currently use int type as detector pixel index\n\
+        #                     future implementation use lognlong will solve this issure")
 
         self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
-        self.acExpDataCpuRam = np.zeros((self.iExpDetImageSize,),dtype=np.int8)
+        self.acExpDataCpuRam = np.zeros([self.NDet*self.NRot,self.detectors[0].NPixelK,self.detectors[0].NPixelJ],dtype=np.uint8) # assuming all same detector!
+        print('assuming same type of detector in different distances')
         self.iNPeak = np.int32(self.expData.shape[0])
+        self.expData = self.expData.astype('int')
+
         for i in range(self.iNPeak):
-            self.acExpDataCpuRam[self.aiDetStartIdxH[self.expData[i, 0]] \
-                                + self.expData[i, 1] * self.detectors[self.expData[i, 0]].NPixelK * self.detectors[self.expData[i, 0]].NPixelJ \
-                                + self.expData[i, 3] * self.detectors[self.expData[i, 0]].NPixelJ \
-                                + self.expData[i, 2]] = 1
+            #print(self.expData[i,:])
+            self.acExpDataCpuRam[self.expData[i, 0] * self.NRot + self.expData[i, 1],
+                                self.expData[i, 3],
+                                self.expData[i, 2]] = 1
 
 
         print('=============end of copy exp data to CPU ===========')
+
     def post_process(self):
         '''
         In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
@@ -1217,7 +1220,6 @@ class Reconstructor_GPU():
         NIteration = 0
         while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
             NIteration +=1
-            print(np.max(misOrienTmp))
             self.NPostProcess += 1
             misOrienTmp = ndi.maximum_filter(misOrienTmp, self.postWindow) * (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY]) # due to expansion mode
             x, y = np.where(np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1))
@@ -1230,12 +1232,13 @@ class Reconstructor_GPU():
                 rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
                 rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom,self.postRandomRange)
                 self.single_voxel_recon(idx,rotMatSearchD,self.postNRandom * self.postOriSeedWindow ** 2,
-                                        NIteration=self.postNIteration, BoundStart=self.postRandomRange)
+                                        NIteration=self.postNIteration, BoundStart=self.postRandomRange, verbose=False)
             accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
             misOrienTmpNew = misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
             misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
             accMat = accMatNew.copy()
-            print('max misorien: {0}'.format(np.max(misOrienTmp)))
+            sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
+            sys.stdout.flush()
         print('number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
         end = time.time()
         print(' post process takes is {0} seconds'.format(end-start))
@@ -1514,48 +1517,6 @@ class Reconstructor_GPU():
         self.expData = np.concatenate([np.concatenate(lDet,axis=0),np.concatenate(lRot,axis=0),np.concatenate(lJ,axis=0),np.concatenate(lK,axis=0)],axis=1)
         print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
 
-    def cp_expdata_to_gpu_bakcup_20180206(self):
-        # require have defiend self.NDet,self.NRot, and Detctor informations;
-        #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
-        #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
-        print('=============start of copy exp data to gpu ===========')
-        if self.expData.shape[1]!=4:
-            raise ValueError('expdata shape should be n_peaks*4')
-        if np.max(self.expData[:,0])>self.NDet-1:
-            raise ValueError('expData contains detector index out of bound')
-        if np.max(self.expData[:,1])>self.NRot-1:
-            raise  ValueError('expData contaisn rotation number out of bound')
-        self.aiDetStartIdxH = [0] # index of Detctor start postition in self.acExpDetImages, e.g. 3 detectors with size 2048x2048, 180 rotations, self.aiDetStartIdx = [0,180*2048*2048,2*180*2048*2048]
-        self.iExpDetImageSize = 0
-        for i in range(self.NDet):
-            self.iExpDetImageSize += self.NRot*self.detectors[i].NPixelJ*self.detectors[i].NPixelK
-            if i<(self.NDet-1):
-                self.aiDetStartIdxH.append(self.iExpDetImageSize)
-        # check is detector size boyond the number int type could hold
-        if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
-            raise ValueError("detector image size {0} is wrong, \n\
-                             possible too large detector size\n\
-                            currently use int type as detector pixel index\n\
-                            future implementation use lognlong will solve this issure")
-
-        self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
-        self.acExpDetImages = gpuarray.zeros(self.iExpDetImageSize,np.int8)   # experimental image data on GPUlen=sigma_i(NDet*NRot*NPixelJ[i]*NPxielK[i])
-        self.aiDetStartIdxD = gpuarray.to_gpu(self.aiDetStartIdxH.astype(np.int32))
-        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
-
-        self.aiDetIndxD = gpuarray.to_gpu(self.expData[:, 0].ravel().astype(np.int32))
-        self.aiRotND = gpuarray.to_gpu(self.expData[:, 1].ravel().astype(np.int32))
-        self.aiJExpD = gpuarray.to_gpu(self.expData[:, 2].ravel().astype(np.int32))
-        self.aiKExpD = gpuarray.to_gpu(self.expData[:, 3].ravel().astype(np.int32))
-        self.iNPeak = np.int32(self.expData.shape[0])
-        create_bin_expimages = mod.get_function("create_bin_expimages")
-        create_bin_expimages(self.acExpDetImages, self.aiDetStartIdxD, self.afDetInfoD, np.int32(self.NDet), np.int32(self.NRot),
-                             self.aiDetIndxD, self.aiRotND, self.aiJExpD, self.aiKExpD, self.iNPeak, block=(256,1,1),grid=(self.iNPeak//256+1,1))
-        print('=============end of copy exp data to gpu ===========')
-        # self.out_expdata = self.acExpDetImages.get()
-        # for i in range(self.NDet):
-        #     detImageSize = self.NRot*self.detectors[i].NPixelK*self.detectors[i].NPixelJ
-        #     print(self.out_expdata[self.aiDetStartIdxH[i]:(self.aiDetStartIdxH[i]+detImageSize)].reshape([self.NRot,self.detectors[i].NPixelK,self.detectors[i].NPixelJ]))
 
     def sim_precheck(self):
         #check if inputs are correct
@@ -1653,209 +1614,6 @@ class Reconstructor_GPU():
         #self.print_sim_results()
         return self.aJH, self.aKH, self.bHitH, self.aiRotNH, self.aOmegaH
 
-
-    def single_voxel_recon_v20180205(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
-        # This is the most robust version of single voxel recon
-        # reconstruction of single voxel
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        for i in range(NIteration):
-            # print(i)
-            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-            # update rotation matrix to search
-            if i == 0:
-                rotMatSearchD = afFZMatD.copy()
-            else:
-                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.7 ** i))
-            afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-            maxHitratioIdx = np.argsort(afHitRatioH)[
-                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-            for jj in range(1, 9):
-                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-            # print('max hitratio: {0},maxMat: {1}'.format(afHitRatioH[maxHitratioIdx[0]], maxMat[0, :, :]))
-            #print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]]))
-            del rotMatSearchD
-
-        maxMat = maxMatD.get().reshape([-1, 3, 3])
-        print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx, afHitRatioH[maxHitratioIdx[0]],
-                                                                      aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :, :])) / np.pi * 180))
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
-        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
-        del afVoxelPosD
-    def single_voxel_recon_v20180206(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
-        '''
-        THis is a working version, no error so far as 20180130
-        try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
-        :param voxelIdx:
-        :param afFZMatD:
-        :param NSearchOrien:
-        :param NIteration:
-        :param BoundStart:
-        :return:
-        '''
-        # reconstruction of single voxel
-        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
-        NVoxel = 1
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
-        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
-        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
-        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
-        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
-        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
-        for i in range(NIteration):
-            # print(i)
-            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-            # update rotation matrix to search
-            if i == 0:
-                rotMatSearchD = afFZMatD.copy()
-            else:
-                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
-
-            #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-            # kernel calls
-            #start = time.time()
-            self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
-                          np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                          rotMatSearchD, self.afGD,
-                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                          grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
-
-            # this is the most time cosuming part, 0.03s per iteration
-            self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
-                               self.afDetInfoD, self.acExpDetImages, self.aiDetStartIdxD, np.int32(self.NDet),
-                               np.int32(self.NRot),
-                               aiJD, aiKD, aiRotND, abHitD,
-                               afHitRatioD, aiPeakCntD,
-                               block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
-
-            # print('finish sim')
-            # memcpy_dtoh
-            context.synchronize()
-
-            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-            #end = time.time()
-            #print("SourceModule time {0} seconds.".format(end-start))
-            maxHitratioIdx = np.argsort(afHitRatioH)[
-                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-            for jj in range(1, 9):
-                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-            del rotMatSearchD
-        aiJD.free()
-        aiKD.free()
-        afOmegaD.free()
-        abHitD.free()
-        aiRotND.free()
-        afHitRatioD.free()
-        aiPeakCntD.free()
-        maxMat = maxMatD.get().reshape([-1, 3, 3])
-        print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
-                                                                                                    afHitRatioH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    aiPeakCntH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    np.array(
-                                                                                                        RotRep.Mat2EulerZXZ(
-                                                                                                            maxMat[0, :,
-                                                                                                            :])) / np.pi * 180))
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
-        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
-        del afVoxelPosD
-
-    def single_voxel_recon_acc1(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
-        '''
-        # this version tries to use kernal that combines sim and hit ratio.
-        THis is a working version, no error so far as 20180130
-        try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
-        :param voxelIdx:
-        :param afFZMatD:
-        :param NSearchOrien:
-        :param NIteration:
-        :param BoundStart:
-        :return:
-        '''
-        # reconstruction of single voxel
-        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
-        NVoxel = 1
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
-        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
-        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
-        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
-        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
-        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
-        for i in range(NIteration):
-            # print(i)
-            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-            # update rotation matrix to search
-            if i == 0:
-                rotMatSearchD = afFZMatD.copy()
-            else:
-                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.7 ** i))
-
-            #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-            # kernel calls
-            self.sim_hitratio_unit(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
-                          np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                          rotMatSearchD, self.afGD,
-                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                          self.acExpDetImages, self.aiDetStartIdxD,
-                          afHitRatioD, aiPeakCntD,
-                          grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1),shared=self.NG*4*(np.int32(0).nbytes))
-            # memcpy_dtoh
-            context.synchronize()
-            #end = time.time()
-            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-
-            #print("SourceModule time {0} seconds.".format(end-start))
-            maxHitratioIdx = np.argsort(afHitRatioH)[
-                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-            for jj in range(1, 9):
-                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-            del rotMatSearchD
-        aiJD.free()
-        aiKD.free()
-        afOmegaD.free()
-        abHitD.free()
-        aiRotND.free()
-        afHitRatioD.free()
-        aiPeakCntD.free()
-        maxMat = maxMatD.get().reshape([-1, 3, 3])
-        print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
-                                                                                                    afHitRatioH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    aiPeakCntH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    np.array(
-                                                                                                        RotRep.Mat2EulerZXZ(
-                                                                                                            maxMat[0, :,
-                                                                                                            :])) / np.pi * 180))
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
-        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
-        del afVoxelPosD
     def expansion_unit_run(self, voxelIdx, afFZMatD):
         '''
         These is just a simple combination of single_voxel_recon and flood_fill
@@ -2293,14 +2051,13 @@ class Reconstructor_GPU():
             if i<(self.NDet-1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
         # check is detector size boyond the number int type could hold
-        if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
-            raise ValueError("detector image size {0} is wrong, \n\
-                             possible too large detector size\n\
-                            currently use int type as detector pixel index\n\
-                            future implementation use lognlong will solve this issure")
+        # if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
+        #     raise ValueError("detector image size {0} is wrong, \n\
+        #                      possible too large detector size\n\
+        #                     currently use int type as detector pixel index\n\
+        #                     future implementation use lognlong will solve this issure")
 
         self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
-        self.acExpDetImages = gpuarray.zeros([self.NDet*self.NRot,self.detectors[0].NPixelK,self.detectors[0].NPixelJ],np.int8)   # experimental image data on GPUlen=sigma_i(NDet*NRot*NPixelJ[i]*NPxielK[i])
         self.aiDetStartIdxD = gpuarray.to_gpu(self.aiDetStartIdxH.astype(np.int32))
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
@@ -2309,21 +2066,19 @@ class Reconstructor_GPU():
         self.aiJExpD = gpuarray.to_gpu(self.expData[:, 2].ravel().astype(np.int32))
         self.aiKExpD = gpuarray.to_gpu(self.expData[:, 3].ravel().astype(np.int32))
         self.iNPeak = np.int32(self.expData.shape[0])
-        create_bin_expimages = mod.get_function("create_bin_expimages")
-        print(type(self.iNPeak))
-        print(type(np.int32(self.iNPeak//256+1)))
-        print(type(256))
-        create_bin_expimages(self.acExpDetImages, self.aiDetStartIdxD, self.afDetInfoD, np.int32(self.NDet), np.int32(self.NRot),self.aiDetIndxD, self.aiRotND, self.aiJExpD, self.aiKExpD, self.iNPeak, block=(256,1,1),grid=(int(self.iNPeak//256+1),1))
         # create texture memory
-        self.texref = mod.get_texref("tcExpData")
+        print('start of create data on cpu ram')
+        self.create_acExpDataCpuRam()
         print('start of creating texture memory')
-        self.texref.set_array(cuda.gpuarray_to_array(self.acExpDetImages,order='C'))
+        self.texref = mod.get_texref("tcExpData")
+        self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
         self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
-        del self.acExpDetImages
+        #del self.acExpDetImages
         print('end of creating texture memory')
         #del self.acExpDetImages
         print('=============end of copy exp data to gpu ===========')
-    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
+
+    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5, verbose=True):
         '''
         This version tries to use texture memory
         THis is a working version, no error so far as 20180130
@@ -2402,90 +2157,19 @@ class Reconstructor_GPU():
         afHitRatioD.free()
         aiPeakCntD.free()
         maxMat = maxMatD.get().reshape([-1, 3, 3])
-        sys.stdout.write('\r voxelIdx: {0}, voxelLeft: {4}/{5}.  max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
-                                                                                                    afHitRatioH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    aiPeakCntH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    np.array(
-                                                                                                        RotRep.Mat2EulerZXZ(
-                                                                                                            maxMat[0, :,
-                                                                                                            :])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon))
-        sys.stdout.flush()
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
-        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
-        del afVoxelPosD
-
-    def single_voxel_recon_acc3(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5):
-        '''
-        failed!
-        combine shared memory and texture memory
-        # this version tries to use kernal that combines sim and hit ratio.
-        THis is a working version, no error so far as 20180130
-        try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
-        :param voxelIdx:
-        :param afFZMatD:
-        :param NSearchOrien:
-        :param NIteration:
-        :param BoundStart:
-        :return:
-        '''
-        # reconstruction of single voxel
-        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
-        NVoxel = 1
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
-        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
-        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
-        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
-        for i in range(NIteration):
-            # print(i)
-            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-            # update rotation matrix to search
-            if i == 0:
-                rotMatSearchD = afFZMatD.copy()
-            else:
-                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.7 ** i))
-
-            #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-            # kernel calls
-            self.sim_hitratio_unit(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                          rotMatSearchD, self.afGD,
-                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                          afHitRatioD, aiPeakCntD,texrefs=[self.texref],
-                          grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1),shared=self.NG*8*self.NDet*(np.int32(0).nbytes))
-            # memcpy_dtoh
-            context.synchronize()
-            #end = time.time()
-            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-
-            #print("SourceModule time {0} seconds.".format(end-start))
-            maxHitratioIdx = np.argsort(afHitRatioH)[
-                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-            for jj in range(1, 9):
-                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-            del rotMatSearchD
-        afHitRatioD.free()
-        aiPeakCntD.free()
-        maxMat = maxMatD.get().reshape([-1, 3, 3])
-        print('voxelIdx: {0}, max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
-                                                                                                    afHitRatioH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    aiPeakCntH[
-                                                                                                        maxHitratioIdx[
-                                                                                                            0]],
-                                                                                                    np.array(
-                                                                                                        RotRep.Mat2EulerZXZ(
-                                                                                                            maxMat[0, :,
-                                                                                                            :])) / np.pi * 180))
+        if verbose:
+            sys.stdout.write('\r voxelIdx: {0}, voxelLeft: {4}/{5}.  max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
+                                                                                                        afHitRatioH[
+                                                                                                            maxHitratioIdx[
+                                                                                                                0]],
+                                                                                                        aiPeakCntH[
+                                                                                                            maxHitratioIdx[
+                                                                                                                0]],
+                                                                                                        np.array(
+                                                                                                            RotRep.Mat2EulerZXZ(
+                                                                                                                maxMat[0, :,
+                                                                                                                :])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon))
+            sys.stdout.flush()
         self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
         del afVoxelPosD
