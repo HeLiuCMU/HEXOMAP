@@ -89,7 +89,7 @@ def read_mic_file(fname):
         try:
             snp = np.array([[float(i) for i in s.split('\t')] for s in content[1:]])
         except ValueError:
-            print 'unknown deliminater'
+            print('unknown deliminater')
 
     print('sw is {0} \n'.format(sw))
     print('shape of snp is {0}'.format(snp.shape))
@@ -122,20 +122,29 @@ def plot_mic(snp,sw,plotType,minConfidence,scattersize=2):
         plt.colorbar(sc)
         plt.show()
     if plotType==3:
-        print 'h'
+        print('h')
         for i in range(N):
             mat[i,:,:] = RotRep.EulerZXZ2Mat(snp[i,6:9]/180*np.pi)
             #print mat[i,:,:]
             quat[i,:] = RotRep.quaternion_from_matrix(mat[i,:,:])
             #print quat[i,:]
             rod[i,:] = RotRep.rod_from_quaternion(quat[i,:])
-        print rod
+        print(rod)
         fig, ax = plt.subplots()
         ax.scatter(snp[:,0],snp[:,1],s=scattersize,facecolors=(rod+np.array([1,1,1]))/2)
         ax.axis('scaled')
         plt.show()
 
-def plot_square_mic(squareMicData,minHitRatio):
+        
+def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
+    plt.imshow(squareMicData[:,:,6].T,origin='lower')
+    if colorbar:
+        plt.colorbar()
+    if saveName is not None:
+        plt.savefig(saveName)
+    plt.show()
+    
+def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     '''
     plot the square mic data
     image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
@@ -160,6 +169,8 @@ def plot_square_mic(squareMicData,minHitRatio):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     plt.imshow(img,origin='lower')
+    if saveName is not None:
+        plt.savefig(saveName)
     plt.show()
 
 class MicFile():
@@ -198,7 +209,7 @@ class MicFile():
             try:
                 snp = np.array([[float(i) for i in s.split('\t')] for s in content[1:]])
             except ValueError:
-                print 'unknown deliminater'
+                print('unknown deliminater')
 
         print('sw is {0} \n'.format(sw))
         print('shape of snp is {0}'.format(snp.shape))
@@ -268,7 +279,7 @@ def test_for_dist():
     point = np.array([0.2,0.2])
     line = np.array([[0,0.24],[0.22,0.13]])
     dist = dist_to_line(point,line)
-    print 'dist should be',dist
+    print('dist should be',dist)
     plt.plot(point[0],point[1])
     plt.plot(line[:,0],line[:,1])
     plt.show()
