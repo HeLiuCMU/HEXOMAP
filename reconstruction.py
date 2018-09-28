@@ -187,20 +187,10 @@ class Reconstructor_GPU():
         self.NRot = 180
         self.NDet = 2
         self.detScale = 1.0  # the pixel size will be 1/self.detScale and NPixelJ = NPixelJ*self.detScale
-        # Ti7 parameters:
-        # self.centerJ = [976.072*self.detScale,968.591*self.detScale]# center, horizental direction
-#         self.centerK = [2014.13*self.detScale,2011.68*self.detScale]# center, verticle direction
-#         self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
-#         self.detRot = [np.array([91.6232, 91.2749, 359.274]),np.array([90.6067, 90.7298, 359.362])]# Euler angleZXZ
-        # Au_Mar17 Parameters
         self.centerJ = [935.166*self.detScale,949.46*self.detScale]# center, horizental direction
         self.centerK = [1998.96*self.detScale,1996.15*self.detScale]# center, verticle direction
         self.detPos = [np.array([4.7257,0,0]),np.array([6.67,0,0])] # in mm
         self.detRot = [np.array([90.6659, 89.4069, 359.073]),np.array([89.4765, 90.2675, 359.22])]# Euler angleZXZ
-#         self.centerJ = [976.072*self.detScale,968.591*self.detScale]# center, horizental direction
-#         self.centerK = [2014.13*self.detScale,2011.68*self.detScale]# center, verticle direction
-#         self.detPos = [np.array([5.46569,0,0]),np.array([7.47574,0,0])] # in mm
-#         self.detRot = [np.array([91.6232, 91.2749, 359.274]),np.array([90.6067, 90.7298, 359.362])]# Euler angleZXZ
         self.detectors[0].NPixelJ = int(2048*self.detScale)
         self.detectors[0].NPixelK = int(2048*self.detScale)
         self.detectors[0].PixelJ = 0.00148/self.detScale
@@ -213,7 +203,7 @@ class Reconstructor_GPU():
         self.detectors[0].Move(self.centerJ[0], self.centerK[0], self.detPos[0], RotRep.EulerZXZ2Mat(self.detRot[0] / 180.0 * np.pi))
         self.detectors[1].Move(self.centerJ[1], self.centerK[1], self.detPos[1], RotRep.EulerZXZ2Mat(self.detRot[1] / 180.0 * np.pi))
 
-        #detinfor for GPU[0:NJ,1:JK,2:pixelJ, 3:pixelK, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
+        #detinfor for GPU[0:NJ,1:NK,2:pixelJSize, 3:pixelKSize, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
         lDetInfoTmp = []
         for i in range(self.NDet):
             lDetInfoTmp.append(np.concatenate([np.array([self.detectors[i].NPixelJ,self.detectors[i].NPixelK,
@@ -233,7 +223,7 @@ class Reconstructor_GPU():
         self.floodFillStartThreshold = 0.61 # orientation with hit ratio larger than this value is used for flood fill.
         self.floodFillSelectThreshold = 0.6 # voxels with hitratio less than this value will be reevaluated in flood fill process.
         self.floodFillAccptThreshold = 0.6  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
-        self.floodFillRandomRange = 0.005   # voxel in fill process will generate random angles in this window
+        self.floodFillRandomRange = 0.005   # voxel in fill process will generate random angles in this window, todo@he1
         self.floodFillNumberAngle = 1000 # number of rangdom angles generated to voxel in voxelIdxStage1
         self.floodFillNumberVoxel = 20000  # number of orientations for flood fill process each time, due to GPU memory size.
         self.floodFillNIteration = 2       # number of iteration for flood fill angles
@@ -271,7 +261,7 @@ class Reconstructor_GPU():
             self.sample.PrimB = value * np.array([0, 1, 0])
             self.sample.PrimC = value * np.array([0, 0, 1])
         else: 
-                raise ValueError('not implemented')
+                raise ValueError('not implemented') #todo@hel1 not implemented error
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
         self.NG = self.sample.Gs.shape[0]
@@ -293,6 +283,7 @@ class Reconstructor_GPU():
             self.serial_recon_multi_stage()
             lConf.append(self.squareMicData[:,:,6].ravel().mean())
         return lConf
+
     def set_sample(self,sampleStr):
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
         self.sample.getRecipVec()
@@ -323,26 +314,33 @@ class Reconstructor_GPU():
         # check shape:
         if L.shape!=(1,self.NDet) or J.shape!=(1,self.NDet) or K.shape!=(1,self.NDet) or rot.shape!=(1,self.NDet,3):
             raise ValueError('L,J,K shape should be (1,nDet), rot shape should be (1,nDet,3)')
+            
+        self.detPos = []
+        self.centerJ = []
+        self.centerK = []
+        self.detRot = []
         for idxDet in range(self.NDet):
-            self.detPos[idxDet][0] = L[0,idxDet]
-            self.centerJ[idxDet] = J[0,idxDet]
-            self.centerK[idxDet] = K[0,idxDet]
-            self.detRot[idxDet] = rot[0,idxDet]
+            self.detPos.append(np.array([L[0,idxDet], 0, 0]))
+            self.centerJ.append(J[0,idxDet])
+            self.centerK.append(K[0,idxDet])
+            self.detRot.append(rot[0,idxDet])
         self.set_det()
+
     def set_det(self):
+        '''
+        copy detector information to gpu
+        :return:
+        '''
         del self.afDetInfoD
         del self.afDetInfoH
-        self.detectors = [sim_utilities.Detector(), sim_utilities.Detector()]
-        self.detectors[0].NPixelJ = int(2048*self.detScale)
-        self.detectors[0].NPixelK = int(2048*self.detScale)
-        self.detectors[0].PixelJ = 0.00148/self.detScale
-        self.detectors[0].PixelK = 0.00148/self.detScale
-        self.detectors[1].NPixelJ = int(2048*self.detScale)
-        self.detectors[1].NPixelK = int(2048*self.detScale)
-        self.detectors[1].PixelJ = 0.00148/self.detScale
-        self.detectors[1].PixelK = 0.00148/self.detScale
-        self.detectors[0].Move(self.centerJ[0], self.centerK[0], self.detPos[0], RotRep.EulerZXZ2Mat(self.detRot[0] / 180.0 * np.pi))
-        self.detectors[1].Move(self.centerJ[1], self.centerK[1], self.detPos[1], RotRep.EulerZXZ2Mat(self.detRot[1] / 180.0 * np.pi))
+        self.detectors = []
+        for i in range(self.NDet):
+            self.detectors.append(sim_utilities.Detector())
+            self.detectors[i].NPixelJ = int(2048*self.detScale)
+            self.detectors[i].NPixelK = int(2048*self.detScale)
+            self.detectors[i].PixelJ = 0.00148/self.detScale
+            self.detectors[i].PixelK = 0.00148/self.detScale
+            self.detectors[i].Move(self.centerJ[i], self.centerK[i], self.detPos[i], RotRep.EulerZXZ2Mat(self.detRot[i] / 180.0 * np.pi))
         #detinfor for GPU[0:NJ,1:JK,2:pixelJ, 3:pixelK, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
         lDetInfoTmp = []
         for i in range(self.NDet):
@@ -352,7 +350,13 @@ class Reconstructor_GPU():
                                                self.detectors[i].Kvector,np.array([self.NRot,-np.pi/2,np.pi/2])]))
         self.afDetInfoH = np.concatenate(lDetInfoTmp)
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+
     def recon_prepare(self,reverseRot=False):
+        '''
+        prepare for reconstruction, copy detector data to GPU
+        :param reverseRot: left hand or right hand rotation
+        :return:
+        '''
         # prepare nessasary parameters
         self.load_fz(self.FZFile)
         if reverseRot:
@@ -375,6 +379,7 @@ class Reconstructor_GPU():
         #self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
         self.afFZMatD = gpuarray.to_gpu(self.FZMatH.astype(np.float32))          # no need to modify during process
+
     def increase_resolution(self, factor):
         '''
         increase the resolution of squareMic
@@ -655,6 +660,7 @@ class Reconstructor_GPU():
             #sys.stdout.flush()
         print(p)
         return p[0], p[1], p[2], centerRot
+
     def twiddle_refine_backup(self,idxVoxel, centerL, centerJ, centerK, centerRot,
                             rangeL=None, rangeJ=None, rangeK=None):
         '''
@@ -666,6 +672,7 @@ class Reconstructor_GPU():
         :param rangeK: pixel
         :param factor0: search box shrick by factor0 during each search
         :return:
+        todo@hel1 clean up backup
         '''
         ii = 0
         maxHitRatio = 0
@@ -1045,17 +1052,6 @@ class Reconstructor_GPU():
             if(maxHitRatio>update_threshold):
                 K = (1 - rate*maxHitRatio) * K + (rate*maxHitRatio) * aK[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
                     [1, self.NDet])
-            #print('\r update K to {0}, max hitratio is  {1} ||'.format(K, maxHitRatio))
-            #sys.stdout.flush()
-            # update relative L
-            #self.geometry_grid_search(aL, J, K, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            #maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            #L = (1 - rate*maxHitRatio) * L + (rate*maxHitRatio) * aL[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
-            #    [1, self.NDet])
-            #print('\r update L to {0}, max hitratio is  {1} ||'.format(L, maxHitRatio))
-            #sys.stdout.flush()
             # update relative J
             self.geometry_grid_search(L, aJ, K, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
             # maxHitRatioPre = min(maxHitRatio, 0.7)
@@ -1063,8 +1059,6 @@ class Reconstructor_GPU():
             if(maxHitRatio>update_threshold):
                 J = (1 - rate*maxHitRatio) * J + (rate*maxHitRatio) * aJ[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
                     [1, self.NDet])
-            #print('\r update J to {0}, max hitratio is  {1} ||'.format(J, maxHitRatio))
-            #sys.stdout.flush()
             # update rotation
             if rotOptimization:
                 self.geometry_grid_search(L, J, K, aDetRot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
@@ -1072,9 +1066,6 @@ class Reconstructor_GPU():
                 maxHitRatio = self.geoSearchHitRatio.max()
                 if(maxHitRatio>update_threshold):
                     rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :,:].reshape([1, self.NDet, 3])
-                #print('\r update rot to {0}, max hitratio is  {1} ,shape or rot is {2}||'.format(rot, maxHitRatio, rot.shape))
-                #sys.stdout.flush()
-                #rangeRot = rangeRot * factor
                     aDetRot = RotRep.generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), rangeRot, aDetRot.shape[0]).reshape(aDetRot.shape)
                     aDetRot[0,:,:] = rot
             # update relative Range
@@ -1094,12 +1085,6 @@ class Reconstructor_GPU():
             aK = K.repeat(dK.shape[0], axis=0) + dK
 
 
-        # for idxDet in range(self.NDet):
-        #     self.detPos[idxDet][0] = L[0, idxDet]
-        #     self.centerJ[idxDet] = J[0, idxDet]
-        #     self.centerK[idxDet] = K[0, idxDet]
-        #     self.detRot[idxDet] = rot[0, idxDet]
-        # self.set_det()
         return L,J,K,rot, maxHitRatio
         #sys.stdout.write(' \r new L: {0}, new J: {1}, new K: {2}, new rot: {3} ||'.format(L, J, K, rot))
         #sys.flush()
@@ -1228,7 +1213,7 @@ class Reconstructor_GPU():
         self.NPostProcess = 0
         self.NPostVoxelVisited = 0
         start = time.time()
-        NIterationMax = 15
+        NIterationMax = 1500
         NIteration = 0
         while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
             NIteration +=1
@@ -1264,7 +1249,7 @@ class Reconstructor_GPU():
         e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
         but it will still return 100x100, filling 0 to the last row/column
         the misorientatino on that voxel is the max misorientation to its right or up side voxel
-        :param axis: 0 for x direction, 1 for y direction.
+        :param m0: rotation matrix size=[nx,ny,9]
         :return:
         '''
         if m0.ndim!=3:
@@ -1417,7 +1402,7 @@ class Reconstructor_GPU():
 
     def save_mic(self,fName):
         '''
-        save mic
+        save mic for icenine format
         :param fName:
         :return:
         '''
