@@ -2,6 +2,7 @@ import numpy as np
 from math import atan2
 
 
+
 def rod_from_quaternion(quat):
     '''
     adapt from:
@@ -651,6 +652,83 @@ def benchmark_e2m():
     end = time.time()
     print('EulerZXZ2MatVectorized time: {0}'.format(end - start))
     print(m[-1,:,:])
+    
+    
+def get_twin_matrices(symType='FCC'):
+    '''
+    get twin matrices for fcc, bcc, or hexagonal
+    symType: 'FCC','BCC' or 'Hexagonal'
+    '''
+    if symType = 'FCC':
+        m = np.empty([4,3,3])
+        m[0,:,:] = 1.0 / 3.0 * np.array([[-1, 2, 2],
+                                         [ 2,-1, 2],
+                                         [ 2, 2,-1]])
+        
+        m[1,:,:] = 1.0 / 3.0 * np.array([[-1,-2,-2],
+                                         [-2,-1, 2],
+                                         [-2, 2,-1]])
+        
+        m[2,:,:] = 1.0 / 3.0 * np.array([[-1,-2, 2],
+                                         [-2,-1,-2],
+                                         [ 2,-2,-1]])
+        
+        m[3,:,:] = 1.0 / 3.0 * np.array([[-1, 2,-2],
+                                         [ 2,-1,-2],
+                                         [-2,-2,-1]])
+    elif symType = 'BCC':
+        m = np.empty([12,3,3])
+        m[0,:,:] = 1.0 / 3.0 * np.array([[-2, 1, 2],
+                                         [ 1,-2, 2],
+                                         [ 2, 2, 1]])
+        
+        m[1,:,:] = 1.0 / 3.0 * np.array([[-2,-2,-1],
+                                         [-2, 1, 2],
+                                         [-1, 2,-2]])
+        
+        m[2,:,:] = 1.0 / 3.0 * np.array([[ 1,-2, 2],
+                                         [-2,-2,-1],
+                                         [ 2,-1,-2]])
+
+        m[3,:,:] = 1.0 / 3.0 * np.array([[-2, 1,-2],
+                                         [ 1,-2,-2],
+                                         [-2,-2, 1]])
+        
+        m[4,:,:] = 1.0 / 3.0 * np.array([[-2,-2, 1],
+                                         [-2, 1,-2],
+                                         [ 1,-2,-2]])
+        
+        m[5,:,:] = 1.0 / 3.0 * np.array([[ 1,-2,-2],
+                                         [-2,-2, 1],
+                                         [-2, 1,-2]])
+        
+        m[6,:,:] = 1.0 / 3.0 * np.array([[-2,-1, 2],
+                                         [-1,-2,-2],
+                                         [ 2,-2, 1]])
+        
+        m[7,:,:] = 1.0 / 3.0 * np.array([[-2, 2,-1],
+                                         [ 2, 1,-2],
+                                         [-1,-2,-2]])
+        
+        m[8,:,:] = 1.0 / 3.0 * np.array([[ 1, 2, 2],
+                                         [ 2,-2, 1],
+                                         [ 2, 1,-2]])
+        
+        m[9,:,:] = 1.0 / 3.0 * np.array([[-2,-1,-2],
+                                         [-1,-2, 2],
+                                         [-2, 2, 1]])
+        
+        m[10,:,:] = 1.0 / 3.0 * np.array([[-2, 2, 1],
+                                          [ 2, 1, 2],
+                                          [ 1, 2,-2]])
+        
+        m[11,:,:] = 1.0 / 3.0 * np.array([[ 1, 2,-2],
+                                          [ 2,-2,-1],
+                                          [-2,-1,-2]])
+    else:
+        raise NotImplementedError()
+    return m
+
 def benchmark_m2e():
     # benchmark speed of vectorized version m2e
     import FZfile
