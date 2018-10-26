@@ -92,6 +92,15 @@ def misorien_map(m0, symType):
     misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
     return misOrien
 
+def misorien_map_euler(euler, symType):
+    '''
+    misorientation map from euler angles:
+    euler in angle!!!!!
+    '''
+    m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
+    misOrienMap = misorien_map(m0,symType=symType)
+    return misOrienMap
+
 def segment_grain(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='default_segment_grain.npy'):
     mShape = m0.shape[0:2]
     mask = np.zeros(mShape)
@@ -150,6 +159,7 @@ def segment_grain_1(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='d
     if save:
         np.save(outFile, result)
     return result
+#global context
 class Reconstructor_GPU():
     '''
     example usage:
@@ -160,7 +170,22 @@ class Reconstructor_GPU():
         voxel at boundary need to compare different grains.
 
     '''
-    def __init__(self):
+    def __init__(self,rank=0):
+        #cuda.init()
+        #self.current_dev = cuda.Device(rank)
+        #self.context = self.current_dev.make_context()
+
+#         def _finish_up(context):
+#             #global context
+#             context.pop()
+#             context = None
+
+#             from pycuda.tools import clear_context_caches
+#             clear_context_caches()
+
+#         import atexit
+#         atexit.register(self.context.pop)
+        
         self.squareMicOutFile = 'DefaultReconOutPut.npy'
         self.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
         self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
@@ -175,6 +200,7 @@ class Reconstructor_GPU():
         self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
         self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
         self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
+        self.additionalFZ = None
         self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
         # experimental data
         #self.energy = 71.676  # in kev
@@ -220,9 +246,9 @@ class Reconstructor_GPU():
 
         # reconstruction parameters:
         self.intensity_threshold = 0 # only keep peaks with intensity larger than this value
-        self.floodFillStartThreshold = 0.61 # orientation with hit ratio larger than this value is used for flood fill.
-        self.floodFillSelectThreshold = 0.6 # voxels with hitratio less than this value will be reevaluated in flood fill process.
-        self.floodFillAccptThreshold = 0.6  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
+        self.floodFillStartThreshold = 0.8 # orientation with hit ratio larger than this value is used for flood fill.
+        self.floodFillSelectThreshold = 0.9 # voxels with hitratio less than this value will be reevaluated in flood fill process.
+        self.floodFillAccptThreshold = 0.81  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
         self.floodFillRandomRange = 0.005   # voxel in fill process will generate random angles in this window, todo@he1
         self.floodFillNumberAngle = 1000 # number of rangdom angles generated to voxel in voxelIdxStage1
         self.floodFillNumberVoxel = 20000  # number of orientations for flood fill process each time, due to GPU memory size.
@@ -230,11 +256,11 @@ class Reconstructor_GPU():
         self.searchBatchSize = 20000      # number of orientations to search per GPU call, due to GPU memory size
         self.NSelect = 100                 # number of orientations selected with maximum hitratio from last iteration
         self.postMisOrienThreshold = 0.02  # voxel with misorientation larger than this will be post processed seeds voxel
-        self.postWindow = 20                #voxels in the nxn window around the seeds voxels selected above will be processed
+        self.postWindow = 5              #voxels in the nxn window around the seeds voxels selected above will be processed
         self.postRandomRange = 0.01       # the random angle range generated in post process
         self.postConvergeMisOrien = 0.001   # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
         self.postNRandom = 50             # number of random angle generated in each orientation seed
-        self.postOriSeedWindow = 4         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
+        self.postOriSeedWindow = 11         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
         self.postNIteration = 2            # number of iteration to optimize in post process
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
@@ -350,6 +376,7 @@ class Reconstructor_GPU():
         self.afDetInfoH = np.concatenate(lDetInfoTmp)
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
+      
     def recon_prepare(self,reverseRot=False):
         '''
         prepare for reconstruction, copy detector data to GPU
@@ -358,6 +385,8 @@ class Reconstructor_GPU():
         '''
         # prepare nessasary parameters
         self.load_fz(self.FZFile)
+        if self.additionalFZ is not None:
+            self.append_fz(self.additionalFZ)
         if reverseRot:
             self.load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold)
         else:
@@ -1216,16 +1245,20 @@ class Reconstructor_GPU():
         self.NPostProcess = 0
         self.NPostVoxelVisited = 0
         start = time.time()
-        NIterationMax = 1500
+        NIterationMax = 200
         NIteration = 0
+        print('start of post processing, moving grain boundaries untile stable')
         while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
             NIteration +=1
             self.NPostProcess += 1
-            misOrienTmp = ndi.maximum_filter(misOrienTmp, self.postWindow) * (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY]) # due to expansion mode
+            hitratioMask = (self.voxelHitRatio>0.3).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
+            misOrienTmp = ndi.maximum_filter(misOrienTmp * hitratioMask, self.postWindow) # due to expansion mode
             x, y = np.where(np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1))
             xMin = np.minimum(np.maximum(0, x - (self.postOriSeedWindow-1)//2), NVoxelX - self.postOriSeedWindow)
             yMin = np.minimum(np.maximum(0, y - (self.postOriSeedWindow-1)//2), NVoxelY - self.postOriSeedWindow)
             aIdx = x * NVoxelY + y
+            previousHitRatio = np.copy(self.voxelHitRatio)
+            previousAccMat = np.copy(self.voxelAcceptedMat)
             for i, idx in enumerate(aIdx):
                 self.NPostVoxelVisited += 1
                 rotMatSeed = accMat[xMin[i]:xMin[i]+self.postOriSeedWindow,yMin[i]:yMin[i]+self.postOriSeedWindow,:].astype(np.float32)
@@ -1233,6 +1266,9 @@ class Reconstructor_GPU():
                 rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom,self.postRandomRange)
                 self.single_voxel_recon(idx,rotMatSearchD,self.postNRandom * self.postOriSeedWindow ** 2,
                                         NIteration=self.postNIteration, BoundStart=self.postRandomRange, verbose=False)
+                if self.voxelHitRatio[idx] < previousHitRatio[idx]:
+                    self.voxelHitRatio[idx] = previousHitRatio[idx]
+                    self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
             accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
             misOrienTmpNew = misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
             misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
@@ -1428,6 +1464,19 @@ class Reconstructor_GPU():
         #         [3, 3])
         return self.FZEuler
 
+    def append_fz(self,eulerIn):
+        '''
+        append more euler angles to fz file
+        ::param eulerIn: np.array, shape=[nEuelr,3]
+        '''
+        eulerIn = eulerIn.reshape([-1,3])
+        self.FZEuler = np.concatenate((self.FZEuler, eulerIn))
+        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler/ 180.0 * np.pi)
+        # for i in range(self.FZEuler.shape[0]):
+        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
+        #         [3, 3])
+        return self.FZEuler
+        
     def load_exp_data_reverse(self,fInitials,digits,intensity_threshold=0,remove_overlap=True):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
@@ -1864,6 +1913,7 @@ class Reconstructor_GPU():
         This is acturally not a flood fill process, it tries to fill all the voxels with low hitratio
         flood fill all the voxel with confidence level lower than self.floodFillAccptThreshold
         :return:
+        todo: accept to flood filling but only remove from stage0 if conf> larger value
         '''
         #print('====================== entering flood fill ===================================')
         # select voxels for filling
@@ -1895,12 +1945,16 @@ class Reconstructor_GPU():
         #print('idxToAccept: {0}'.format(idxToAccept))
         idxToAccept = np.concatenate(idxToAccept).ravel()
         # local optimize each voxel
+        previousHitRatio = np.copy(self.voxelHitRatio)
+        previousAccMat = np.copy(self.voxelAcceptedMat)
         for i, idxTmp in enumerate(idxToAccept):
             # do one time search:
             rotMatSearchD = self.gen_random_matrix(gpuarray.to_gpu(self.voxelAcceptedMat[voxelIdx, :, :].astype(np.float32)),
                                                    1, self.floodFillNumberAngle, self.floodFillRandomRange)
             self.single_voxel_recon(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
-            # if self.voxelHitRatio[idxTmp]>self.floodFillSelectThreshold:
+            if self.voxelHitRatio[idxTmp]<previousHitRatio[idxTmp]:
+                self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
+                self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
             try:
                 self.voxelIdxStage0.remove(idxTmp)
             except ValueError:
@@ -1910,7 +1964,7 @@ class Reconstructor_GPU():
         #print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
         #print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
         return 1
-    def serial_recon_multi_stage(self):
+    def serial_recon_multi_stage(self,enablePostProcess=True):
         '''
                 # add multiple stage in serial reconstruction:
         # Todo:
@@ -1939,7 +1993,8 @@ class Reconstructor_GPU():
             except ValueError:
                 pass
         print('number of flood fills: {0}'.format(self.NFloodFill))
-        self.post_process()
+        if enablePostProcess:
+            self.post_process()
         print('===========end of reconstruction========== \n')
         end.record()  # end timing
         end.synchronize()
@@ -2185,6 +2240,21 @@ class Reconstructor_GPU():
 
     def save_reconstructor(self,outFile='DefaultSavedObject.p'):
         pass
+    
+    def extract_orientations(self):
+        '''
+        extract average grain orientations for each grain, may be used as seed for search for twins or optimize grain boundary
+        '''
+        misOrienTmp = self.get_misorien_map(self.accMat)
+        mask = np.ones([self.squareMicData.shape[0],self.squareMicData.shape[1]])
+        mask[misOrienTmp>0.01] = 0
+        labeled_array, num_features = ndi.label(mask)
+        uniqueEulers = np.empty([num_features,3])
+        for i in range(num_features):
+            x,y = np.where(labeled_array==(i+1))
+            uniqueEulers[i,:] = np.average(self.squareMicData[x,y,3:6], axis=0)
+        return uniqueEulers, labeled_array, num_features
+            
 ############## test section ###############
 def test_load_fz():
     S = Reconstructor_GPU()
