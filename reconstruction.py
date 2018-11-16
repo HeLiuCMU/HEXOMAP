@@ -247,7 +247,7 @@ class Reconstructor_GPU():
         # reconstruction parameters:
         self.intensity_threshold = 0 # only keep peaks with intensity larger than this value
         self.floodFillStartThreshold = 0.8 # orientation with hit ratio larger than this value is used for flood fill.
-        self.floodFillSelectThreshold = 0.9 # voxels with hitratio less than this value will be reevaluated in flood fill process.
+        self.floodFillSelectThreshold = 0.8 # voxels with hitratio less than this value will be reevaluated in flood fill process.
         self.floodFillAccptThreshold = 0.81  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
         self.floodFillRandomRange = 0.005   # voxel in fill process will generate random angles in this window, todo@he1
         self.floodFillNumberAngle = 1000 # number of rangdom angles generated to voxel in voxelIdxStage1
@@ -1186,6 +1186,7 @@ class Reconstructor_GPU():
         # require have defiend self.NDet,self.NRot, and Detctor informations;
         #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
+        # acExpDataCpuRam: [NDet*NRot, max_NK, max_NJ]
         print('=============start of copy exp data to CPU ===========')
         if self.expData.shape[1]!=4:
             raise ValueError('expdata shape should be n_peaks*4')
@@ -1205,9 +1206,16 @@ class Reconstructor_GPU():
         #                      possible too large detector size\n\
         #                     currently use int type as detector pixel index\n\
         #                     future implementation use lognlong will solve this issure")
-
+        
         self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
-        self.acExpDataCpuRam = np.zeros([self.NDet*self.NRot,self.detectors[0].NPixelK,self.detectors[0].NPixelJ],dtype=np.uint8) # assuming all same detector!
+        maxNJ = 0
+        maxNK = 0
+        for i in range(self.NDet):
+            if self.detectors[i].NPixelK >maxNK:
+                maxNK = self.detectors[i].NPixelK
+            if self.detectors[i].NPixelJ >maxNJ:
+                maxNK = self.detectors[i].NPixelJ
+        self.acExpDataCpuRam = np.zeros([self.NDet*self.NRot,maxNK,maxNJ],dtype=np.uint8) # assuming all same detector!
         print('assuming same type of detector in different distances')
         self.iNPeak = np.int32(self.expData.shape[0])
         self.expData = self.expData.astype('int')
@@ -1631,11 +1639,11 @@ class Reconstructor_GPU():
         NOriPerVoxel = oriMatToSim.shape[0]/NVoxel
         self.NG = self.sample.Gs.shape[0]
         #output device parameters:
-        aiJD = gpuarray.empty(NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.int32)
-        aiKD = gpuarray.empty(NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.int32)
-        afOmegaD= gpuarray.empty(NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.float32)
-        abHitD = gpuarray.empty(NVoxel*NOriPerVoxel*self.NG*2*self.NDet,np.bool_)
-        aiRotND = gpuarray.empty(NVoxel*NOriPerVoxel*self.NG*2*self.NDet, np.int32)
+        aiJD = gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet),np.int32)
+        aiKD = gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet),np.int32)
+        afOmegaD= gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet),np.float32)
+        abHitD = gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet),np.bool_)
+        aiRotND = gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet), np.int32)
 
 
         # start of simulation
@@ -1646,7 +1654,7 @@ class Reconstructor_GPU():
         self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
                       np.int32(NVoxel), np.int32(NOriPerVoxel), np.int32(self.NG), np.int32(self.NDet), afOrientationMatD,
                       afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                      texrefs=[self.tfG], grid=(NVoxel, NOriPerVoxel), block=(self.NG, 1, 1))
+                      texrefs=[self.tfG], grid=(int(NVoxel), int(NOriPerVoxel)), block=(int(self.NG), 1, 1))
         context.synchronize()
         end.record()
         self.aJH = aiJD.get()
@@ -1952,9 +1960,9 @@ class Reconstructor_GPU():
             rotMatSearchD = self.gen_random_matrix(gpuarray.to_gpu(self.voxelAcceptedMat[voxelIdx, :, :].astype(np.float32)),
                                                    1, self.floodFillNumberAngle, self.floodFillRandomRange)
             self.single_voxel_recon(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
-            if self.voxelHitRatio[idxTmp]<previousHitRatio[idxTmp]:
-                self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
-                self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
+#             if self.voxelHitRatio[idxTmp]<=previousHitRatio[idxTmp]:
+#                 self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
+#                 self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
             try:
                 self.voxelIdxStage0.remove(idxTmp)
             except ValueError:
