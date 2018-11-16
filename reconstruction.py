@@ -256,11 +256,11 @@ class Reconstructor_GPU():
         self.searchBatchSize = 20000      # number of orientations to search per GPU call, due to GPU memory size
         self.NSelect = 100                 # number of orientations selected with maximum hitratio from last iteration
         self.postMisOrienThreshold = 0.02  # voxel with misorientation larger than this will be post processed seeds voxel
-        self.postWindow = 5              #voxels in the nxn window around the seeds voxels selected above will be processed
+        self.postWindow = 3              #voxels in the nxn window around the seeds voxels selected above will be processed
         self.postRandomRange = 0.01       # the random angle range generated in post process
         self.postConvergeMisOrien = 0.001   # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
         self.postNRandom = 50             # number of random angle generated in each orientation seed
-        self.postOriSeedWindow = 11         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
+        self.postOriSeedWindow = 5         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
         self.postNIteration = 2            # number of iteration to optimize in post process
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
