@@ -245,7 +245,7 @@ class Reconstructor_GPU():
         self.symMat = RotRep.GetSymRotMat(self.sample.symtype)
 
         # reconstruction parameters:
-        self.intensity_threshold = 0 # only keep peaks with intensity larger than this value
+        self.intensity_threshold = -1 # only keep peaks with intensity larger than this value
         self.floodFillStartThreshold = 0.8 # orientation with hit ratio larger than this value is used for flood fill.
         self.floodFillSelectThreshold = 0.8 # voxels with hitratio less than this value will be reevaluated in flood fill process.
         self.floodFillAccptThreshold = 0.81  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
@@ -328,7 +328,9 @@ class Reconstructor_GPU():
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
 
-    def set_det_param(self,L,J,K, rot):
+    def set_det_param(self,L,J,K, rot,
+                      NJ=[2048,2048,2048],NK=[2048,2048,2048],
+                      pixelJ=[0.00148,0.00148,0.00148],pixelK=[0.00148,0.00148,0.00148]):
         '''
         set geometry parameters,
         :param L: array, [1,nDet]
@@ -349,6 +351,10 @@ class Reconstructor_GPU():
             self.centerJ.append(J[0,idxDet])
             self.centerK.append(K[0,idxDet])
             self.detRot.append(rot[0,idxDet])
+        self.NPixelJ = NJ
+        self.NPixelK = NK
+        self.pixelJ = pixelJ
+        self.pixelK = pixelK
         self.set_det()
 
     def set_det(self):
@@ -361,10 +367,10 @@ class Reconstructor_GPU():
         self.detectors = []
         for i in range(self.NDet):
             self.detectors.append(sim_utilities.Detector())
-            self.detectors[i].NPixelJ = int(2048*self.detScale)
-            self.detectors[i].NPixelK = int(2048*self.detScale)
-            self.detectors[i].PixelJ = 0.00148/self.detScale
-            self.detectors[i].PixelK = 0.00148/self.detScale
+            self.detectors[i].NPixelJ = int(self.NPixelJ[i]*self.detScale)
+            self.detectors[i].NPixelK = int(self.NPixelK[i]*self.detScale)
+            self.detectors[i].PixelJ = self.pixelJ[i]/self.detScale
+            self.detectors[i].PixelK = self.pixelK[i]/self.detScale
             self.detectors[i].Move(self.centerJ[i], self.centerK[i], self.detPos[i], RotRep.EulerZXZ2Mat(self.detRot[i] / 180.0 * np.pi))
         #detinfor for GPU[0:NJ,1:JK,2:pixelJ, 3:pixelK, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
         lDetInfoTmp = []
@@ -1214,7 +1220,7 @@ class Reconstructor_GPU():
             if self.detectors[i].NPixelK >maxNK:
                 maxNK = self.detectors[i].NPixelK
             if self.detectors[i].NPixelJ >maxNJ:
-                maxNK = self.detectors[i].NPixelJ
+                maxNJ = self.detectors[i].NPixelJ
         self.acExpDataCpuRam = np.zeros([self.NDet*self.NRot,maxNK,maxNJ],dtype=np.uint8) # assuming all same detector!
         print('assuming same type of detector in different distances')
         self.iNPeak = np.int32(self.expData.shape[0])
@@ -1507,6 +1513,10 @@ class Reconstructor_GPU():
                 fName = fInitials+str(j).zfill(digits) + '.bin' + str(i)
                 
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
+                #print(x,type(x))
+                if x.size==0:
+                    continue
+                
                 #print(x.shape)
                 if remove_overlap==True:
                     concat = np.hstack([a.reshape(-1,1) for a in [x, y]])
@@ -1551,6 +1561,8 @@ class Reconstructor_GPU():
                 sys.stdout.flush()
                 fName = fInitials+str(j).zfill(digits) + '.bin' + str(i)
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
+                if x.size==0:
+                    continue
                 if remove_overlap==True:
                     concat = np.hstack([a.reshape(-1,1) for a in [x, y]])
                     #print(concat.shape)
@@ -1591,7 +1603,26 @@ class Reconstructor_GPU():
                             Any button to continue, Ctr+C to quit'.format(self.squareMicData))
         if self.squareMicData is None:
             raise ValueError('have not initiate square mic yet')
-
+            
+    def save_sim_mic_binary(self, fNameInitial='sim_result_'):
+        '''
+        save simulated result as binary files
+        '''
+        idx = np.where(self.bHitH)
+        j = self.aJH[idx]
+        k = self.aKH[idx]
+        rot = self.aiRotNH[idx]
+        aDetIdx = self.aDetIdx[idx]
+        for idxRot in range(self.NRot):
+            for idxDet in range(self.NDet):
+                idxSelect = np.where(np.logical_and(rot==idxRot,aDetIdx==idxDet))
+                jTmp = j[idxSelect]
+                kTmp = k[idxSelect]
+                snp = [jTmp,kTmp,np.zeros(jTmp.size,dtype=np.int32),np.zeros(jTmp.size,dtype=np.int32)]
+                fName = fNameInitial + f'{idxRot}.bin{idxDet}'
+                IntBin.WritePeakBinaryFile(snp, fName)
+        return 1
+    
     def sim_mic(self,simMask=None):
         '''
         simulate the voxel in squareMicData, with a sim mask
@@ -1662,14 +1693,14 @@ class Reconstructor_GPU():
         self.aOmegaH = afOmegaD.get()
         self.bHitH = abHitD.get()
         self.aiRotNH = aiRotND.get()
-
         end.synchronize()
+        self.aDetIdx = np.tile(np.arange(self.NDet),int(self.aJH.size/self.NDet))
         print('============end of simulation================ \n')
         secs = start.time_till(end) * 1e-3
         print("SourceModule time {0} seconds.".format(secs))
 
         #self.print_sim_results()
-        return self.aJH, self.aKH, self.bHitH, self.aiRotNH, self.aOmegaH
+        return self.aJH, self.aKH, self.bHitH, self.aiRotNH, self.aOmegaH, self.aDetIdx
 
     def expansion_unit_run(self, voxelIdx, afFZMatD):
         '''
@@ -2099,8 +2130,8 @@ class Reconstructor_GPU():
         #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
         print('=============start of copy exp data to gpu ===========')
-        if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
-            raise ValueError(' This version requare all detector have same dimension')
+#         if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
+#             raise ValueError(' This version requare all detector have same dimension')
         if self.expData.shape[1]!=4:
             raise ValueError('expdata shape should be n_peaks*4')
         if np.max(self.expData[:,0])>self.NDet-1:
