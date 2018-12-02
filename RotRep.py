@@ -659,7 +659,7 @@ def get_twin_matrices(symType='FCC'):
     get twin matrices for fcc, bcc, or hexagonal
     symType: 'FCC','BCC' or 'Hexagonal'
     '''
-    if symType = 'FCC':
+    if symType == 'FCC':
         m = np.empty([4,3,3])
         m[0,:,:] = 1.0 / 3.0 * np.array([[-1, 2, 2],
                                          [ 2,-1, 2],
@@ -676,7 +676,7 @@ def get_twin_matrices(symType='FCC'):
         m[3,:,:] = 1.0 / 3.0 * np.array([[-1, 2,-2],
                                          [ 2,-1,-2],
                                          [-2,-2,-1]])
-    elif symType = 'BCC':
+    elif symType == 'BCC':
         m = np.empty([12,3,3])
         m[0,:,:] = 1.0 / 3.0 * np.array([[-2, 1, 2],
                                          [ 1,-2, 2],
