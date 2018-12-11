@@ -44,65 +44,6 @@ def idx_flat_to_coord_2d(idx,shape):
     x = idx//shape[0]
     y = idx%shape[0]
     return x,y
-def misorien(m0, m1,symMat):
-    '''
-    calculate misorientation
-    :param m0: [n,3,3]
-    :param m1: [n,3,3]
-    :param symMat: symmetry matrix,
-    :return:
-    '''
-    m0 = m0.reshape([-1,3,3])
-    m1 = m1.reshape([-1,3,3])
-    symMat = symMat.reshape([-1,3,3])
-    if m0.shape != m1.shape:
-        raise ValueError(' m0 and m1 should in the same shape')
-    NM = m0.shape[0]
-    NSymM = symMat.shape[0]
-    afMisOrienD = gpuarray.empty([NM,NSymM], np.float32)
-    afM0D = gpuarray.to_gpu(m0.astype(np.float32))
-    afM1D = gpuarray.to_gpu(m1.astype(np.float32))
-    afSymMD = gpuarray.to_gpu(symMat.astype(np.float32))
-    misoren_gpu(afMisOrienD, afM0D, afM1D, afSymMD,block=(NSymM,1,1),grid=(NM,1))
-    #print(symMat[0])
-    #print(symMat[0].dot(np.matrix(m1)))
-    return np.amin(afMisOrienD.get(), axis=1)
-
-def misorien_map(m0, symType):
-    '''
-    map the misorienation map
-    e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
-    but it will still return 100x100, filling 0 to the last row/column
-    the misorientatino on that voxel is the max misorientation to its right or up side voxel
-    :param axis: 0 for x direction, 1 for y direction.
-    :return:
-    '''
-    symMat = RotRep.GetSymRotMat(symType)
-    if m0.ndim != 3:
-        raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
-    NVoxelX = m0.shape[0]
-    NVoxelY = m0.shape[1]
-    # m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
-    m1 = np.empty([NVoxelX, NVoxelY, 9])
-    # x direction misorientatoin
-    m1[:-1, :, :] = m0[1:, :, :]
-    m1[-1, :, :] = m0[-1, :, :]
-    misorienX = misorien(m0, m1, symMat)
-    # y direction misorientation
-    m1[:, :-1, :] = m0[:, 1:, :]
-    m1[:, -1, :] = m0[:, -1, :]
-    misorienY = misorien(m0, m1, symMat)
-    misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
-    return misOrien
-
-def misorien_map_euler(euler, symType):
-    '''
-    misorientation map from euler angles:
-    euler in angle!!!!!
-    '''
-    m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
-    misOrienMap = misorien_map(m0,symType=symType)
-    return misOrienMap
 
 def segment_grain(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='default_segment_grain.npy'):
     mShape = m0.shape[0:2]
@@ -1304,7 +1245,7 @@ class Reconstructor_GPU():
                     self.voxelHitRatio[idx] = previousHitRatio[idx]
                     self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
             accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
-            misOrienTmpNew = misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
+            misOrienTmpNew = self.misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
             misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
             accMat = accMatNew.copy()
             sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
@@ -1334,11 +1275,11 @@ class Reconstructor_GPU():
         # x direction misorientatoin
         m1[:-1,:,:] = m0[1:,:,:]
         m1[-1,:,:] = m0[-1,:,:]
-        misorienX = misorien(m0, m1, self.symMat)
+        misorienX = self.misorien(m0, m1, self.symMat)
         # y direction misorientation
         m1[:,:-1,:] = m0[:,1:,:]
         m1[:,-1,:] = m0[:,-1,:]
-        misorienY = misorien(m0, m1, self.symMat)
+        misorienY = self.misorien(m0, m1, self.symMat)
         self.misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
         return self.misOrien
 
@@ -2374,21 +2315,65 @@ class Reconstructor_GPU():
             x,y = np.where(labeled_array==(i+1))
             uniqueEulers[i,:] = np.average(self.squareMicData[x,y,3:6], axis=0)
         return uniqueEulers, labeled_array, num_features
-#     def clean_up(self):
-#         '''
-#         clean up memories
-#         :return:
-#         '''
-#         global ctx
-#         def _finish_up():
-#             global ctx
-#             self.ctx.pop()
-#             ctx = None
+    def misorien(self, m0, m1,symMat):
+        '''
+        calculate misorientation
+        :param m0: [n,3,3]
+        :param m1: [n,3,3]
+        :param symMat: symmetry matrix,
+        :return:
+        '''
+        m0 = m0.reshape([-1,3,3])
+        m1 = m1.reshape([-1,3,3])
+        symMat = symMat.reshape([-1,3,3])
+        if m0.shape != m1.shape:
+            raise ValueError(' m0 and m1 should in the same shape')
+        NM = m0.shape[0]
+        NSymM = symMat.shape[0]
+        afMisOrienD = gpuarray.empty([NM,NSymM], np.float32)
+        afM0D = gpuarray.to_gpu(m0.astype(np.float32))
+        afM1D = gpuarray.to_gpu(m1.astype(np.float32))
+        afSymMD = gpuarray.to_gpu(symMat.astype(np.float32))
+        self.misoren_gpu(afMisOrienD, afM0D, afM1D, afSymMD,block=(NSymM,1,1),grid=(NM,1))
+        #print(symMat[0])
+        #print(symMat[0].dot(np.matrix(m1)))
+        return np.amin(afMisOrienD.get(), axis=1)
 
-#             from pycuda.tools import clear_context_caches
-#             clear_context_caches()
+    def misorien_map(self, m0, symType):
+        '''
+        map the misorienation map
+        e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
+        but it will still return 100x100, filling 0 to the last row/column
+        the misorientatino on that voxel is the max misorientation to its right or up side voxel
+        :param axis: 0 for x direction, 1 for y direction.
+        :return:
+        '''
+        symMat = RotRep.GetSymRotMat(symType)
+        if m0.ndim != 3:
+            raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
+        NVoxelX = m0.shape[0]
+        NVoxelY = m0.shape[1]
+        # m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
+        m1 = np.empty([NVoxelX, NVoxelY, 9])
+        # x direction misorientatoin
+        m1[:-1, :, :] = m0[1:, :, :]
+        m1[-1, :, :] = m0[-1, :, :]
+        misorienX = self.misorien(m0, m1, symMat)
+        # y direction misorientation
+        m1[:, :-1, :] = m0[:, 1:, :]
+        m1[:, -1, :] = m0[:, -1, :]
+        misorienY = self.misorien(m0, m1, symMat)
+        misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
+        return misOrien
 
-#         _finish_up()
+    def misorien_map_euler(self, euler, symType):
+        '''
+        misorientation map from euler angles:
+        euler in angle!!!!!
+        '''
+        m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
+        misOrienMap = self.misorien_map(m0,symType=symType)
+        return misOrienMap
 ############## test section ###############
 def test_load_fz():
     S = Reconstructor_GPU()
