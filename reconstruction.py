@@ -6,13 +6,15 @@
 #   in simulation part, try to eliminate assert
 # He Liu CMU
 # 20180117
+from pycuda.tools import clear_context_caches
+import atexit
 import cProfile, pstats
 from io import StringIO
 #import cPickle
 import pycuda.gpuarray as gpuarray
-from pycuda.autoinit import context
+#from pycuda.autoinit import context
 import pycuda.driver as cuda
-import pycuda.autoinit
+#import pycuda.autoinit
 import numpy as np
 from pycuda.compiler import SourceModule
 from pycuda.curandom import MRG32k3aRandomNumberGenerator
@@ -26,10 +28,12 @@ import scipy.ndimage as ndi
 import os.path
 import sys
 import scipy.misc
+import importlib
+#global ctx
+#ctx = None
+#cuda.init()
 ######### import device functions ######
-from device_code import mod
 ########################################
-misoren_gpu = mod.get_function("misorien")
 def idx_flat_to_coord_2d(idx,shape):
     '''
     translate flat index to coordinate based index
@@ -41,65 +45,6 @@ def idx_flat_to_coord_2d(idx,shape):
     x = idx//shape[0]
     y = idx%shape[0]
     return x,y
-def misorien(m0, m1,symMat):
-    '''
-    calculate misorientation
-    :param m0: [n,3,3]
-    :param m1: [n,3,3]
-    :param symMat: symmetry matrix,
-    :return:
-    '''
-    m0 = m0.reshape([-1,3,3])
-    m1 = m1.reshape([-1,3,3])
-    symMat = symMat.reshape([-1,3,3])
-    if m0.shape != m1.shape:
-        raise ValueError(' m0 and m1 should in the same shape')
-    NM = m0.shape[0]
-    NSymM = symMat.shape[0]
-    afMisOrienD = gpuarray.empty([NM,NSymM], np.float32)
-    afM0D = gpuarray.to_gpu(m0.astype(np.float32))
-    afM1D = gpuarray.to_gpu(m1.astype(np.float32))
-    afSymMD = gpuarray.to_gpu(symMat.astype(np.float32))
-    misoren_gpu(afMisOrienD, afM0D, afM1D, afSymMD,block=(NSymM,1,1),grid=(NM,1))
-    #print(symMat[0])
-    #print(symMat[0].dot(np.matrix(m1)))
-    return np.amin(afMisOrienD.get(), axis=1)
-
-def misorien_map(m0, symType):
-    '''
-    map the misorienation map
-    e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
-    but it will still return 100x100, filling 0 to the last row/column
-    the misorientatino on that voxel is the max misorientation to its right or up side voxel
-    :param axis: 0 for x direction, 1 for y direction.
-    :return:
-    '''
-    symMat = RotRep.GetSymRotMat(symType)
-    if m0.ndim != 3:
-        raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
-    NVoxelX = m0.shape[0]
-    NVoxelY = m0.shape[1]
-    # m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
-    m1 = np.empty([NVoxelX, NVoxelY, 9])
-    # x direction misorientatoin
-    m1[:-1, :, :] = m0[1:, :, :]
-    m1[-1, :, :] = m0[-1, :, :]
-    misorienX = misorien(m0, m1, symMat)
-    # y direction misorientation
-    m1[:, :-1, :] = m0[:, 1:, :]
-    m1[:, -1, :] = m0[:, -1, :]
-    misorienY = misorien(m0, m1, symMat)
-    misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
-    return misOrien
-
-def misorien_map_euler(euler, symType):
-    '''
-    misorientation map from euler angles:
-    euler in angle!!!!!
-    '''
-    m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
-    misOrienMap = misorien_map(m0,symType=symType)
-    return misOrienMap
 
 def segment_grain(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='default_segment_grain.npy'):
     mShape = m0.shape[0:2]
@@ -170,22 +115,7 @@ class Reconstructor_GPU():
         voxel at boundary need to compare different grains.
 
     '''
-    def __init__(self,rank=0):
-        #cuda.init()
-        #self.current_dev = cuda.Device(rank)
-        #self.context = self.current_dev.make_context()
-
-#         def _finish_up(context):
-#             #global context
-#             context.pop()
-#             context = None
-
-#             from pycuda.tools import clear_context_caches
-#             clear_context_caches()
-
-#         import atexit
-#         atexit.register(self.context.pop)
-        
+    def __init__(self,rank=0,ctx=None):
         self.squareMicOutFile = 'DefaultReconOutPut.npy'
         self.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
         self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
@@ -264,6 +194,37 @@ class Reconstructor_GPU():
         self.postNIteration = 2            # number of iteration to optimize in post process
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
+        if ctx is None:
+            from pycuda.autoinit import context
+            self.ctx = context
+            self.ctx.push()
+        else:
+            self.ctx = ctx
+        time.sleep(1)
+        self._init_gpu()
+ 
+    def _init_gpu(self):
+        """
+        Initialize GPU device.
+        Notes
+        -----
+        Must be called from within the `run()` method, not from within
+        `__init__()`.
+        """
+        def _finish_up():
+            self.ctx.pop()
+            #self.ctx.detach()
+            self.ctx = None
+            from pycuda.tools import clear_context_caches
+            clear_context_caches()
+
+        import atexit
+        atexit.register(_finish_up)
+        self.ctx.push()
+        import device_code
+        importlib.reload(device_code)
+        mod = device_code.mod
+        self.misoren_gpu = mod.get_function("misorien")
         self.sim_func = mod.get_function("simulation")
         self.hitratio_func = mod.get_function("hitratio_multi_detector")
         self.mat_to_euler_ZXZ = mod.get_function("mat_to_euler_ZXZ")
@@ -275,11 +236,15 @@ class Reconstructor_GPU():
         #self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
         # initialize tfG
         self.tfG = mod.get_texref("tfG")
+        self.ctx.push()
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
+        self.ctx.pop()
+        self.texref = mod.get_texref("tcExpData")
+        self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
         print(self.sample.Gs.shape)
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
- 
+                
     def set_lattice_constant(self, value,symType='Cubic'):
         if symType =='Cubic':
             self.sample.PrimA = value * np.array([1, 0, 0])
@@ -290,7 +255,7 @@ class Reconstructor_GPU():
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
         self.NG = self.sample.Gs.shape[0]
-        self.tfG = mod.get_texref("tfG")
+        #self.tfG = mod.get_texref("tfG")
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
         
@@ -315,7 +280,7 @@ class Reconstructor_GPU():
         self.sample.getGs(self.maxQ)
         #print(self.sample.Gs.astype(np.float32))
         self.NG = self.sample.Gs.shape[0]
-        self.tfG = mod.get_texref("tfG")
+        #self.tfG = mod.get_texref("tfG")
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
 
@@ -324,7 +289,7 @@ class Reconstructor_GPU():
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
         self.NG = self.sample.Gs.shape[0]
-        self.tfG = mod.get_texref("tfG")
+        #self.tfG = mod.get_texref("tfG")
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
 
@@ -1284,7 +1249,7 @@ class Reconstructor_GPU():
                     self.voxelHitRatio[idx] = previousHitRatio[idx]
                     self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
             accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
-            misOrienTmpNew = misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
+            misOrienTmpNew = self.misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
             misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
             accMat = accMatNew.copy()
             sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
@@ -1314,11 +1279,11 @@ class Reconstructor_GPU():
         # x direction misorientatoin
         m1[:-1,:,:] = m0[1:,:,:]
         m1[-1,:,:] = m0[-1,:,:]
-        misorienX = misorien(m0, m1, self.symMat)
+        misorienX = self.misorien(m0, m1, self.symMat)
         # y direction misorientation
         m1[:,:-1,:] = m0[:,1:,:]
         m1[:,-1,:] = m0[:,-1,:]
-        misorienY = misorien(m0, m1, self.symMat)
+        misorienY = self.misorien(m0, m1, self.symMat)
         self.misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
         return self.misOrien
 
@@ -1686,7 +1651,8 @@ class Reconstructor_GPU():
                       np.int32(NVoxel), np.int32(NOriPerVoxel), np.int32(self.NG), np.int32(self.NDet), afOrientationMatD,
                       afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
                       texrefs=[self.tfG], grid=(int(NVoxel), int(NOriPerVoxel)), block=(int(self.NG), 1, 1))
-        context.synchronize()
+        #context.synchronize()
+        self.ctx.synchronize()
         end.record()
         self.aJH = aiJD.get()
         self.aKH = aiKD.get()
@@ -1753,7 +1719,8 @@ class Reconstructor_GPU():
                            block=(NBlock, 1, 1), grid=((NVoxel * NOrientation - 1) // NBlock + 1, 1))
         # print('finish sim')
         # memcpy_dtoh
-        context.synchronize()
+        #context.synchronize()
+        self.ctx.synchronize()
         afHitRatioH = np.empty(NVoxel*NOrientation,np.float32)
         aiPeakCntH = np.empty(NVoxel*NOrientation, np.int32)
         cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
@@ -2003,7 +1970,7 @@ class Reconstructor_GPU():
         #print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
         #print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
         return 1
-    def serial_recon_multi_stage(self,enablePostProcess=True):
+    def serial_recon_multi_stage(self,enablePostProcess=True,verbose=True):
         '''
                 # add multiple stage in serial reconstruction:
         # Todo:
@@ -2015,6 +1982,7 @@ class Reconstructor_GPU():
         #self.recon_prepare()
 
         # timing tools:
+#         self.ctx.push()
         start = cuda.Event()
         end = cuda.Event()
         print('==========start of reconstruction======== \n')
@@ -2023,7 +1991,7 @@ class Reconstructor_GPU():
         while self.voxelIdxStage0:
             # start of simulation
             voxelIdx = random.choice(self.voxelIdxStage0)
-            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize)
+            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize,verbose=verbose)
             if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
                 self.flood_fill(voxelIdx)
                 self.NFloodFill += 1
@@ -2046,6 +2014,7 @@ class Reconstructor_GPU():
             [self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
         self.save_square_mic(self.squareMicOutFile)
         #self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
+        #self.ctx.pop()
     def serial_recon_expansion_mode(self,startIdx):
         '''
         This is actually a flood fill process.
@@ -2144,27 +2113,11 @@ class Reconstructor_GPU():
             self.iExpDetImageSize += self.NRot*self.detectors[i].NPixelJ*self.detectors[i].NPixelK
             if i<(self.NDet-1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
-        # check is detector size boyond the number int type could hold
-        # if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
-        #     raise ValueError("detector image size {0} is wrong, \n\
-        #                      possible too large detector size\n\
-        #                     currently use int type as detector pixel index\n\
-        #                     future implementation use lognlong will solve this issure")
-
-        self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
-        self.aiDetStartIdxD = gpuarray.to_gpu(self.aiDetStartIdxH.astype(np.int32))
-        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
-
-        self.aiDetIndxD = gpuarray.to_gpu(self.expData[:, 0].ravel().astype(np.int32))
-        self.aiRotND = gpuarray.to_gpu(self.expData[:, 1].ravel().astype(np.int32))
-        self.aiJExpD = gpuarray.to_gpu(self.expData[:, 2].ravel().astype(np.int32))
-        self.aiKExpD = gpuarray.to_gpu(self.expData[:, 3].ravel().astype(np.int32))
-        self.iNPeak = np.int32(self.expData.shape[0])
         # create texture memory
         print('start of create data on cpu ram')
         self.create_acExpDataCpuRam()
         print('start of creating texture memory')
-        self.texref = mod.get_texref("tcExpData")
+        #self.texref = mod.get_texref("tcExpData")
         self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
         self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
         #del self.acExpDetImages
@@ -2172,6 +2125,63 @@ class Reconstructor_GPU():
         #del self.acExpDetImages
         print('=============end of copy exp data to gpu ===========')
 
+        
+    def test_hitratio_vs_misorien(self, voxelIdx, EulerIn, NSearchOrien, NIteration=1, BoundStart=0.5, verbose=True):
+        '''
+        try to plot the relation between misorientation and hitratio.
+        '''
+        # reconstruction of single voxel
+        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
+        NVoxel = 1
+        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
+        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
+        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
+        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
+        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
+        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
+        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
+        rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
+                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
+
+        #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
+        # kernel calls
+        #start = time.time()
+        #print(NVoxel,NSearchOrien,self.NG)
+        self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
+                      np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
+                      rotMatSearchD,
+                      afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                      texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
+
+        # this is the most time cosuming part, 0.03s per iteration
+        self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
+                           self.afDetInfoD, np.int32(self.NDet),
+                           np.int32(self.NRot),
+                           aiJD, aiKD, aiRotND, abHitD,
+                           afHitRatioD, aiPeakCntD,texrefs=[self.texref],
+                           block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
+
+        # print('finish sim')
+        # memcpy_dtoh
+        #context.synchronize()
+        self.ctx.synchronize()
+        cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
+        cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
+        del rotMatSearchD
+        aiJD.free()
+        aiKD.free()
+        afOmegaD.free()
+        abHitD.free()
+        aiRotND.free()
+        afHitRatioD.free()
+        aiPeakCntD.free()
+        del afVoxelPosD
+        
     def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5, verbose=True):
         '''
         This version tries to use texture memory
@@ -2229,8 +2239,8 @@ class Reconstructor_GPU():
 
             # print('finish sim')
             # memcpy_dtoh
-            context.synchronize()
-
+            #context.synchronize()
+            self.ctx.synchronize()
             cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
             cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
             #end = time.time()
@@ -2293,7 +2303,76 @@ class Reconstructor_GPU():
             x,y = np.where(labeled_array==(i+1))
             uniqueEulers[i,:] = np.average(self.squareMicData[x,y,3:6], axis=0)
         return uniqueEulers, labeled_array, num_features
-            
+    def misorien(self, m0, m1,symMat):
+        '''
+        calculate misorientation
+        :param m0: [n,3,3]
+        :param m1: [n,3,3]
+        :param symMat: symmetry matrix,
+        :return:
+        '''
+        m0 = m0.reshape([-1,3,3])
+        m1 = m1.reshape([-1,3,3])
+        symMat = symMat.reshape([-1,3,3])
+        if m0.shape != m1.shape:
+            raise ValueError(' m0 and m1 should in the same shape')
+        NM = m0.shape[0]
+        NSymM = symMat.shape[0]
+        afMisOrienD = gpuarray.empty([NM,NSymM], np.float32)
+        afM0D = gpuarray.to_gpu(m0.astype(np.float32))
+        afM1D = gpuarray.to_gpu(m1.astype(np.float32))
+        afSymMD = gpuarray.to_gpu(symMat.astype(np.float32))
+        self.misoren_gpu(afMisOrienD, afM0D, afM1D, afSymMD,block=(NSymM,1,1),grid=(NM,1))
+        #print(symMat[0])
+        #print(symMat[0].dot(np.matrix(m1)))
+        return np.amin(afMisOrienD.get(), axis=1)
+
+    def misorien_map(self, m0, symType):
+        '''
+        map the misorienation map
+        e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
+        but it will still return 100x100, filling 0 to the last row/column
+        the misorientatino on that voxel is the max misorientation to its right or up side voxel
+        :param axis: 0 for x direction, 1 for y direction.
+        :return:
+        '''
+        symMat = RotRep.GetSymRotMat(symType)
+        if m0.ndim != 3:
+            raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
+        NVoxelX = m0.shape[0]
+        NVoxelY = m0.shape[1]
+        # m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
+        m1 = np.empty([NVoxelX, NVoxelY, 9])
+        # x direction misorientatoin
+        m1[:-1, :, :] = m0[1:, :, :]
+        m1[-1, :, :] = m0[-1, :, :]
+        misorienX = self.misorien(m0, m1, symMat)
+        # y direction misorientation
+        m1[:, :-1, :] = m0[:, 1:, :]
+        m1[:, -1, :] = m0[:, -1, :]
+        misorienY = self.misorien(m0, m1, symMat)
+        misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
+        return misOrien
+
+    def misorien_map_euler(self, euler, symType):
+        '''
+        misorientation map from euler angles:
+        euler in angle!!!!!
+        '''
+        m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
+        misOrienMap = self.misorien_map(m0,symType=symType)
+        return misOrienMap
+    
+    def clean_up(self):
+        '''
+        try to clean up gpu memory, use this when you try to creat a new Reconstructor_GPU
+        todo: clean more carefully.
+        '''
+        #self.ctx.pop()
+        #atexit.unregister(self.ctx.pop)
+        #self.ctx.detach()
+        self.texref.set_array(cuda.np_to_array(np.zeros([3,3,3]).astype(np.uint8), order='C'))
+        
 ############## test section ###############
 def test_load_fz():
     S = Reconstructor_GPU()
