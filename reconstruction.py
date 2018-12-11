@@ -28,6 +28,7 @@ import scipy.ndimage as ndi
 import os.path
 import sys
 import scipy.misc
+import importlib
 #global ctx
 #ctx = None
 #cuda.init()
@@ -196,8 +197,10 @@ class Reconstructor_GPU():
         if ctx is None:
             from pycuda.autoinit import context
             self.ctx = context
+            self.ctx.push()
         else:
             self.ctx = ctx
+        time.sleep(1)
         self._init_gpu()
  
     def _init_gpu(self):
@@ -210,8 +213,8 @@ class Reconstructor_GPU():
         """
         def _finish_up():
             self.ctx.pop()
+            #self.ctx.detach()
             self.ctx = None
-
             from pycuda.tools import clear_context_caches
             clear_context_caches()
 
@@ -219,6 +222,7 @@ class Reconstructor_GPU():
         atexit.register(_finish_up)
         self.ctx.push()
         import device_code
+        importlib.reload(device_code)
         mod = device_code.mod
         self.misoren_gpu = mod.get_function("misorien")
         self.sim_func = mod.get_function("simulation")
@@ -1966,7 +1970,7 @@ class Reconstructor_GPU():
         #print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
         #print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
         return 1
-    def serial_recon_multi_stage(self,enablePostProcess=True):
+    def serial_recon_multi_stage(self,enablePostProcess=True,verbose=True):
         '''
                 # add multiple stage in serial reconstruction:
         # Todo:
@@ -1987,7 +1991,7 @@ class Reconstructor_GPU():
         while self.voxelIdxStage0:
             # start of simulation
             voxelIdx = random.choice(self.voxelIdxStage0)
-            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize)
+            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize,verbose=verbose)
             if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
                 self.flood_fill(voxelIdx)
                 self.NFloodFill += 1
@@ -2109,22 +2113,6 @@ class Reconstructor_GPU():
             self.iExpDetImageSize += self.NRot*self.detectors[i].NPixelJ*self.detectors[i].NPixelK
             if i<(self.NDet-1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
-        # check is detector size boyond the number int type could hold
-        # if self.iExpDetImageSize<0 or self.iExpDetImageSize>2147483647:
-        #     raise ValueError("detector image size {0} is wrong, \n\
-        #                      possible too large detector size\n\
-        #                     currently use int type as detector pixel index\n\
-        #                     future implementation use lognlong will solve this issure")
-
-        self.aiDetStartIdxH = np.array(self.aiDetStartIdxH)
-        self.aiDetStartIdxD = gpuarray.to_gpu(self.aiDetStartIdxH.astype(np.int32))
-        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
-
-        self.aiDetIndxD = gpuarray.to_gpu(self.expData[:, 0].ravel().astype(np.int32))
-        self.aiRotND = gpuarray.to_gpu(self.expData[:, 1].ravel().astype(np.int32))
-        self.aiJExpD = gpuarray.to_gpu(self.expData[:, 2].ravel().astype(np.int32))
-        self.aiKExpD = gpuarray.to_gpu(self.expData[:, 3].ravel().astype(np.int32))
-        self.iNPeak = np.int32(self.expData.shape[0])
         # create texture memory
         print('start of create data on cpu ram')
         self.create_acExpDataCpuRam()
@@ -2374,6 +2362,17 @@ class Reconstructor_GPU():
         m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
         misOrienMap = self.misorien_map(m0,symType=symType)
         return misOrienMap
+    
+    def clean_up(self):
+        '''
+        try to clean up gpu memory, use this when you try to creat a new Reconstructor_GPU
+        todo: clean more carefully.
+        '''
+        #self.ctx.pop()
+        #atexit.unregister(self.ctx.pop)
+        #self.ctx.detach()
+        self.texref.set_array(cuda.np_to_array(np.zeros([3,3,3]).astype(np.uint8), order='C'))
+        
 ############## test section ###############
 def test_load_fz():
     S = Reconstructor_GPU()
