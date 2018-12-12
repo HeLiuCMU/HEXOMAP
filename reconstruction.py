@@ -1957,7 +1957,7 @@ class Reconstructor_GPU():
             # do one time search:
             rotMatSearchD = self.gen_random_matrix(gpuarray.to_gpu(self.voxelAcceptedMat[voxelIdx, :, :].astype(np.float32)),
                                                    1, self.floodFillNumberAngle, self.floodFillRandomRange)
-            self.single_voxel_recon(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
+            self.single_voxel_recon(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange,verbose=False)
 #             if self.voxelHitRatio[idxTmp]<=previousHitRatio[idxTmp]:
 #                 self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
 #                 self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
@@ -1988,10 +1988,16 @@ class Reconstructor_GPU():
         print('==========start of reconstruction======== \n')
         start.record()  # start timing
         self.NFloodFill = 0
+        cnt = 0
         while self.voxelIdxStage0:
             # start of simulation
+            cnt+=1
             voxelIdx = random.choice(self.voxelIdxStage0)
-            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize,verbose=verbose)
+            if cnt%100==0:
+                disp = verbose
+            else:
+                disp = False
+            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize,verbose=disp)
             if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
                 self.flood_fill(voxelIdx)
                 self.NFloodFill += 1
