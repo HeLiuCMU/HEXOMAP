@@ -1444,7 +1444,13 @@ class Reconstructor_GPU():
         else:
             raise ValueError('format could only be npy or txt')
 
-    def load_square_mic(self, fName, format='npy'):
+    def load_square_mic(self, mic):
+        self.squareMicData = mic
+        self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
+        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
+        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(self.squareMicData[:,:,3:6].reshape([-1,3]) / 180.0 * np.pi)
+        self.voxelHitRatio = self.squareMicData[:,:,6].ravel()
+    def load_square_mic_file(self, fName, format='npy'):
         if format=='npy':
             self.squareMicData = np.load(fName)
 
