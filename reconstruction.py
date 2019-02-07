@@ -158,7 +158,7 @@ class Reconstructor_GPU():
 
         self.detectors[0].Move(self.centerJ[0], self.centerK[0], self.detPos[0], RotRep.EulerZXZ2Mat(self.detRot[0] / 180.0 * np.pi))
         self.detectors[1].Move(self.centerJ[1], self.centerK[1], self.detPos[1], RotRep.EulerZXZ2Mat(self.detRot[1] / 180.0 * np.pi))
-
+        self.detIdx = range(self.NDet)
         #detinfor for GPU[0:NJ,1:NK,2:pixelJSize, 3:pixelKSize, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
         lDetInfoTmp = []
         for i in range(self.NDet):
@@ -297,7 +297,7 @@ class Reconstructor_GPU():
 
     def set_det_param(self,L,J,K, rot,
                       NJ=[2048,2048,2048],NK=[2048,2048,2048],
-                      pixelJ=[0.00148,0.00148,0.00148],pixelK=[0.00148,0.00148,0.00148]):
+                      pixelJ=[0.00148,0.00148,0.00148],pixelK=[0.00148,0.00148,0.00148], detIdx=None):
         '''
         set geometry parameters,
         :param L: array, [1,nDet]
@@ -306,9 +306,13 @@ class Reconstructor_GPU():
         :param rot: array, [1,nDet,], eulerangle, degree
         '''
         # check shape:
+        
         if L.shape!=(1,self.NDet) or J.shape!=(1,self.NDet) or K.shape!=(1,self.NDet) or rot.shape!=(1,self.NDet,3):
             raise ValueError('L,J,K shape should be (1,nDet), rot shape should be (1,nDet,3)')
-            
+        if detIdx == None:
+            self.detIdx = np.arange(self.NDet)
+        else:
+            self.detIdx = detIdx
         self.detPos = []
         self.centerJ = []
         self.centerK = []
@@ -363,9 +367,9 @@ class Reconstructor_GPU():
             self.append_fz(self.additionalFZ)
         if bReloadExpData:
             if reverseRot:
-                self.load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold)
+                self.load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
             else:
-                self.load_exp_data(self.expDataInitial, self.expdataNDigit, self.intensity_threshold)
+                self.load_exp_data(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
             self.expData[:, 2:4] = self.expData[:, 2:4] * self.detScale  # half the detctor size, to rescale real data
             #self.expData = np.array([[1,2,3,4]])
             self.cp_expdata_to_gpu()
@@ -502,8 +506,8 @@ class Reconstructor_GPU():
         #lowHitRatioMask = ndi.maximum_filter(lowHitRatioMask,size=3)
         maskFinal = grainBoundary * mask # lowHitRatioMask
         #plt.imshow(lowHitRatioMask)
-        scipy.misc.imsave('geo_opt_test_maskFinal.png', maskFinal)
-        scipy.misc.imsave('geo_opt_test_hitratio.png', self.squareMicData[:,:,6])
+        #scipy.misc.imsave('geo_opt_test_maskFinal.png', maskFinal)
+        #scipy.misc.imsave('geo_opt_test_hitratio.png', self.squareMicData[:,:,6])
         x,y = np.where(maskFinal==1)
 
         aIdxVoxel = x * self.squareMicData.shape[1] + y
@@ -1546,13 +1550,14 @@ class Reconstructor_GPU():
         #         [3, 3])
         return self.FZEuler
         
-    def load_exp_data_reverse(self,fInitials,digits,intensity_threshold=0,remove_overlap=True):
+    def load_exp_data_reverse(self,fInitials,digits,intensity_threshold=0,remove_overlap=True, lDetIdx=None):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
         these data are NOT transfered to GPU yet.
         :param fInitials: e.g./home/heliu/work/I9_test_data/Integrated/S18_z1_
         :param digits: number of digits in file name, usually 6,
         :param remove_overlap: if true,remove overlap peaks. Sometimes too many peaks may overflow the gpu memory
+        :param lDetIdx: index of detectors to use.
         :return:
         '''
         lJ = []
@@ -1561,11 +1566,13 @@ class Reconstructor_GPU():
         lDet = []
         lIntensity = []
         lID = []
+        if lDetIdx == None:
+            lDetIdx = np.arange(self.NDet)
         for i in range(self.NDet):
             for j in range(self.NRot):
                 sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i,j,self.NDet,self.NRot))
                 sys.stdout.flush()
-                fName = fInitials+str(j).zfill(digits) + '.bin' + str(i)
+                fName = fInitials+str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
                 
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
                 #print(x,type(x))
@@ -1596,7 +1603,7 @@ class Reconstructor_GPU():
                 
         self.expData = np.concatenate([np.concatenate(lDet,axis=0),np.concatenate(lRot,axis=0),np.concatenate(lJ,axis=0),np.concatenate(lK,axis=0)],axis=1)
         print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
-    def load_exp_data(self,fInitials,digits, intensity_threshold=0,remove_overlap=True):
+    def load_exp_data(self,fInitials,digits, intensity_threshold=0,remove_overlap=True, lDetIdx=None):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
         these data are NOT transfered to GPU yet.
@@ -1610,11 +1617,15 @@ class Reconstructor_GPU():
         lDet = []
         lIntensity = []
         lID = []
+        if lDetIdx is None:
+            lDetIdx = np.arange(self.NDet)
+        print(lDetIdx)
         for i in range(self.NDet):
             for j in range(self.NRot):
                 sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i+1,j+1,self.NDet,self.NRot))
                 sys.stdout.flush()
-                fName = fInitials+str(j).zfill(digits) + '.bin' + str(i)
+                fName = fInitials+str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
+                #print(fName)
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
                 if x.size==0:
                     continue
