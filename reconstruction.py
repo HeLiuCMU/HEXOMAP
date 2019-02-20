@@ -309,7 +309,7 @@ class Reconstructor_GPU():
         
         if L.shape!=(1,self.NDet) or J.shape!=(1,self.NDet) or K.shape!=(1,self.NDet) or rot.shape!=(1,self.NDet,3):
             raise ValueError('L,J,K shape should be (1,nDet), rot shape should be (1,nDet,3)')
-        if detIdx == None:
+        if detIdx is None:
             self.detIdx = np.arange(self.NDet)
         else:
             self.detIdx = detIdx
