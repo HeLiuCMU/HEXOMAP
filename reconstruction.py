@@ -1570,7 +1570,7 @@ class Reconstructor_GPU():
         lDet = []
         lIntensity = []
         lID = []
-        if lDetIdx == None:
+        if lDetIdx is None:
             lDetIdx = np.arange(self.NDet)
         for i in range(self.NDet):
             for j in range(self.NRot):
