@@ -147,6 +147,10 @@ class Reconstructor_GPU():
         self.centerK = [1998.96*self.detScale,1996.15*self.detScale]# center, verticle direction
         self.detPos = [np.array([4.7257,0,0]),np.array([6.67,0,0])] # in mm
         self.detRot = [np.array([90.6659, 89.4069, 359.073]),np.array([89.4765, 90.2675, 359.22])]# Euler angleZXZ
+        self.NPixelJ = [2048, 2048, 2048]
+        self.NPixelK = [2048, 2048, 2048]
+        self.pixelJ = [0.00148,0.00148,0.00148]
+        self.pixelK = [0.00148,0.00148,0.00148]
         self.detectors[0].NPixelJ = int(2048*self.detScale)
         self.detectors[0].NPixelK = int(2048*self.detScale)
         self.detectors[0].PixelJ = 0.00148/self.detScale
