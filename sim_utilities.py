@@ -92,6 +92,22 @@ class CrystalStr:
             self.addAtom([0, 0.5, 0.5], 29)
             self.addAtom([0.5, 0, 0.5], 29)
             self.addAtom([0.5, 0.5, 0], 29)
+        elif material == 'copperBCC':
+            self.symtype = 'Cubic'
+            self.PrimA = 2.947 * np.array([1, 0, 0])
+            self.PrimB = 2.947 * np.array([0, 1, 0])
+            self.PrimC = 2.947 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 29)
+            self.addAtom([0.5, 0.5, 0.5], 29)
+        elif material == 'copperFCC':
+            self.symtype = 'Cubic'
+            self.PrimA = 3.692 * np.array([1, 0, 0])
+            self.PrimB = 3.692 * np.array([0, 1, 0])
+            self.PrimC = 3.692 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 29)
+            self.addAtom([0, 0.5, 0.5], 29)
+            self.addAtom([0.5, 0, 0.5], 29)
+            self.addAtom([0.5, 0.5, 0], 29)
         elif material == 'stainless_steel':
             self.symtype = 'Cubic'
             self.PrimA = 3.59 * np.array([1, 0, 0])
