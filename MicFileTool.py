@@ -11,6 +11,7 @@ from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.collections import PolyCollection
 import RotRep
+#import bokeh
 
 def dist_to_line(point,line):
     '''
@@ -135,7 +136,47 @@ def plot_mic(snp,sw,plotType,minConfidence,scattersize=2):
         ax.axis('scaled')
         plt.show()
 
-        
+def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,colorbar=True, saveName=None,outUnit='degree', mask=None):
+    '''
+    plot the misorientation compared to certain euler angle.
+    Input:
+        squareMicData:
+        eulerIn: input euler angle, in degree
+        symType:'Cubic' or 'Hexagonal'
+        angleRAnge: colorbar range
+        colorbar:
+        saveName:
+        outUnit:'degree' or 'raidan', the unit of output misorientation map
+    Output:
+        misorientation map,shape=[squareMicData.shape[0], squareMicData.shape[1]]
+    '''
+    NX = squareMicData.shape[0]
+    NY = squareMicData.shape[1]
+    if mask is None:
+        mask = np.ones([NX, NY])
+    eulers = squareMicData[:, :, 3:6]
+    mats = RotRep.EulerZXZ2MatVectorized(eulers.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+    confs = squareMicData[:, :, 6]
+    mat0 = RotRep.EulerZXZ2Mat(eulerIn/ 180.0 * np.pi)
+    misorien = np.empty([NX, NY])
+    for x in range(NX):
+        for y in range(NY):
+            _, misOrien = RotRep.Misorien2FZ1(mat0, mats[x, y, :, :], symtype=symType)
+            if outUnit=='degree':
+                misorien[x,y] = misOrien/np.pi*180.0
+            elif outUnit=='radian':
+                misorien[x,y] = misOrien
+            else:
+                raise ValueError('must be radian or degree')
+    plt.imshow(misorien.T, origin='lower',vmin=0, vmax=angleRange)
+    plt.title(f'miorientation map in {outUnit}')
+    if colorbar:
+        plt.colorbar()
+    if saveName is not None:
+        plt.savefig(saveName)
+    plt.show()
+    return misorien
+    
 def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
     plt.imshow(squareMicData[:,:,6].T,origin='lower')
     if colorbar:
@@ -143,6 +184,32 @@ def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
     if saveName is not None:
         plt.savefig(saveName)
     plt.show()
+    
+def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
+    '''
+    not implemented
+    plot the square mic data
+    image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
+    :param squareMicData: [NVoxelX,NVoxelY,10], each Voxel conatains 10 columns:
+            0-2: voxelpos [x,y,z]
+            3-5: euler angle
+            6: hitratio
+            7: maskvalue. 0: no need for recon, 1: active recon region
+            8: voxelsize
+            9: additional information
+    :return:
+    '''
+    mat = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
+    quat = np.empty([mat.shape[0],4])
+    rod = np.empty([mat.shape[0],3])
+    for i in range(mat.shape[0]):
+        quat[i, :] = RotRep.quaternion_from_matrix(mat[i, :, :])
+        rod[i, :] = RotRep.rod_from_quaternion(quat[i, :])
+    hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
+    img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
+    # make sure display correctly
+    #img[:,:,:] = img[::-1,:,:]
+    img = np.swapaxes(img,0,1)
     
 def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     '''
