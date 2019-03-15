@@ -177,7 +177,7 @@ class CrystalStr:
             self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 22)
             self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 22)
         else:
-            pass
+            raise ValueError("Unknown mateiral type!")
 
     def setPrim(self, x, y, z):
         self.PrimA = np.array(x)
