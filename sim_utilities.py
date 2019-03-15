@@ -168,6 +168,7 @@ class CrystalStr:
             self.addAtom([0.5, 0.5, 0.5], 26)
         elif material.lower() in ['zr', ' zirconium']:
             # hexagonal lattice
+            # unit: angstrom, radian
             # source:
             # https://www.webelements.com/zirconium/crystal_structure.html
             self.symtype = 'Hexagonal'
