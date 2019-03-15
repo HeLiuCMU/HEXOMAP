@@ -166,6 +166,16 @@ class CrystalStr:
             self.PrimC = 3.224 * np.array([0, 0, 1])
             self.addAtom([0, 0, 0], 26)
             self.addAtom([0.5, 0.5, 0.5], 26)
+        elif material.lower() in ['zr', ' zirconium']:
+            # hexagonal lattice
+            # source:
+            # https://www.webelements.com/zirconium/crystal_structure.html
+            self.symtype = 'Hexagonal'
+            self.PrimA = 3.232 * np.array([1, 0, 0])
+            self.PrimB = 3.232 * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
+            self.PrimC = 5.147 * np.array([0, 0, 1])
+            self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 22)
+            self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 22)
         else:
             pass
 
