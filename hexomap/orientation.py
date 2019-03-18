@@ -36,23 +36,49 @@ class Quaternion:
     x: float  # sin(theta/2) * rotation_axis_x
     y: float  # sin(theta/2) * rotation_axis_y
     z: float  # sin(theta/2) * rotation_axis_z
-    normalized: bool=True
+    normalized: bool=False
 
-    def __post__init__(self):
+    def __post_init__(self):
         # quaternion need to be a unit vector to represent orientation
         if not self.normalized:
-            self.normalize()
+            norm = np.linalg.norm([self.w, self.x, self.y, self.z])
+            self.w /= norm
+            self.x /= norm
+            self.y /= norm
+            self.z /= norm
+            self.normalized = True
+
+    @property
+    def as_array(self):
+        return np.array([self.w, self.x, self.y, self.z])
 
     @property
     def magnitude(self):
-        return np.sqrt(self.w**2 + self.x**2 + self.y**2 + self.z**2)
+        return np.linalg.norm(self.as_array)
+    
+    @property
+    def conjugate(self):
+        return Quaternion(self.w, -self.x, -self.y, -self.z, normalized=True)
 
-    def normalize(self):
-        self.w /= self.magnitude
-        self.x /= self.magnitude
-        self.y /= self.magnitude
-        self.z /= self.magnitude
+    def __add__(self, other: 'Quaternion') -> 'Quaternion':
+        # NOTE:
+        # Adding quaternions has no physical meaning unless the results is
+        # averaged to apprixmate the intermedia statem, provided that the
+        # two rotations are infinitely small.
+        return Quaternion(*(self.as_array + other.as_array))
+    
+    def __sub__(self, other: 'Quaternion') -> 'Quaternion':
+        # NOTE:
+        # Adding quaternions has no physical meaning unless the results is
+        # averaged to apprixmate the intermedia statem, provided that the
+        # two rotations are infinitely small.
+        return Quaternion(*(self.as_array - other.as_array))
+    
 
 if __name__ == "__main__":
-    q = Quaternion(1, 0, 0, 0)
-    print(q)
+    q1 = Quaternion(1, 0, 0, 0)
+    q2 = Quaternion(1, 0, 1, 1)
+    print(q1)
+    print(q2)
+    q2 = q2 - q1
+    print(q2)
