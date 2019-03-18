@@ -65,8 +65,8 @@ def segment_grain(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='def
 
 def segment_grain_1(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='default_segment_grain.npy',mask=None):
     '''
-
-    :return:
+    m0: symmetry matrix.
+    :return: image of grain ID
     '''
     #self.recon_prepare()
 
@@ -208,7 +208,23 @@ class Reconstructor_GPU():
             self.ctx = ctx
         time.sleep(1)
         self._init_gpu()
- 
+    
+    def load_config(self, config):
+        '''
+        load any configuration from config class
+        config: Config(), defined in config.py
+        '''
+        squareMicOutFileInitial = config.squareMicOutFileInitial     # file name of output mic file
+        self.layer = config.layer                                              # index of layer, int
+        self.expDataInitial = config.expDataInitial 
+        self.expdataNDigit = config.expdataNDigit 
+        self.energy = config.energy # in kev
+        self.searchBatchSize = config.searchBatchSize
+        self.reverseRot = config.reverseRot
+        maxQ = 8
+        etalimit = 81 / 180.0 * np.pi
+        NRot = 180
+        NDet = 2
     def _init_gpu(self):
         """
         Initialize GPU device.
@@ -1438,7 +1454,7 @@ class Reconstructor_GPU():
     def save_square_mic(self, fName, format='npy'):
         '''
         save square mic data
-        :param format: 'npy' or 'txt'
+        :param format: 'npy' or 'txt' or 'h5'
         :return:
         '''
         if format=='npy':
@@ -2098,7 +2114,7 @@ class Reconstructor_GPU():
             # start of simulation
             cnt+=1
             voxelIdx = random.choice(self.voxelIdxStage0)
-            if cnt%100==0:
+            if cnt%1==0:
                 disp = verbose
             else:
                 disp = False
@@ -2293,7 +2309,92 @@ class Reconstructor_GPU():
         aiPeakCntD.free()
         del afVoxelPosD
         
-    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5, verbose=True):
+    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, minRange=0.0005, NIteration=10, BoundStart=0.3, verbose=True):
+        '''
+        this version will exhaust orientation until hit ratio does not increase any more
+        input:
+            minRange: search will terminate after search range is lower than this value
+        '''
+                # reconstruction of single voxel
+        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
+        NVoxel = 1
+        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
+        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
+        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
+        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
+        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
+        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
+        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
+        rangeTmp = BoundStart
+        bestHitRatioTmp = 0
+        better = True
+        i = 0
+        while rangeTmp > minRange:
+            # print(i)
+            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
+            # update rotation matrix to search
+            if i == 0:
+                rotMatSearchD = afFZMatD.copy()
+            else:
+                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
+                                                       NSearchOrien // self.NSelect + 1, rangeTmp)
+
+            self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
+                          np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
+                          rotMatSearchD,
+                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                          texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
+
+            # this is the most time cosuming part, 0.03s per iteration
+            self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
+                               self.afDetInfoD, np.int32(self.NDet),
+                               np.int32(self.NRot),
+                               aiJD, aiKD, aiRotND, abHitD,
+                               afHitRatioD, aiPeakCntD,texrefs=[self.texref],
+                               block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
+
+            self.ctx.synchronize()
+            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
+            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
+            #end = time.time()
+            #print("SourceModule time {0} seconds.".format(end-start))
+            maxHitratioIdx = np.argsort(afHitRatioH)[
+                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
+            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
+            for jj in range(1, 9):
+                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
+            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
+            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
+            if afHitRatioH[maxHitratioIdx[0]] > bestHitRatioTmp:
+                rangeTmp *= 1.5
+                bestHitRatioTmp = afHitRatioH[maxHitratioIdx[0]] 
+            else:
+                rangeTmp *= 0.5
+            del rotMatSearchD
+            i += 1
+        aiJD.free()
+        aiKD.free()
+        afOmegaD.free()
+        abHitD.free()
+        aiRotND.free()
+        afHitRatioD.free()
+        aiPeakCntD.free()
+        maxMat = maxMatD.get().reshape([-1, 3, 3])
+        if verbose:
+            #print(i)
+            np.set_printoptions(precision=4)
+            sys.stdout.write('\r iteration: {6}, voxelIdx: {0}, voxelLeft: {4}/{5}.  max hitratio: {1:04f}, peakcnt: {2},euler angle {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
+            sys.stdout.flush()
+        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
+        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
+        del afVoxelPosD
+        
+    def single_voxel_recon_backup(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5, verbose=True):
         '''
         This version tries to use texture memory
         THis is a working version, no error so far as 20180130
@@ -2562,6 +2663,7 @@ class Reconstructor_GPU():
         #atexit.unregister(self.ctx.pop)
         #self.ctx.detach()
         self.texref.set_array(cuda.np_to_array(np.zeros([3,3,3]).astype(np.uint8), order='C'))
+        
 
         
 ############## test section ###############
