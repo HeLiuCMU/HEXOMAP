@@ -11,6 +11,7 @@ from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.collections import PolyCollection
 import RotRep
+import sys
 #import bokeh
 
 def dist_to_line(point,line):
@@ -136,6 +137,92 @@ def plot_mic(snp,sw,plotType,minConfidence,scattersize=2):
         ax.axis('scaled')
         plt.show()
 
+
+def segment_grain(mic, symType='Hexagonal', threshold=0.01,show=True, save=True,outFile='default_segment_grain.npy',mask=None):
+    '''
+    m0: symmetry matrix.
+    :return: image of grain ID
+    '''
+    #self.recon_prepare()
+
+    # timing tools:
+    NX = mic.shape[0]
+    NY = mic.shape[1]
+    m0 = RotRep.EulerZXZ2MatVectorized(mic[:,:,3:6].reshape([-1,3])/180.0*np.pi)
+
+    visited = np.zeros(NX * NY)
+    result = np.empty(NX * NY)
+    #m0 = m0.reshape([-1,9])
+    id = 0
+    if mask is None:
+        mask = np.ones(NX*NY)
+    else:
+        mask = mask.ravel()
+    visited[mask==0] = 1
+    while(np.sum(visited.ravel()==0)>0):
+        idxs,  = np.where(visited.ravel()==0)
+        startIdx = idxs[0]
+        q = [startIdx]
+        visited[startIdx] = 1
+        result[startIdx] = id
+        while q:
+            n = q.pop(0)
+            for x in [min(n + 1, n-n%NY + NY-1), max(n-n%NY, n - 1), min(n//NY+1, NX-1)*NY + n%NY, max(0,n//NY-1)*NY + n%NY]:
+                _, misorientation = RotRep.Misorien2FZ1(m0[n,:].reshape([3,3]), m0[x,:].reshape([3,3]), symType)
+                #print(misorientation)
+                if misorientation<threshold and visited[x] == 0:
+                    q.append(x)
+                    visited[x] = 1
+                    result[x] = id
+        id +=1
+        #print(id)
+        sys.stdout.write(f'\r {id}')
+        sys.stdout.flush()
+    result = result.reshape([NX,NY])
+    if save:
+        np.save(outFile, result)
+    if show:
+        plt.imshow(result.T, origin='lower')
+        plt.show()
+    return result
+def grain_boundary(mic, symType):
+    pass
+        
+def misorien_between(mic0, mic1, symType, angleRange=None,colorbar=True, saveName=None,outUnit='degree', mask=None):
+    '''
+    misorientation between two mics
+    '''
+    if mic0.shape!=mic1.shape:
+        raise ValueError(f'shape does not match : {mic0.shape}, {mic1.shape}')
+    NX = mic0.shape[0]
+    NY = mic0.shape[1]
+    if mask is None:
+        mask = np.ones([NX, NY])
+    eulers0 = mic0[:, :, 3:6]
+    mats0 = RotRep.EulerZXZ2MatVectorized(eulers0.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+    confs0 = mic0[:, :, 6]
+    eulers1 = mic1[:, :, 3:6]
+    mats1 = RotRep.EulerZXZ2MatVectorized(eulers1.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+    confs1 = mic1[:, :, 6]
+    misorien = np.empty([NX, NY])
+    for x in range(NX):
+        for y in range(NY):
+            _, misOrien = RotRep.Misorien2FZ1(mats0[x, y, :, :], mats1[x, y, :, :], symtype=symType)
+            if outUnit=='degree':
+                misorien[x,y] = misOrien/np.pi*180.0
+            elif outUnit=='radian':
+                misorien[x,y] = misOrien
+            else:
+                raise ValueError('must be radian or degree')
+    misorien[mask==0] = 0 
+    plt.imshow(misorien.T, origin='lower',vmin=0, vmax=angleRange)
+    plt.title(f'miorientation map in {outUnit}')
+    if colorbar:
+        plt.colorbar()
+    if saveName is not None:
+        plt.savefig(saveName)
+    plt.show()
+    return misorien
 def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,colorbar=True, saveName=None,outUnit='degree', mask=None):
     '''
     plot the misorientation compared to certain euler angle.
