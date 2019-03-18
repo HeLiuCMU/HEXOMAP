@@ -38,7 +38,7 @@ class Quaternion:
     z: float  # sin(theta/2) * rotation_axis_z
     normalized: bool=False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # quaternion need to be a unit vector to represent orientation
         if not self.normalized:
             norm = np.linalg.norm([self.w, self.x, self.y, self.z])
@@ -49,15 +49,15 @@ class Quaternion:
             self.normalized = True
 
     @property
-    def as_array(self):
+    def as_array(self) -> np.ndarray:
         return np.array([self.w, self.x, self.y, self.z])
 
     @property
-    def magnitude(self):
+    def norm(self) -> float:
         return np.linalg.norm(self.as_array)
     
     @property
-    def conjugate(self):
+    def conjugate(self) -> 'Quaternion':
         return Quaternion(self.w, -self.x, -self.y, -self.z, normalized=True)
 
     def __add__(self, other: 'Quaternion') -> 'Quaternion':
@@ -74,11 +74,12 @@ class Quaternion:
         # two rotations are infinitely small.
         return Quaternion(*(self.as_array - other.as_array))
     
+    def __neg__(self) -> 'Quaternion':
+        return Quaternion(*(-self.as_array))
+    
 
 if __name__ == "__main__":
     q1 = Quaternion(1, 0, 0, 0)
     q2 = Quaternion(1, 0, 1, 1)
-    print(q1)
-    print(q2)
-    q2 = q2 - q1
+    print(-q1)
     print(q2)
