@@ -2,12 +2,14 @@
 
 
 # ----- targets ---- 
-.PHONY: list clean
+.PHONY: install list clean
 
 
 
-
-
+# install dependencies
+install:
+	@pip install -r requirements.txt
+	@echo "Remember to add hexomap folder to your python library path."
 
 # list all possible target in this makefile
 list:
