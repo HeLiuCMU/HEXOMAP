@@ -374,7 +374,7 @@ class Reconstructor_GPU():
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
       
-    def recon_prepare(self,reverseRot=False, bReloadExpData=True):
+    def recon_prepare(self,reverseRot=False, bReloadExpData=True, clearCpuMemory=True):
         '''
         prepare for reconstruction, copy detector data to GPU
         :param reverseRot: left hand or right hand rotation
@@ -393,6 +393,9 @@ class Reconstructor_GPU():
             self.expData[:, 2:4] = self.expData[:, 2:4] * self.detScale  # half the detctor size, to rescale real data
             #self.expData = np.array([[1,2,3,4]])
             self.cp_expdata_to_gpu()
+            if clearCpuMemory:
+                self.expData=None
+                self.acExpDataCpuRam = None
         #self.create_acExpDataCpuRam()
         # setup serial Reconstruction rotMatCandidate
         self.FZMatH = np.empty([self.searchBatchSize,3,3])
