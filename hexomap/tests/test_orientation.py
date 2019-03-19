@@ -7,11 +7,26 @@ Unit test for the orientation module from hexomap package.
 
 import unittest
 import numpy as np
+from functools import reduce
+from hexomap.orientation import Quaternion
+
+
+class TestQuaternion(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+    def test_reduce(self):
+        angs = np.random.random(10) * np.pi
+        axis = (np.random.random(3) - 0.5)
+        qs = [Quaternion.from_angle_axis(ang, axis) 
+                for ang in angs
+        ]
+        q_total = reduce(Quaternion.reduce_two, qs)
+        q_target = Quaternion.from_angle_axis(sum(angs), axis)
+
+        np.testing.assert_almost_equal(q_total.as_array, q_target.as_array)
 
 
 if __name__ == "__main__":
-    # Ref:
-    # D Rowenhorst et al. 
-    # Consistent representations of and conversions between 3D rotations
-    # 10.1088/0965-0393/23/8/083501
-    eulers = np.array([2.721670, 0.148401, 0.148886])  # radians
+    unittest.main()

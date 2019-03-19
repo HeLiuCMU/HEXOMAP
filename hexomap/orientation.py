@@ -85,6 +85,14 @@ class Quaternion:
         return np.array([self.w, self.x, self.y, self.z])
 
     @property
+    def real(self):
+        return self.w
+
+    @property
+    def imag(self):
+        return np.array(self.x, self.y, self.z)
+
+    @property
     def norm(self) -> float:
         return np.linalg.norm(self.as_array)
     
@@ -110,19 +118,32 @@ class Quaternion:
         return Quaternion(*(-self.as_array))
 
     def __mul__(self, other: 'Quaternion') -> 'Quaternion':
-        # For two unit quaternions (q1, q2) that represent rotation, the
-        # multiplication defined here denotes the combined rotation, namely
-        #           q3 = q1 * q2
-        # where q3 is a single rotation action that is equivalent to rotate
-        # an object by q1, then by q2.
-        Aw = self.w
-        Ax = self.x
-        Ay = self.y
-        Az = self.z
-        Bw = other.w
-        Bx = other.x
-        By = other.y
-        Bz = other.z
+        pass
+
+    @classmethod
+    def reduce_two(cls, q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
+        """
+        Description
+        -----------
+        Return the quaternion that represents the compounded rotation, i.e.
+            q3 = Quaternion.reduce(q1, q2)
+        where q3 is the single rotation that is equivalent to rotate by q1,
+        then by q2.
+
+        Parameters
+        ----------
+        q1: Quaternion
+            first active rotation
+        q2: Quaternion
+            second active rotation
+
+        Returns
+        -------
+        Quaternion
+            Reduced (single-step) rotation
+        """
+        Aw, Ax, Ay, Az = q1.as_array
+        Bw, Bx, By, Bz = q2.as_array
         return Quaternion(
             - Ax * Bx - Ay * By - Az * Bz + Aw * Bw,
             + Ax * Bw + Ay * Bz - Az * By + Aw * Bx,
@@ -130,8 +151,8 @@ class Quaternion:
             + Ax * By - Ay * Bx + Az * Bw + Aw * Bz,
         )
 
-    @classmethod
-    def average_quaternions(cls, qs: list) -> 'Quaternion':
+    @staticmethod
+    def average_quaternions(qs: list) -> 'Quaternion':
         """
         Description
         -----------
@@ -152,13 +173,18 @@ class Quaternion:
         """
         _sum = np.sum([np.outer(q.as_array, q.as_array) for q in qs], axis=0)
         _eigval, _eigvec = np.linalg.eig(_sum/len(qs))
-        return cls(*np.real(_eigvec.T[_eigval.argmax()]))
+        return Quaternion(*np.real(_eigvec.T[_eigval.argmax()]))
 
-    @classmethod
-    def from_angle_axis(cls, angle: float, axis: np.ndarray) -> 'Quaternion':
-        half_angle = (angle%np.pi)*0.5
+    @staticmethod
+    def from_angle_axis(angle: float, axis: np.ndarray) -> 'Quaternion':
+        half_angle = angle*0.5
         axis = normalize(axis)
-        return cls(np.cos(half_angle), *(np.sin(half_angle)*axis))
+        return Quaternion(np.cos(half_angle), *(np.sin(half_angle)*axis))
+
+    @staticmethod
+    def quatrotate(q: 'Quaternion', v: np.ndarray) -> np.ndarray:
+        """Active rotate a given vector v by given unitary quaternion q"""
+        return (Quaternion(0, *v) * q.conjugate).as_array[1:]
 
 
 @dataclass
@@ -219,9 +245,12 @@ def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
     
 
 if __name__ == "__main__":
-    q1 = Quaternion(1, 0, 0, 0)
-    q2 = Quaternion(-1, 0, 1, 1)
-    q3 = Quaternion.from_angle_axis(np.pi/2, np.array([1, 1, 1]))
-    print(-q1)
-    print(q2)
-    print(q3)
+    from functools import reduce
+
+    axis = np.array([1,1,1])
+    qs = [Quaternion.from_angle_axis(me,axis) 
+            for me in [np.pi/10]*5
+        ]
+    print(qs)
+    print(reduce(Quaternion.reduce_two, qs))
+    print(Quaternion.from_angle_axis(np.pi/2,axis))
