@@ -3,6 +3,17 @@
 
 """
 General math module for crystal orientation related calculation.
+
+Most of the conventions used in this module is based on:
+    D Rowenhorst et al. 
+    Consistent representations of and conversions between 3D rotations
+    10.1088/0965-0393/23/8/083501
+
+with the exceptions:
+    1. An orientation is always attached to a frame, and all calculations
+       between orientations can only be done when all of them are converted
+       to the same frame.
+    2. Always prefer SI units.
 """
 
 import numpy as np
@@ -11,12 +22,19 @@ from dataclasses import dataclass
 
 @dataclass
 class Eulers:
-    """Euler angles representation of orientation."""
+    """
+    Euler angles representation of orientation.
+
+    Euler angle definitions:
+        'Bunge' :  z -> x -> z     // prefered
+        'Tayt–Briant' x -> y -> z  // roll-pitch-yaw
+    """
     phi1: float
     phi:  float
     phi2: float
     in_radians: bool=True
     order: str='zxz'
+    convention: str='Bunge'
 
     @property
     def as_array(self):
@@ -76,6 +94,84 @@ class Quaternion:
     
     def __neg__(self) -> 'Quaternion':
         return Quaternion(*(-self.as_array))
+
+    def __mul__(self, other: 'Quaternion') -> 'Quaternion':
+        # For two unit quaternions (q1, q2) that represent rotation, the
+        # multiplication defined here denotes the combined rotation, namely
+        #           q3 = q1 * q2
+        # where q3 is a single rotation action that is equivalent to rotate
+        # an object by q1, then by q2.
+        Aw = self.w
+        Ax = self.x
+        Ay = self.y
+        Az = self.z
+        Bw = other.w
+        Bx = other.x
+        By = other.y
+        Bz = other.z
+        return Quaternion(
+            - Ax * Bx - Ay * By - Az * Bz + Aw * Bw,
+            + Ax * Bw + Ay * Bz - Az * By + Aw * Bx,
+            - Ax * Bz + Ay * Bw + Az * Bx + Aw * By,
+            + Ax * By - Ay * Bx + Az * Bw + Aw * Bz,
+        )
+
+
+@dataclass
+class Frame:
+    """
+    Reference frame represented as three base vectors
+    
+    NOTE: in most cases, frames are represented as orthorgonal bases.
+    """
+    e1: np.ndarray = np.array([1, 0, 0])
+    e2: np.ndarray = np.array([0, 1, 0])
+    e3: np.ndarray = np.array([0, 0, 1])
+    name: str = "lab"
+
+
+@dataclass
+class Orientation:
+    """
+    Orientation is used to described a given object relative position to the
+    given reference frame, more specifically
+    
+        the orientation of the crystal is described as a passive
+        rotation of the sample reference frame to coincide with the 
+        crystal’s standard reference frame
+    
+    """
+    _q: Quaternion
+    _f: Frame
+
+    @property
+    def frame(self) -> 'Frame':
+        return self._f
+    
+    @frame.setter
+    def frame(self, new_frame: Frame) -> None:
+        pass
+
+    @property
+    def as_quaternion(self) -> 'Quaternion':
+        return self._q
+
+    @property
+    def as_eulers(self) -> 'Eulers':
+        pass
+
+    @property
+    def as_angleaxis(self) -> tuple:
+        pass
+
+    @staticmethod
+    def random_orientations(cls, n: int, frame: Frame) -> list:
+        """Return n random orientations represented in the given frame"""
+        return []
+
+
+def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
+    pass
     
 
 if __name__ == "__main__":
