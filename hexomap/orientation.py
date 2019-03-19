@@ -125,7 +125,7 @@ class Quaternion:
         Description
         -----------
         Return the quaternion that represents the compounded rotation, i.e.
-            q3 = Quaternion.reduce(q1, q2)
+            q3 = Quaternion.combine_two(q1, q2)
         where q3 is the single rotation that is equivalent to rotate by q1,
         then by q2.
 
@@ -141,14 +141,7 @@ class Quaternion:
         Quaternion
             Reduced (single-step) rotation
         """
-        Aw, Ax, Ay, Az = q1.as_array
-        Bw, Bx, By, Bz = q2.as_array
-        return Quaternion(
-            - Ax * Bx - Ay * By - Az * Bz + Aw * Bw,
-            + Ax * Bw + Ay * Bz - Az * By + Aw * Bx,
-            - Ax * Bz + Ay * Bw + Az * Bx + Aw * By,
-            + Ax * By - Ay * Bx + Az * Bw + Aw * Bz,
-        )
+        return q1*q2
 
     @staticmethod
     def average_quaternions(qs: list) -> 'Quaternion':
