@@ -18,6 +18,7 @@ with the exceptions:
 
 import numpy as np
 from dataclasses import dataclass
+from hexomap.npmath import norm
 
 
 @dataclass
@@ -65,14 +66,18 @@ class Quaternion:
     normalized: bool=False
 
     def __post_init__(self) -> None:
-        # quaternion need to be a unit vector to represent orientation
-        if not self.normalized:
-            norm = np.linalg.norm([self.w, self.x, self.y, self.z])
-            self.w /= norm
-            self.x /= norm
-            self.y /= norm
-            self.z /= norm
-            self.normalized = True
+        # standardize the quaternion
+        # 1. rotation angle range: [0, pi) -> self.w >= 0
+        # 2. |q| === 1
+        self.standardize()
+    
+    def standardize(self) -> None:
+        _norm = norm([self.w, self.x, self.y, self.z]) * np.sign(self.w)
+        self.w /= _norm
+        self.x /= _norm
+        self.y /= _norm
+        self.z /= _norm
+        self.normalized = True
 
     @property
     def as_array(self) -> np.ndarray:
@@ -208,6 +213,6 @@ def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
 
 if __name__ == "__main__":
     q1 = Quaternion(1, 0, 0, 0)
-    q2 = Quaternion(1, 0, 1, 1)
+    q2 = Quaternion(-1, 0, 1, 1)
     print(-q1)
     print(q2)

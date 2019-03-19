@@ -8,6 +8,7 @@ Useful math functions for processing HEDM data implemented in numpy.
 import numpy as np
 from numpy.linalg import norm
 
+
 def normalize(vec, axis=None):
     """
     return a normalized vector/matrix
@@ -27,6 +28,7 @@ def normalize(vec, axis=None):
                                            )
                          )
 
+
 def random_three_vector():
     """
     Generates a random 3D unit vector (direction) with a uniform spherical
@@ -42,12 +44,14 @@ def random_three_vector():
     z = np.cos(theta)
     return np.array([x, y, z])
 
+
 def safe_dotprod(vec1, vec2):
     """
     Return the dot product that is forced to be between -1.0 and 1.0.  Both
     vectors are normalized to prevent error.
     """
     return min(1.0, max(-1.0, np.dot(normalize(vec1), normalize(vec2))))
+
 
 if __name__ == "__main__":
     pass
