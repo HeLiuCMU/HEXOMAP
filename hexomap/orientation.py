@@ -121,7 +121,7 @@ class Quaternion:
         pass
 
     @classmethod
-    def reduce_two(cls, q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
+    def combine_two(cls, q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
         """
         Description
         -----------

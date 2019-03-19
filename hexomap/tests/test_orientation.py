@@ -24,7 +24,7 @@ class TestQuaternion(unittest.TestCase):
     def test_reduce(self):
         # the cumulative rotations around the same axis should be the same 
         # as the one single rotation with the total rotation angle
-        q_reduced = reduce(Quaternion.reduce_two, self.qs)
+        q_reduced = reduce(Quaternion.combine_two, self.qs)
         q_target = Quaternion.from_angle_axis(sum(self.angs), self.axis)
         np.testing.assert_allclose(q_reduced.as_array, q_target.as_array)
 
