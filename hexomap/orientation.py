@@ -14,10 +14,6 @@ with the exceptions:
        between orientations can only be done when all of them are converted
        to the same frame.
     2. Always prefer SI units.
-
-TODO:
-    1. check the quaternion multiplication calculation
-    2. check the quatrotate
 """
 
 import numpy as np
@@ -103,7 +99,7 @@ class Quaternion:
     
     @property
     def conjugate(self) -> 'Quaternion':
-        return Quaternion(self.w, -self.x, -self.y, -self.z, normalized=True)
+        return Quaternion(self.w, -self.x, -self.y, -self.z)
 
     def __add__(self, other: 'Quaternion') -> 'Quaternion':
         # NOTE:
