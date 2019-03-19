@@ -29,12 +29,15 @@ class Eulers:
         'Bunge' :  z -> x -> z     // prefered
         'Tayt–Briant' x -> y -> z  // roll-pitch-yaw
     """
-    phi1: float
-    phi:  float
-    phi2: float
+    phi1: float  # [0, 2pi)
+    phi:  float  # [0,  pi]
+    phi2: float  # [0, 2pi)
     in_radians: bool=True
     order: str='zxz'
     convention: str='Bunge'
+
+    def __post_init__(self):
+        self.phi = self.phi%np.pi 
 
     @property
     def as_array(self):
@@ -44,7 +47,7 @@ class Eulers:
 @dataclass
 class Quaternion:
     """
-    Quaternion representation of orientation.
+    Unitary quaternion representation of rotation.
             q = w + Xi + Yj + Zk
     
     reference:
