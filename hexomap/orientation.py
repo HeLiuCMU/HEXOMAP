@@ -19,6 +19,7 @@ with the exceptions:
 import numpy as np
 from dataclasses import dataclass
 from hexomap.npmath import norm
+from hexomap.npmath import normalize
 
 
 @dataclass
@@ -67,7 +68,7 @@ class Quaternion:
 
     def __post_init__(self) -> None:
         # standardize the quaternion
-        # 1. rotation angle range: [0, pi) -> self.w >= 0
+        # 1. rotation angle range: [0, pi] -> self.w >= 0
         # 2. |q| === 1
         self.standardize()
     
@@ -129,7 +130,7 @@ class Quaternion:
             + Ax * By - Ay * Bx + Az * Bw + Aw * Bz,
         )
 
-    @staticmethod
+    @classmethod
     def average_quaternions(cls, qs: list) -> 'Quaternion':
         """
         Description
@@ -151,7 +152,13 @@ class Quaternion:
         """
         _sum = np.sum([np.outer(q.as_array, q.as_array) for q in qs], axis=0)
         _eigval, _eigvec = np.linalg.eig(_sum/len(qs))
-        return Quaternion(*np.real(_eigvec.T[_eigval.argmax()]))
+        return cls(*np.real(_eigvec.T[_eigval.argmax()]))
+
+    @classmethod
+    def from_angle_axis(cls, angle: float, axis: np.ndarray) -> 'Quaternion':
+        half_angle = (angle%np.pi)*0.5
+        axis = normalize(axis)
+        return cls(np.cos(half_angle), *(np.sin(half_angle)*axis))
 
 
 @dataclass
@@ -201,7 +208,7 @@ class Orientation:
     def as_angleaxis(self) -> tuple:
         pass
 
-    @staticmethod
+    @classmethod
     def random_orientations(cls, n: int, frame: Frame) -> list:
         """Return n random orientations represented in the given frame"""
         return []
@@ -214,5 +221,7 @@ def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
 if __name__ == "__main__":
     q1 = Quaternion(1, 0, 0, 0)
     q2 = Quaternion(-1, 0, 1, 1)
+    q3 = Quaternion.from_angle_axis(np.pi/2, np.array([1, 1, 1]))
     print(-q1)
     print(q2)
+    print(q3)
