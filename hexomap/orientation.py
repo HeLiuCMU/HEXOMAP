@@ -207,7 +207,23 @@ class Quaternion:
 
     @staticmethod
     def quatrotate(q: 'Quaternion', v: np.ndarray) -> np.ndarray:
-        """Active rotate a given vector v by given unitary quaternion q"""
+        """
+        Description
+        -----------
+        Active rotate a given vector v by given unitary quaternion q
+
+        Parameters
+        ----------
+        q: Quaternion
+            quaternion representation of the active rotation
+        v: np.ndarray
+            vector
+
+        Returns
+        -------
+        np.ndarray
+            rotated vector
+        """
         return (q.real**2 - sum(q.imag**2))*v \
             + 2*np.dot(q.imag, v)*q.imag \
             + 2*q.real*np.cross(q.imag, v)
