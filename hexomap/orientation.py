@@ -115,8 +115,13 @@ class Quaternion:
         return Quaternion(*(-self.as_array))
 
     def __mul__(self, other: 'Quaternion') -> 'Quaternion':
+        """
+        Similar to complex number multiplication
+        """
         real = self.real*other.real - np.dot(self.imag, other.imag)
-        imag = self.real*other.imag + other.real*self.imag + np.cross(self.imag, other.imag)
+        imag = self.real*other.imag \
+            + other.real*self.imag \
+            + np.cross(self.imag, other.imag)
         return Quaternion(real, *imag)
 
     @staticmethod
