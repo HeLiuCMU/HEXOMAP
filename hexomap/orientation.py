@@ -170,6 +170,9 @@ class Quaternion:
         -------
         Quaternion
             average quaternion of the given list
+
+        Note:
+        This method only provides an approximation, with about 1% error
         """
         _sum = np.sum([np.outer(q.as_array, q.as_array) for q in qs], axis=0)
         _eigval, _eigvec = np.linalg.eig(_sum/len(qs))

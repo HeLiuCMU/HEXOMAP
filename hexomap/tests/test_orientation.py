@@ -14,19 +14,27 @@ from hexomap.orientation import Quaternion
 class TestQuaternion(unittest.TestCase):
 
     def setUp(self):
-        pass
+        n_cases = 1000
+        self.angs = np.random.random(n_cases) * np.pi
+        self.axis = (np.random.random(3) - 0.5)
+        self.qs = [Quaternion.from_angle_axis(ang, self.axis) 
+                        for ang in self.angs
+                  ]
 
     def test_reduce(self):
-        angs = np.random.random(10) * np.pi
-        axis = (np.random.random(3) - 0.5)
-        qs = [Quaternion.from_angle_axis(ang, axis) 
-                for ang in angs
-        ]
-        q_total = reduce(Quaternion.reduce_two, qs)
-        q_target = Quaternion.from_angle_axis(sum(angs), axis)
+        # the cumulative rotations around the same axis should be the same 
+        # as the one single rotation with the total rotation angle
+        q_reduced = reduce(Quaternion.reduce_two, self.qs)
+        q_target = Quaternion.from_angle_axis(sum(self.angs), self.axis)
+        np.testing.assert_allclose(q_reduced.as_array, q_target.as_array)
 
-        np.testing.assert_almost_equal(q_total.as_array, q_target.as_array)
-
+    def test_average_fixaxis(self):
+        q_avg = Quaternion.average_quaternions(self.qs)
+        q_target = Quaternion.from_angle_axis(np.average(self.angs), self.axis)
+        np.testing.assert_allclose(q_avg.as_array, 
+                                   q_target.as_array,
+                                   rtol=1e-02,
+                                  )
 
 if __name__ == "__main__":
     unittest.main()
