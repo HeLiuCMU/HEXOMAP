@@ -3,6 +3,7 @@ import numpy as np
 import scipy.ndimage as ndi
 import glob
 import time
+from numba import jit
 def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048]):
     '''
     take median over omega as background
@@ -40,10 +41,109 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
     print(end - start)
     return lBkg
 
+@jit(nopython=True,parallel=True)
+def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
+    '''
+    0.0079seconds
+    '''
+    lXOut = []
+    lYOut = []
+    lIDOut = []
+    lIntensityOut = []
+    lXTmp = []
+    lYTmp = []
+    lIDTmp = []
+    lSubMedTmp = []
+    lSubTmp = []
+    lIdxStart = []
+    visited = label==0
+    lXOut.append(1)
+    lYOut.append(1)
+    lIDOut.append(1)
+    lIntensityOut.append(1)
+    NX = label.shape[0]
+    NY = label.shape[1]
+    idx = 0
+    for x in range(label.shape[0]):
+        for y in range(label.shape[1]):
+            if not visited[x,y]:
+                lXTmp.append(x)
+                lYTmp.append(y)
+                lIDTmp.append(label[x,y])
+                lSubMedTmp.append(imgSubMed[x,y])
+                lSubTmp.append(imgSub[x,y])
+                queX = [x]
+                queY = [y]
+                lIdxStart.append(idx)
+                idx += 1
+                while queX:
+                    for dx in [-1,0,1]:
+                        for dy in [-1,0,1]:
+                            newX = queX[0]+dx
+                            newY = queY[0]+dy
+                            if newX>=0 and newX<NX and newY>=0 and newY<NY:
+                                if not visited[newX, newY] and label[newX, newY]==label[queX[0],queY[0]]:
+                                    queX.append(newX)
+                                    queY.append(newY)
+                                    lXTmp.append(newX)
+                                    lYTmp.append(newY)
+                                    lIDTmp.append(label[newX, newY])
+                                    lSubMedTmp.append(imgSubMed[newX,newY])
+                                    lSubTmp.append(imgSub[newX,newY])
+                                    visited[newX, newY] = 1
+                                    idx +=1
+                    queX.pop(0)
+                    queY.pop(0)
+                lIdxStart.append(idx)
+    #print(len(lIdxStart), N)
+    
+    for i in range(N):
+        start = lIdxStart[2*i]
+        end = lIdxStart[2*i + 1]
+        vMax = np.max(np.array(lSubMedTmp[start:end]))
+        if vMax > baseline:
+            lXX = []
+            lYY = []
+            lVV = []
+            lIDTmp = []
+            for j in range(start, end):
+                if lSubTmp[j]>(max(vMax*0.1,1)):
+                    lXX.append(lXTmp[j])
+                    lYY.append(lYTmp[j])
+                    lVV.append(lSubTmp[j])
+                    lIDTmp.append(i)
+            if len(lXX)>minNPixel:
+                lXOut.extend(lXX)
+                lYOut.extend(lYY)
+                lIntensityOut.extend(lVV)
+                lIDOut.extend(lIDTmp)
+    return lXOut, lYOut, lIDOut, lIntensityOut
+
+def segmentation_numba(img, bkg, baseline=10, minNPixel=4):
+    '''
+    
+    '''
+    #start = time.time()
+    imgSub = img- bkg
+    imgSubMed = ndi.median_filter(imgSub,size=2)
+    imgBase = imgSubMed - baseline
+    imgBase[imgBase<0] = 0
+    imgBaseMedian = ndi.median_filter(imgBase, size=2)
+    log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
+    label,N = ndi.label(log<0)
+    label = ndi.grey_dilation(label,size=(3,3))
+    #start = time.time()
+    lX, lY, lID, lIntensity = extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline)
+    #end = time.time()
+    #print(f'time taken:{end- start}')
+    return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lID).astype(np.int32), np.array(lIntensity).astype(np.int32)
+
+
 def segmentation(img, bkg, baseline=10, minNPixel=4):
     '''
     
     '''
+    start = time.time()
     imgSub = img- bkg
     imgSubMed = ndi.median_filter(imgSub,size=2)
     imgBase = imgSubMed - baseline
@@ -56,7 +156,7 @@ def segmentation(img, bkg, baseline=10, minNPixel=4):
     lY = []
     lID = []
     lIntensity = []
-    start = time.time()
+    #start = time.time()
 # fill hole??? probably not a good idea in some cases.
     for i in range(N):
         mask = (label==i)
@@ -110,3 +210,26 @@ def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer
                 print(binFileName)
                 snp = segmentation(img, bkg, baseline=baseline, minNPixel=minNPixel)
                 IntBin.WritePeakBinaryFile(snp, binFileName)
+ 
+if  __name__ == '__main__':
+    
+    import sys
+    sys.path.insert(0, '/home/heliu/work/dev/HEXOMAP/')
+    import IntBin
+    plt.rcParams["figure.figsize"] = (10,10)
+
+    # images
+    startIdx = 180904
+    NRot = 720
+    NDet = 1
+    NLayer = 1
+    end = '.tif'
+    initial = '/home/heliu/work/shahani_feb19_part/nf_part/dummy_2_rt_before_heat_nf/dummy_2_rt_before_heat_nf_'
+    fName = f'{initial}{startIdx:06d}{end}'
+    img = plt.imread(fName)
+    bkg = np.load('test_output_bkg_z0_det_0.npy')
+    lX, lY, lIntensity, lID = segmentation(img, bkg)
+    lX, lY, lIntensity, lID = segmentation_numba(img, bkg)
+    lX, lY, lIntensity, lID = segmentation_numba(img, bkg)
+    lX, lY, lIntensity, lID = segmentation_numba(img, bkg)
+    lX, lY, lIntensity, lID = segmentation_numba(img, bkg)
