@@ -50,7 +50,7 @@ class Eulers:
 class Quaternion:
     """
     Unitary quaternion representation of rotation.
-            q = w + Xi + Yj + Zk
+            q = w + x i + y j + z k
     
     reference:
         http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/
@@ -108,10 +108,6 @@ class Quaternion:
         return Quaternion(*(self.as_array + other.as_array))
     
     def __sub__(self, other: 'Quaternion') -> 'Quaternion':
-        # NOTE:
-        # Adding quaternions has no physical meaning unless the results is
-        # averaged to apprixmate the intermedia statem, provided that the
-        # two rotations are infinitely small.
         return Quaternion(*(self.as_array - other.as_array))
     
     def __neg__(self) -> 'Quaternion':
@@ -120,8 +116,8 @@ class Quaternion:
     def __mul__(self, other: 'Quaternion') -> 'Quaternion':
         pass
 
-    @classmethod
-    def combine_two(cls, q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
+    @staticmethod
+    def combine_two(q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
         """
         Description
         -----------
@@ -172,7 +168,8 @@ class Quaternion:
             average quaternion of the given list
 
         Note:
-        This method only provides an approximation, with about 1% error
+        This method only provides an approximation, with about 1% error. 
+        > See the associated unit test for more detials.
         """
         _sum = np.sum([np.outer(q.as_array, q.as_array) for q in qs], axis=0)
         _eigval, _eigvec = np.linalg.eig(_sum/len(qs))
@@ -248,12 +245,19 @@ def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
     
 
 if __name__ == "__main__":
-    from functools import reduce
 
-    axis = np.array([1,1,1])
-    qs = [Quaternion.from_angle_axis(me,axis) 
-            for me in [np.pi/10]*5
-        ]
-    print(qs)
-    print(reduce(Quaternion.reduce_two, qs))
-    print(Quaternion.from_angle_axis(np.pi/2,axis))
+    # Example_1:
+    #   reudce multi-steps active rotations (unitary quaternions) into a 
+    #   single one
+    from functools import reduce
+    from hexomap.npmath import random_three_vector
+    from pprint import pprint
+    n_cases = 5
+    angs = np.random.random(n_cases) * np.pi
+    qs = [Quaternion.from_angle_axis(me, random_three_vector()) for me in angs]
+    pprint(qs)
+    print("Reduced to:")
+    pprint(reduce(Quaternion.combine_two, qs))
+
+    # Example_2:
+    # TBD
