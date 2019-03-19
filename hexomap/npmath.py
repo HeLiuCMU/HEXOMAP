@@ -53,5 +53,9 @@ def safe_dotprod(vec1, vec2):
     return min(1.0, max(-1.0, np.dot(normalize(vec1), normalize(vec2))))
 
 
+def ang_between(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    """return the angle (radians) bewteen vec1 and vec2"""
+    return np.arccos(np.dot(normalize(vec1), normalize(vec2)))
+
 if __name__ == "__main__":
     pass
