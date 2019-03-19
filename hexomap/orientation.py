@@ -49,6 +49,11 @@ class Quaternion:
     
     reference:
         http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/
+    
+    Note:
+        No conversion methods to other representations is provided in this
+        class as the conversion requires the knowledge of reference frame,
+        whereas quaternion itself does not have a frame (an abstract concept).
     """
     w: float  # cos(theta/2)
     x: float  # sin(theta/2) * rotation_axis_x
@@ -115,6 +120,30 @@ class Quaternion:
             - Ax * Bz + Ay * Bw + Az * Bx + Aw * By,
             + Ax * By - Ay * Bx + Az * Bw + Aw * Bz,
         )
+
+    @staticmethod
+    def average_quaternions(cls, qs: list) -> 'Quaternion':
+        """
+        Description
+        -----------
+        Return the average quaternion based on algorithm published in
+            F. Landis Markley et.al.
+            Averaging Quaternions,
+            doi: 10.2514/1.28949
+
+        Parameters
+        ----------
+        qs: list
+            list of quaternions for average
+        
+        Returns
+        -------
+        Quaternion
+            average quaternion of the given list
+        """
+        _sum = np.sum([np.outer(q.as_array, q.as_array) for q in qs], axis=0)
+        _eigval, _eigvec = np.linalg.eig(_sum/len(qs))
+        return Quaternion(*np.real(_eigvec.T[_eigval.argmax()]))
 
 
 @dataclass
