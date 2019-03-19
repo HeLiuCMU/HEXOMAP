@@ -14,12 +14,17 @@ with the exceptions:
        between orientations can only be done when all of them are converted
        to the same frame.
     2. Always prefer SI units.
+
+TODO:
+    1. check the quaternion multiplication calculation
+    2. check the quatrotate
 """
 
 import numpy as np
 from dataclasses import dataclass
 from hexomap.npmath import norm
 from hexomap.npmath import normalize
+from hexomap.npmath import random_three_vector
 
 
 @dataclass
@@ -90,7 +95,7 @@ class Quaternion:
 
     @property
     def imag(self):
-        return np.array(self.x, self.y, self.z)
+        return np.array([self.x, self.y, self.z])
 
     @property
     def norm(self) -> float:
@@ -114,7 +119,9 @@ class Quaternion:
         return Quaternion(*(-self.as_array))
 
     def __mul__(self, other: 'Quaternion') -> 'Quaternion':
-        pass
+        real = self.real*other.real - np.dot(self.imag, other.imag)
+        imag = self.real*other.imag + other.real*self.imag + np.cross(self.imag, other.imag)
+        return Quaternion(real, *imag)
 
     @staticmethod
     def combine_two(q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
@@ -177,14 +184,37 @@ class Quaternion:
 
     @staticmethod
     def from_angle_axis(angle: float, axis: np.ndarray) -> 'Quaternion':
-        half_angle = angle*0.5
+        """
+        Description
+        -----------
+        Return a unitary quaternion based on given angle and axis vector
+
+        Parameters
+        ----------
+        angle: float
+            rotation angle in radians (not the half angle omega)
+        axis: np.ndarray
+            rotation axis
+        
+        Retruns
+        ------
+        Quaternion
+        """
         axis = normalize(axis)
-        return Quaternion(np.cos(half_angle), *(np.sin(half_angle)*axis))
+        return Quaternion(np.cos(angle/2), *(np.sin(angle/2)*axis))
+
+    @staticmethod
+    def from_random():
+        return Quaternion.from_angle_axis(np.random.random()*np.pi, 
+                                          random_three_vector()
+                                        )
 
     @staticmethod
     def quatrotate(q: 'Quaternion', v: np.ndarray) -> np.ndarray:
         """Active rotate a given vector v by given unitary quaternion q"""
-        return (Quaternion(0, *v) * q.conjugate).as_array[1:]
+        return (q.real**2 - sum(q.imag**2))*v \
+            + 2*np.dot(q.imag, v)*q.imag \
+            + 2*q.real*np.cross(q.imag, v)
 
 
 @dataclass
@@ -250,14 +280,20 @@ if __name__ == "__main__":
     #   reudce multi-steps active rotations (unitary quaternions) into a 
     #   single one
     from functools import reduce
-    from hexomap.npmath import random_three_vector
     from pprint import pprint
+    print("Example_1")
     n_cases = 5
     angs = np.random.random(n_cases) * np.pi
     qs = [Quaternion.from_angle_axis(me, random_three_vector()) for me in angs]
     pprint(qs)
     print("Reduced to:")
     pprint(reduce(Quaternion.combine_two, qs))
+    print()
 
     # Example_2:
-    # TBD
+    print("Example_2")
+    ang = 120
+    quat = Quaternion.from_angle_axis(np.radians(ang), np.array([1,1,1]))
+    vec = np.array([1,0,0])
+    print(f"rotate {vec} by {quat} ({ang} deg) results in:")
+    print(Quaternion.quatrotate(quat, vec))
