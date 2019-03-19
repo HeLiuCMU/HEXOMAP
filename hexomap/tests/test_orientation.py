@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 from functools import reduce
 from hexomap.orientation import Quaternion
-
+from hexomap.npmath import ang_between
 
 class TestQuaternion(unittest.TestCase):
 
@@ -35,6 +35,18 @@ class TestQuaternion(unittest.TestCase):
                                    q_target.as_array,
                                    rtol=1e-02,
                                   )
+    
+    def test_rotate_vec(self):
+        # the testing rotation axis need to be perpendicular to the vector,
+        # otherwise the angle is not the same as the input step
+        ang_step = np.radians(10)
+        vec = np.array([1,0,0])
+        axis = np.array([0,0,1])
+        for _ in range(5):
+            new_vec = Quaternion.quatrotate(Quaternion.from_angle_axis(ang_step, axis), vec)
+            np.testing.assert_allclose(ang_step, ang_between(vec, new_vec))
+            vec = new_vec
+
 
 if __name__ == "__main__":
     unittest.main()
