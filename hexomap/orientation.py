@@ -334,22 +334,87 @@ class Frame:
     def transform_point(p_old: np.ndarray, 
                         f_old: "Frame", f_new: "Frame") -> np.ndarray:
         """
+        Description
+        -----------
+            Transform the covariance of the given point in the old frame to
+            the new frame
+        
+        Parameters
+        ----------
+        p_old: np.ndarray
+            covariance of the point in the old frame (f_old)
+        f_old: Frame
+            old frame
+        f_new: Frame
+            new frame
+        
+        Returns
+        -------
+        np.ndarray
+            covariance of the point in the new frame (f_new)
         """
-        pass
+        return np.dot(
+            Frame.transformation_matrix(f_old, f_new),
+            np.append(p_old, 1),
+        )[:3]
 
+    # TODO:
+    # The Eienstein summation should work better here, making all the 
+    # calculation essetially the same for vector and n-rank tensor.
+    # Currently we are restricting everything in standard R^3.
     @staticmethod
     def transform_vector(v_old: np.ndarray,
                          f_old: "Frame", f_new: "Frame") -> np.ndarray:
         """
+        Description
+        -----------
+            Transform the covariance of the given vector in the old frame
+            f_old to the new frame f_new
+        
+        Parameters
+        ----------
+        v_old: np.ndarray
+            covariance of the vector in the old frame, f_old
+        f_old: Frame
+            old frame
+        f_new: Frame
+            new frame
+        
+        Returns
+        -------
+        np.ndarray
+            covariance of the vector in the new frame, f_new
         """
-        pass
+        return np.dot(
+            Frame.transformation_matrix(f_old, f_new)[0:3, 0:3],
+            v_old,
+        )
 
     @staticmethod
     def transform_tensor(t_old: np.ndarray,
                          f_old: "Frame", f_new: "Frame") -> np.ndarray:
         """
+        Description
+        -----------
+            Transform the covariance of the given tensor in the old frame
+            f_old to the new frame f_new
+
+        Parameters
+        ----------
+        t_old: np.ndarray
+            covariance of the given tensor in the old frame f_old
+        f_old: Frame
+            old frame
+        f_new: Frame
+            new frame
+        
+        Returns
+        -------
+        np.ndarray
+            covariance of the given tensor in the new frame f_new
         """
-        pass
+        _m = Frame.transformation_matrix(f_old, f_new)[0:3, 0:3]
+        return np.dot(_m, np.dot(t_old, _m.T))
 
 
 @dataclass

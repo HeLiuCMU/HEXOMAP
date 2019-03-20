@@ -4,7 +4,8 @@
 Utility module for hexomap package.
 """
 
-from functools import singledispatch, update_wrapper
+from functools import singledispatch
+from functools import update_wrapper
 
 
 def load_kernel_code(filename):
