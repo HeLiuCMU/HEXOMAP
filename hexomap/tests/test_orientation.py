@@ -9,6 +9,8 @@ import unittest
 import numpy as np
 from functools import reduce
 from hexomap.orientation import Quaternion
+from hexomap.orientation import Frame
+from hexomap.orientation import Orientation
 from hexomap.npmath import ang_between
 
 class TestQuaternion(unittest.TestCase):
@@ -46,6 +48,22 @@ class TestQuaternion(unittest.TestCase):
             new_vec = Quaternion.quatrotate(Quaternion.from_angle_axis(ang_step, axis), vec)
             np.testing.assert_allclose(ang_step, ang_between(vec, new_vec))
             vec = new_vec
+
+
+class TestOrientation(unittest.TestCase):
+
+    def setUp(self):
+        self.quat = Quaternion(1/np.sqrt(2), 0, 0, -1/np.sqrt(2))
+        self.matx = np.array([[ 0, 1, 0],
+                              [-1, 0, 0],
+                              [ 0, 0, 1],
+                             ])
+        self.ang = np.radians(90)
+        self.axis = np.array([0, 0, -1])
+        self.rodrigues = np.array(0, 0, -1)
+        self.frame = Frame()
+        # make the Orientation
+        self.ori = Orientation(self.quat, self.frame)
 
 
 if __name__ == "__main__":
