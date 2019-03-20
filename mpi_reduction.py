@@ -6,44 +6,53 @@ from mpi4py import MPI
 import atexit
 import matplotlib.pyplot as plt
 import time
+from reduction import segmentation_numba
+import IntBin
+import time
+import mpi_log
+import os
+
 atexit.register(MPI.Finalize)
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
-from reduction import segmentation_numba
-# reduce a layer of images together:
-import IntBin
-import time
-import mpi_log
 
-
-
+############################# EXample useage: #######################################
+'''
+mpirun -n 1 python mpi_reduction_Au2_NF_LineFocus.py
+'''
 ################################ Input Session #######################################
-startIdx = 0
-NRot = 900
-NDet = 5
+startIdx = 38282
+NRot = 720
+NDet = 4
 NLayer = 1
-idxLayer = [2]
-lIdxImg  = [np.arange(x*1800,x*1800+NRot) for x in range(5)]
-lIdxImg = np.hstack(lIdxImg).astype(np.int32)
-identifier = 'Au_volume2_NSUM2_bsf_fullrotation'
+idxLayer = [0]
+lIdxImg = None
+#lIdxImg  = [np.arange(x*1800,x*1800+NRot) for x in range(5)]
+#lIdxImg = np.hstack(lIdxImg).astype(np.int32)
 extention = '.tif'
-initial = f'/home/heliu/work/AuCal/Raw/Integrated-fullRotation-z2-quarterDegree/Au_volume2_NSUM2_bsf_fullrotation_z2_'
+initial = f'/media/heliu/feb2019/suter_feb19/nf/Au2_NF_LineFocus/Au2_NF_LineFocus_'
 digitLength = 6
-bkgInitial = f'{identifier}_bkg'
-binInitial = f'/home/heliu/work/AuCal/reduced_new/{identifier}_'
-generateBkg = False
-generateBin = True
+outputDirectory = '/home/heliu/work/suter_feb19/Au2_NF_LineFocus/'
+identifier = 'Au2_NF_LineFocus'
+bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
+binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
+logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
+generateBkg = True
+generateBin = False
 baseline = 10
 minNPixel = 4
-logFileName = f'{identifier}_reduction.log'
 ####################################################################################
+if rank==0:
+    if not os.path.exists(outputDirectory):
+        os.makedirs(outputDirectory)
+comm.Barrier()
 
 logfile = mpi_log.MPILogFile(
     comm, logFileName, 
     MPI.MODE_WRONLY | MPI.MODE_CREATE | MPI.MODE_APPEND
 )
-logfile.write("rank: {rank} : hello\n")
+logfile.write(f"rank: {rank} : hello\n")
 
 NTotal = NLayer * NDet * NRot
 if lIdxImg is None:
