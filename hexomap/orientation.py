@@ -43,7 +43,7 @@ class Eulers:
         self.phi = self.phi%np.pi 
 
     @property
-    def as_array(self):
+    def as_array(self) -> np.ndarray:
         return np.array([self.phi1, self.phi, self.phi2])
 
     @property
@@ -51,6 +51,12 @@ class Eulers:
         """
         Return the PASSIVE rotation matrix, a.k.a. orientation matrix
         """
+        # NOTE:
+        #   It is not recommended to directly associated Euler angles with
+        #   other common transformation concept due to its unique passive
+        #   nature.
+        #   However, I am providing the conversion to (orientation) matrix
+        #   here for some backward compatbility.
         c1, s1 = np.cos(self.phi1), np.sin(self.phi1)
         c,  s  = np.cos(self.phi), np.sin(self.phi)
         c2, s2 =  np.cos(self.phi2), np.sin(self.phi2)
@@ -175,6 +181,8 @@ class Quaternion:
         Quaternion
             Reduced (single-step) rotation
         """
+        # NOTE:
+        # Combine two operation into one is as simple as multiply them
         return q1*q2
 
     @staticmethod
@@ -256,18 +264,84 @@ class Quaternion:
             + 2*q.real*np.cross(q.imag, v)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Frame:
     """
-    Reference frame represented as three base vectors
+    Reference frame represented as three base vectors and an origin.
     
-    NOTE: in most cases, frames are represented as orthorgonal bases.
+    NOTE:
+        Once a frame is defined, it cannot be changed (immutable).
     """
     e1: np.ndarray = np.array([1, 0, 0])
     e2: np.ndarray = np.array([0, 1, 0])
     e3: np.ndarray = np.array([0, 0, 1])
-    origin: np.ndarray = np.array([0, 0, 0])
+    o:  np.ndarray = np.array([0, 0, 0])
     name: str = "lab"
+
+    @property
+    def origin(self) -> np.ndarray:
+        return self.o
+    
+    @property
+    def base(self) -> tuple:
+        return (self.e1, self.e2, self.e3)
+
+    @staticmethod
+    def transformation_matrix(f1: 'Frame', f2: 'Frame') -> np.ndarray:
+        """
+        Description
+        -----------
+            Return the 3D transformation matrix (4x4) that can translate
+            covariance from frame f1 to frame f2.
+            
+            ref:
+            http://www.continuummechanics.org/coordxforms.html
+
+        Parameters
+        ----------
+        f1: Frame
+            original frame
+        f2: Frame
+            target/destination frame
+
+        Returns
+        -------
+        np.ndarray
+            a transformation matrix that convert the covariance in frame f1 to
+            covariance in frame f2.
+        """
+        _m = np.zeros((4,4))
+        _m[0:3, 0:3] = np.array([[np.dot(new_e, old_e) for old_e in f1.base] 
+                                    for new_e in f2.base
+                                ])
+        _m[:,0:3] = f1.o - f2.o
+        _m[3,3] = 1
+        return _m
+
+    # NOTE:
+    # The following three static method provide a more general way to perform
+    # rigid body manipulation of an object, including rotation and translation.
+    #
+    @staticmethod
+    def transform_point(p_old: np.ndarray, 
+                        f_old: "Frame", f_new: "Frame") -> np.ndarray:
+        """
+        """
+        pass
+
+    @staticmethod
+    def transform_vector(v_old: np.ndarray,
+                         f_old: "Frame", f_new: "Frame") -> np.ndarray:
+        """
+        """
+        pass
+
+    @staticmethod
+    def transform_tensor(t_old: np.ndarray,
+                         f_old: "Frame", f_new: "Frame") -> np.ndarray:
+        """
+        """
+        pass
 
 
 @dataclass
@@ -279,7 +353,10 @@ class Orientation:
         the orientation of the crystal is described as a passive
         rotation of the sample reference frame to coincide with the 
         crystal’s standard reference frame
-    
+
+    NOTE:
+        so the quaternion here is used to describe how to rotate the frame f
+        to the represented orientation.
     """
     q: Quaternion
     f: Frame
@@ -304,15 +381,11 @@ class Orientation:
     def as_angleaxis(self) -> tuple:
         pass
 
-    @classmethod
-    def random_orientations(cls, n: int, frame: Frame) -> list:
+    @staticmethod
+    def random_orientations(n: int, frame: Frame) -> list:
         """Return n random orientations represented in the given frame"""
         return []
 
-
-def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
-    pass
-    
 
 if __name__ == "__main__":
 
