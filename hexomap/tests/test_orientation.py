@@ -50,6 +50,14 @@ class TestQuaternion(unittest.TestCase):
             vec = new_vec
 
 
+class TestFrame(unittest.TestCase):
+
+    def SetUp(self):
+        # ref
+        # http://www.continuummechanics.org/techforms/Tensor.html
+        pass
+        
+
 class TestOrientation(unittest.TestCase):
 
     def setUp(self):

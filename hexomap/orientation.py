@@ -276,9 +276,6 @@ class Quaternion:
 class Frame:
     """
     Reference frame represented as three base vectors and an origin.
-    
-    NOTE:
-        Once a frame is defined, it cannot be changed (immutable).
     """
     e1: np.ndarray = np.array([1, 0, 0])
     e2: np.ndarray = np.array([0, 1, 0])
