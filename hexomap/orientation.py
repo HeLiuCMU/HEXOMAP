@@ -46,6 +46,35 @@ class Eulers:
     def as_array(self):
         return np.array([self.phi1, self.phi, self.phi2])
 
+    @property
+    def as_matrix(self):
+        """
+        Return the PASSIVE rotation matrix, a.k.a. orientation matrix
+        """
+        c1, s1 = np.cos(self.phi1), np.sin(self.phi1)
+        c,  s  = np.cos(self.phi), np.sin(self.phi)
+        c2, s2 =  np.cos(self.phi2), np.sin(self.phi2)
+        return np.array([
+            [ c1*c2-s1*c*s2,  s1*c2+c1*c*s2, s*s2],
+            [-c1*s2-s1*c*c2, -s1*s2+c1*c*c2, s*c2],
+            [          s1*s,          -c1*s,    c],
+        ])
+
+
+@dataclass
+class Rodrigues:
+    """
+    Rodrigues–Frank vector
+    """
+    angle: float
+    axis: np.ndarray
+
+    def __post_init__(self):
+        self.axis = normalize(self.axis)
+
+    def as_array(self):
+        return np.tan(self.angle/2)*self.axis
+
 
 @dataclass
 class Quaternion:
@@ -237,6 +266,7 @@ class Frame:
     e1: np.ndarray = np.array([1, 0, 0])
     e2: np.ndarray = np.array([0, 1, 0])
     e3: np.ndarray = np.array([0, 0, 1])
+    origin: np.ndarray = np.array([0, 0, 0])
     name: str = "lab"
 
 
@@ -251,12 +281,12 @@ class Orientation:
         crystal’s standard reference frame
     
     """
-    _q: Quaternion
-    _f: Frame
+    q: Quaternion
+    f: Frame
 
     @property
     def frame(self) -> 'Frame':
-        return self._f
+        return self.f
     
     @frame.setter
     def frame(self, new_frame: Frame) -> None:
@@ -264,7 +294,7 @@ class Orientation:
 
     @property
     def as_quaternion(self) -> 'Quaternion':
-        return self._q
+        return self.q
 
     @property
     def as_eulers(self) -> 'Eulers':
@@ -307,3 +337,9 @@ if __name__ == "__main__":
     vec = np.array([1,0,0])
     print(f"rotate {vec} by {quat} ({ang} deg) results in:")
     print(Quaternion.quatrotate(quat, vec))
+
+    # Example_3:
+    q1 = Quaternion.from_random()
+    q2 = Quaternion.from_random()
+    print(q1*q2)
+    print(Quaternion.combine_two(q1, q2))
