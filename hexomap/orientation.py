@@ -18,9 +18,11 @@ with the exceptions:
 
 import numpy as np
 from dataclasses import dataclass
+from typing import Union
 from hexomap.npmath import norm
 from hexomap.npmath import normalize
 from hexomap.npmath import random_three_vector
+from hexomap.utility import methdispatch
 
 
 @dataclass
@@ -149,6 +151,7 @@ class Quaternion:
     def __neg__(self) -> 'Quaternion':
         return Quaternion(*(-self.as_array))
 
+    @methdispatch
     def __mul__(self, other: 'Quaternion') -> 'Quaternion':
         """
         Similar to complex number multiplication
@@ -158,6 +161,11 @@ class Quaternion:
             + other.real*self.imag \
             + np.cross(self.imag, other.imag)
         return Quaternion(real, *imag)
+    
+    @__mul__.register(int)
+    @__mul__.register(float)
+    def _(self, other: Union[int, float]) -> None:
+        raise ValueError("Scale a unitary quaternion is meaningless!")
 
     @staticmethod
     def combine_two(q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
@@ -412,7 +420,10 @@ if __name__ == "__main__":
     print(Quaternion.quatrotate(quat, vec))
 
     # Example_3:
+    print("Example_3")
     q1 = Quaternion.from_random()
     q2 = Quaternion.from_random()
     print(q1*q2)
     print(Quaternion.combine_two(q1, q2))
+    # prevent the scaling of a unitary quanternion
+    # q1 = q1 * 5
