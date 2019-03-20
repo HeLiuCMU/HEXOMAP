@@ -2312,7 +2312,7 @@ class Reconstructor_GPU():
         aiPeakCntD.free()
         del afVoxelPosD
         
-    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, minRange=0.0005, NIteration=10, BoundStart=0.3, verbose=True):
+    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.3, verbose=True, minRange=0.0005):
         '''
         this version will exhaust orientation until hit ratio does not increase any more
         input:
