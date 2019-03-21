@@ -74,7 +74,7 @@ class Config(object):
         ....
         """
         for key, item in dic.items():
-            if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes,int,float)):
+            if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes,int,float,np.bool_)):
                 h5file[path + key] = item
             elif isinstance(item, dict):
                 self.recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
