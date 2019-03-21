@@ -18,9 +18,11 @@ with the exceptions:
 
 import numpy as np
 from dataclasses import dataclass
+from typing import Union
 from hexomap.npmath import norm
 from hexomap.npmath import normalize
 from hexomap.npmath import random_three_vector
+from hexomap.utility import methdispatch
 
 
 @dataclass
@@ -43,7 +45,7 @@ class Eulers:
         self.phi = self.phi%np.pi 
 
     @property
-    def as_array(self):
+    def as_array(self) -> np.ndarray:
         return np.array([self.phi1, self.phi, self.phi2])
 
     @property
@@ -51,6 +53,12 @@ class Eulers:
         """
         Return the PASSIVE rotation matrix, a.k.a. orientation matrix
         """
+        # NOTE:
+        #   It is not recommended to directly associated Euler angles with
+        #   other common transformation concept due to its unique passive
+        #   nature.
+        #   However, I am providing the conversion to (orientation) matrix
+        #   here for some backward compatbility.
         c1, s1 = np.cos(self.phi1), np.sin(self.phi1)
         c,  s  = np.cos(self.phi), np.sin(self.phi)
         c2, s2 =  np.cos(self.phi2), np.sin(self.phi2)
@@ -143,6 +151,7 @@ class Quaternion:
     def __neg__(self) -> 'Quaternion':
         return Quaternion(*(-self.as_array))
 
+    @methdispatch
     def __mul__(self, other: 'Quaternion') -> 'Quaternion':
         """
         Similar to complex number multiplication
@@ -152,6 +161,11 @@ class Quaternion:
             + other.real*self.imag \
             + np.cross(self.imag, other.imag)
         return Quaternion(real, *imag)
+    
+    @__mul__.register(int)
+    @__mul__.register(float)
+    def _(self, other: Union[int, float]) -> None:
+        raise ValueError("Scale a unitary quaternion is meaningless!")
 
     @staticmethod
     def combine_two(q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
@@ -175,6 +189,8 @@ class Quaternion:
         Quaternion
             Reduced (single-step) rotation
         """
+        # NOTE:
+        # Combine two operation into one is as simple as multiply them
         return q1*q2
 
     @staticmethod
@@ -256,30 +272,171 @@ class Quaternion:
             + 2*q.real*np.cross(q.imag, v)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Frame:
     """
-    Reference frame represented as three base vectors
-    
-    NOTE: in most cases, frames are represented as orthorgonal bases.
+    Reference frame represented as three base vectors and an origin.
+
+    NOTE:
+        Mathematically, the frame transformation should also contain scaling
+        and even skewing, as the process is only related to how the base is
+        defined.
+        In materials science, the transformation above is not very common,
+        therefore these menthods are not implemented by default.
+        However, the user should still be able to extend its functionality
+        either through inheritance, or simply taking advantage of the dynamic
+        typing.
     """
     e1: np.ndarray = np.array([1, 0, 0])
     e2: np.ndarray = np.array([0, 1, 0])
     e3: np.ndarray = np.array([0, 0, 1])
-    origin: np.ndarray = np.array([0, 0, 0])
+    o:  np.ndarray = np.array([0, 0, 0])
     name: str = "lab"
+
+    @property
+    def origin(self) -> np.ndarray:
+        return self.o
+    
+    @property
+    def base(self) -> tuple:
+        return (self.e1, self.e2, self.e3)
+
+    @staticmethod
+    def transformation_matrix(f1: 'Frame', f2: 'Frame') -> np.ndarray:
+        """
+        Description
+        -----------
+            Return the 3D transformation matrix (4x4) that can translate
+            covariance from frame f1 to frame f2.
+            
+            ref:
+            http://www.continuummechanics.org/coordxforms.html
+
+        Parameters
+        ----------
+        f1: Frame
+            original frame
+        f2: Frame
+            target/destination frame
+
+        Returns
+        -------
+        np.ndarray
+            a transformation matrix that convert the covariance in frame f1 to
+            covariance in frame f2.
+        """
+        _m = np.zeros((4,4))
+        _m[0:3, 0:3] = np.array([[np.dot(new_e, old_e) for old_e in f1.base] 
+                                    for new_e in f2.base
+                                ])
+        _m[3,0:3] = f1.o - f2.o
+        _m[3,3] = 1
+        return _m
+
+    # NOTE:
+    # The following three static method provide a more general way to perform
+    # rigid body manipulation of an object, including rotation and translation.
+    #
+    @staticmethod
+    def transform_point(p_old: np.ndarray, 
+                        f_old: "Frame", f_new: "Frame") -> np.ndarray:
+        """
+        Description
+        -----------
+            Transform the covariance of the given point in the old frame to
+            the new frame
+        
+        Parameters
+        ----------
+        p_old: np.ndarray
+            covariance of the point in the old frame (f_old)
+        f_old: Frame
+            old frame
+        f_new: Frame
+            new frame
+        
+        Returns
+        -------
+        np.ndarray
+            covariance of the point in the new frame (f_new)
+        """
+        return np.dot(
+            Frame.transformation_matrix(f_old, f_new),
+            np.append(p_old, 1),
+        )[:3]
+
+    # TODO:
+    # The Eienstein summation should work better here, making all the 
+    # calculation essetially the same for vector and n-rank tensor.
+    # Currently we are restricting everything in standard R^3.
+    @staticmethod
+    def transform_vector(v_old: np.ndarray,
+                         f_old: "Frame", f_new: "Frame") -> np.ndarray:
+        """
+        Description
+        -----------
+            Transform the covariance of the given vector in the old frame
+            f_old to the new frame f_new
+        
+        Parameters
+        ----------
+        v_old: np.ndarray
+            covariance of the vector in the old frame, f_old
+        f_old: Frame
+            old frame
+        f_new: Frame
+            new frame
+        
+        Returns
+        -------
+        np.ndarray
+            covariance of the vector in the new frame, f_new
+        """
+        return np.dot(
+            Frame.transformation_matrix(f_old, f_new)[0:3, 0:3],
+            v_old,
+        )
+
+    @staticmethod
+    def transform_tensor(t_old: np.ndarray,
+                         f_old: "Frame", f_new: "Frame") -> np.ndarray:
+        """
+        Description
+        -----------
+            Transform the covariance of the given tensor in the old frame
+            f_old to the new frame f_new
+
+        Parameters
+        ----------
+        t_old: np.ndarray
+            covariance of the given tensor in the old frame f_old
+        f_old: Frame
+            old frame
+        f_new: Frame
+            new frame
+        
+        Returns
+        -------
+        np.ndarray
+            covariance of the given tensor in the new frame f_new
+        """
+        _m = Frame.transformation_matrix(f_old, f_new)[0:3, 0:3]
+        return np.dot(_m, np.dot(t_old, _m.T))
 
 
 @dataclass
 class Orientation:
     """
-    Orientation is used to described a given object relative position to the
-    given reference frame, more specifically
+    Orientation is used to described a given object relative attitude with
+    respect to the given reference frame, more specifically
     
-        the orientation of the crystal is described as a passive
-        rotation of the sample reference frame to coincide with the 
-        crystal’s standard reference frame
+        the orientation of the crystal is described as a rotation of the 
+        reference frame (sample frame is a common choice) to coincide with
+        the crystal’s reference frame
     
+    It is worth pointing out that the pose of a rigid body contains both
+    attitude and position, the description of which are both closely tied to
+    the reference frame.
     """
     q: Quaternion
     f: Frame
@@ -304,15 +461,11 @@ class Orientation:
     def as_angleaxis(self) -> tuple:
         pass
 
-    @classmethod
-    def random_orientations(cls, n: int, frame: Frame) -> list:
+    @staticmethod
+    def random_orientations(n: int, frame: Frame) -> list:
         """Return n random orientations represented in the given frame"""
         return []
 
-
-def rotate_point(rotation: Quaternion, point: np.ndarray) -> np.ndarray:
-    pass
-    
 
 if __name__ == "__main__":
 
@@ -321,7 +474,7 @@ if __name__ == "__main__":
     #   single one
     from functools import reduce
     from pprint import pprint
-    print("Example_1")
+    print("Example_1: combine multiple rotations")
     n_cases = 5
     angs = np.random.random(n_cases) * np.pi
     qs = [Quaternion.from_angle_axis(me, random_three_vector()) for me in angs]
@@ -331,15 +484,43 @@ if __name__ == "__main__":
     print()
 
     # Example_2:
-    print("Example_2")
+    print("Example_2: rotate a vector")
     ang = 120
     quat = Quaternion.from_angle_axis(np.radians(ang), np.array([1,1,1]))
     vec = np.array([1,0,0])
     print(f"rotate {vec} by {quat} ({ang} deg) results in:")
     print(Quaternion.quatrotate(quat, vec))
+    print()
 
     # Example_3:
+    print("Example_3: sequential rotation is just multiplication")
     q1 = Quaternion.from_random()
     q2 = Quaternion.from_random()
     print(q1*q2)
     print(Quaternion.combine_two(q1, q2))
+    print()
+    # prevent the scaling of a unitary quanternion
+    # q1 = q1 * 5
+
+    # Example_4:
+    print("Example_4: calc transformation matrix")
+    f1 = Frame(np.array([1, 0, 0]), 
+               np.array([0, 1, 0]), 
+               np.array([0, 0, 1]),
+               np.array([0, 0, 0]),
+               'old',
+            )
+    sqr2 = np.sqrt(2)
+    f2 = Frame(np.array([ 1/sqr2, 1/sqr2, 0]), 
+               np.array([-1/sqr2, 1/sqr2, 0]),
+               np.array([0, 0, 1]),
+               np.array([0, 0, 0]),
+               'r_z_45',
+            )
+    print("original frame:")
+    pprint(f1)
+    print("target frame:")
+    pprint(f2)
+    print("transformation matrix is:") 
+    print(Frame.transformation_matrix(f1, f2))
+    print()
