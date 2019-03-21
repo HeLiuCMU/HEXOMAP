@@ -16,7 +16,7 @@ def load_kernel_code(filename):
 
 
 def methdispatch(func):
-    """class method over load decorator"""
+    """class method overload decorator"""
     # ref:
     #   https://stackoverflow.com/questions/24601722/how-can-i-use-functools-singledispatch-with-instance-methods
     dispatcher = singledispatch(func)
