@@ -276,6 +276,16 @@ class Quaternion:
 class Frame:
     """
     Reference frame represented as three base vectors and an origin.
+
+    NOTE:
+        Mathematically, the frame transformation should also contain scaling
+        and even skewing, as the process is only related to how the base is
+        defined.
+        In materials science, the transformation above is not very common,
+        therefore these menthods are not implemented by default.
+        However, the user should still be able to extend its functionality
+        either through inheritance, or simply taking advantage of the dynamic
+        typing.
     """
     e1: np.ndarray = np.array([1, 0, 0])
     e2: np.ndarray = np.array([0, 1, 0])
@@ -417,16 +427,16 @@ class Frame:
 @dataclass
 class Orientation:
     """
-    Orientation is used to described a given object relative position to the
-    given reference frame, more specifically
+    Orientation is used to described a given object relative attitude with
+    respect to the given reference frame, more specifically
     
-        the orientation of the crystal is described as a passive
-        rotation of the sample reference frame to coincide with the 
-        crystal’s standard reference frame
-
-    NOTE:
-        so the quaternion here is used to describe how to rotate the frame f
-        to the represented orientation.
+        the orientation of the crystal is described as a rotation of the 
+        reference frame (sample frame is a common choice) to coincide with
+        the crystal’s reference frame
+    
+    It is worth pointing out that the pose of a rigid body contains both
+    attitude and position, the description of which are both closely tied to
+    the reference frame.
     """
     q: Quaternion
     f: Frame
