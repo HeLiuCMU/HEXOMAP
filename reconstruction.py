@@ -214,17 +214,25 @@ class Reconstructor_GPU():
         load any configuration from config class
         config: Config(), defined in config.py
         '''
-        squareMicOutFileInitial = config.squareMicOutFileInitial     # file name of output mic file
-        self.layer = config.layer                                              # index of layer, int
-        self.expDataInitial = config.expDataInitial 
-        self.expdataNDigit = config.expdataNDigit 
-        self.energy = config.energy # in kev
-        self.searchBatchSize = config.searchBatchSize
-        self.reverseRot = config.reverseRot
-        maxQ = 8
-        etalimit = 81 / 180.0 * np.pi
-        NRot = 180
-        NDet = 2
+        self.set_Q(config.maxQ)
+        self.FZFile = config.fileFZ                  # fundamental zone file
+        self.set_sample(config.sample)
+        self.energy = config.energy
+        self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
+        self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
+        self.detIdx = config.fileBinDetIdx
+        self.NRot = int(config.NRot)
+        self.NDet = int(config.NDet)
+        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot)) # set parameter
+        self.create_square_mic(config.micsize,
+                            voxelsize=config.micVoxelSize,
+                            shift=config.micShift,
+                           )# resolution of reconstruction and voxel size
+        self.squareMicOutFile = f'{config._initialString}_q{self.maxQ}_rot{self.NRot}_z{config.fileBinLayerIdx}_' \
+                            + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
+                            + f'_shift_{"_".join(map(str, config.micShift))}.npy' # output file name
+        self.searchBatchSize = int(config.searchBatchSize)    # number of orientations search at each iteration, larger number will take longer time.
+        self.recon_prepare(config.reverseRot)
     def _init_gpu(self):
         """
         Initialize GPU device.
@@ -329,9 +337,9 @@ class Reconstructor_GPU():
         
         if L.shape!=(1,self.NDet) or J.shape!=(1,self.NDet) or K.shape!=(1,self.NDet) or rot.shape!=(1,self.NDet,3):
             raise ValueError('L,J,K shape should be (1,nDet), rot shape should be (1,nDet,3)')
-        if detIdx is None:
+        if detIdx is None and self.detIdx is None:
             self.detIdx = np.arange(self.NDet)
-        else:
+        elif detIdx is not None:
             self.detIdx = detIdx
         self.detPos = []
         self.centerJ = []
@@ -1593,10 +1601,10 @@ class Reconstructor_GPU():
             lDetIdx = np.arange(self.NDet)
         for i in range(self.NDet):
             for j in range(self.NRot):
-                sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i,j,self.NDet,self.NRot))
-                sys.stdout.flush()
+
                 fName = fInitials+str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
-                
+                sys.stdout.write(f'\r loading det {i}/{self.NDet}, rotation {j}/{self.NRot}, {fName}')
+                sys.stdout.flush()
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
                 #print(x,type(x))
                 if x.size==0:
@@ -1645,10 +1653,11 @@ class Reconstructor_GPU():
         print(lDetIdx)
         for i in range(self.NDet):
             for j in range(self.NRot):
-                sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i+1,j+1,self.NDet,self.NRot))
-                sys.stdout.flush()
+#                 sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i+1,j+1,self.NDet,self.NRot))
+#                 sys.stdout.flush()
                 fName = fInitials+str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
-                #print(fName)
+                sys.stdout.write(f'\r loading det {i}/{self.NDet}, rotation {j}/{self.NRot}, {fName}')
+                sys.stdout.flush()
                 x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
                 if x.size==0:
                     continue
