@@ -329,7 +329,7 @@ class Frame:
         _m[0:3, 0:3] = np.array([[np.dot(new_e, old_e) for old_e in f1.base] 
                                     for new_e in f2.base
                                 ])
-        _m[:,0:3] = f1.o - f2.o
+        _m[3,0:3] = f1.o - f2.o
         _m[3,3] = 1
         return _m
 
@@ -474,7 +474,7 @@ if __name__ == "__main__":
     #   single one
     from functools import reduce
     from pprint import pprint
-    print("Example_1")
+    print("Example_1: combine multiple rotations")
     n_cases = 5
     angs = np.random.random(n_cases) * np.pi
     qs = [Quaternion.from_angle_axis(me, random_three_vector()) for me in angs]
@@ -484,18 +484,43 @@ if __name__ == "__main__":
     print()
 
     # Example_2:
-    print("Example_2")
+    print("Example_2: rotate a vector")
     ang = 120
     quat = Quaternion.from_angle_axis(np.radians(ang), np.array([1,1,1]))
     vec = np.array([1,0,0])
     print(f"rotate {vec} by {quat} ({ang} deg) results in:")
     print(Quaternion.quatrotate(quat, vec))
+    print()
 
     # Example_3:
-    print("Example_3")
+    print("Example_3: sequential rotation is just multiplication")
     q1 = Quaternion.from_random()
     q2 = Quaternion.from_random()
     print(q1*q2)
     print(Quaternion.combine_two(q1, q2))
+    print()
     # prevent the scaling of a unitary quanternion
     # q1 = q1 * 5
+
+    # Example_4:
+    print("Example_4: calc transformation matrix")
+    f1 = Frame(np.array([1, 0, 0]), 
+               np.array([0, 1, 0]), 
+               np.array([0, 0, 1]),
+               np.array([0, 0, 0]),
+               'old',
+            )
+    sqr2 = np.sqrt(2)
+    f2 = Frame(np.array([ 1/sqr2, 1/sqr2, 0]), 
+               np.array([-1/sqr2, 1/sqr2, 0]),
+               np.array([0, 0, 1]),
+               np.array([0, 0, 0]),
+               'r_z_45',
+            )
+    print("original frame:")
+    pprint(f1)
+    print("target frame:")
+    pprint(f2)
+    print("transformation matrix is:") 
+    print(Frame.transformation_matrix(f1, f2))
+    print()
