@@ -33,10 +33,11 @@ def curandom(N: int, nvalues: int):
     cuda_kernel = SourceModule(load_kernel_code(_kernel_code).replace('%(NGENERATORS)', N))
 
     # get device code
-    init_func = mod.get_function("_Z10initkerneli")
-    fill_func = mod.get_function("_Z14randfillkernelPfi")
+    init_func = cuda_kernel.get_function("_Z10initkerneli")
+    fill_func = cuda_kernel.get_function("_Z14randfillkernelPfi")
 
     # get the random numbers
+    seed = np.int32(123456789)  # why use fix seed here?
     init_func(seed, block=(N,1,1), grid=(1,1,1))
     gdata = gpuarray.zeros(nvalues, dtype=np.float32)
     fill_func(gdata, np.int32(nvalues), block=(N,1,1), grid=(1,1,1))
