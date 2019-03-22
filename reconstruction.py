@@ -486,7 +486,7 @@ class Reconstructor_GPU():
         if centerRot is None:
             centerRot = np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]])
         if rangeL is None:
-            rangeL = 2 #mm
+            rangeL = 2.5 #mm
         if rangeJ is None:
             rangeJ = 200 * self.detScale #pixel
         if rangeK is None:
@@ -730,37 +730,47 @@ class Reconstructor_GPU():
         p = [centerL, centerJ[0,0].reshape([1,1]), centerJ[0,1].reshape([1,1]), 
                       centerK[0,0].reshape([1,1]), centerK[0,1].reshape([1,1])]
         dp = [rangeL, rangeJ, rangeJ, rangeK, rangeK]
+        factor = [1.0, self.pixelJ[0], self.pixelJ[1],self.pixelK[0], self.pixelK[1]]
+        dp = np.array(dp) * np.array(factor)
         # Calculate the error
         best_err, centerRot = self.twiddle_loss(idxVoxel, centerL, centerJ, centerK, centerRot)###
-
-        threshold = 0.01
-
+        print(dp)
+        print(dp/np.array(factor))
+        threshold = 0.002
+        improve = True
         while sum(dp) > threshold and dp[0]>0.0005:
             for i in range(len(p)):
                 if dp[i]<0.0005:
                     dp[i] = 0.0005
-                p[i] += dp[i]
+                # if nothing improved and already in small range, no need to compute anything. save some time.
+                if dp[i]==0.0005 and not improve:
+                    continue
+                p[i] += dp[i]/factor[i]
                 err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
-
                 if err < best_err:  # There was some improvement
                     best_err = err
                     centerRot = rotTmp
                     dp[i] *= 1.1
+                    improve = True
+                    print(dp)
                     print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
                 else:  # There was no improvement
-                    p[i] -= 2 * dp[i]  # Go into the other direction
+                    p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
                     err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
 
                     if err < best_err:  # There was an improvement
                         best_err = err
                         centerRot = rotTmp
-                        dp[i] *= 1.05
+                        dp[i] *= 1.1 # was 1.1
+                        improve = True
+                        print(dp)
                         print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
                     else:  # There was no improvement
-                        p[i] += dp[i]
+                        p[i] += dp[i]/factor[i]
+                        improve = False
                         # As there was no improvement, the step size in either
                         # direction, the step size might simply be too big.
-                        dp[i] *= 0.95
+                        dp[i] *= 0.9  # was 0.95
             #sys.stdout.flush()
         print(p)
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
@@ -2447,7 +2457,7 @@ class Reconstructor_GPU():
         if verbose:
             #print(i)
             np.set_printoptions(precision=4)
-            sys.stdout.write('\r iteration: {6}, voxelIdx: {0}, voxelLeft: {4}/{5}.  max hitratio: {1:04f}, peakcnt: {2},euler angle {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
+            sys.stdout.write('\rNiter: {6:02d}, vIdx: {0:07d}, prog: {4:07d}/{5:07d}, conf: {1:04f}, pkcnt: {2}, euler: {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
             sys.stdout.flush()
         self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
