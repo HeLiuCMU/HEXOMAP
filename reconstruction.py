@@ -209,7 +209,7 @@ class Reconstructor_GPU():
         time.sleep(1)
         self._init_gpu()
     
-    def load_config(self, config):
+    def load_config(self, config, reloadData=True):
         '''
         load any configuration from config class
         config: Config(), defined in config.py
@@ -232,7 +232,7 @@ class Reconstructor_GPU():
                             + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
                             + f'_shift_{"_".join(map(str, config.micShift))}.npy' # output file name
         self.searchBatchSize = int(config.searchBatchSize)    # number of orientations search at each iteration, larger number will take longer time.
-        self.recon_prepare(config.reverseRot)
+        self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
     def _init_gpu(self):
         """
         Initialize GPU device.
