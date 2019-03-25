@@ -72,16 +72,78 @@ class Eulers:
 @dataclass
 class Rodrigues:
     """
-    Rodrigues–Frank vector
+    Rodrigues–Frank vector: ([n_1, n_2, n_3], tan(ω/2))
     """
-    angle: float
-    axis: np.ndarray
+    r1: float
+    r2: float
+    r3: float
 
-    def __post_init__(self):
-        self.axis = normalize(self.axis)
+    @property
+    def as_array(self) -> np.ndarray:
+        """As numpy array"""
+        return np.array([self.r1, self.r2, self.r3])
 
-    def as_array(self):
-        return np.tan(self.angle/2)*self.axis
+    @property
+    def rot_axis(self) -> np.ndarray:
+        """Rotation axis"""
+        return normalize(self.as_array)
+
+    @property
+    def rot_ang(self) -> float:
+        """
+        Rotation angle in radians
+
+        NOTE:
+            Restrict the rotation angle to [0-pi], therefore the tan term is 
+            always positive
+        """
+        return np.arctan(norm(self.as_array))*2
+
+    @staticmethod
+    def in_fundamental_zone(r_vec: 'Rodrigues', lattice: str):
+        """
+        Description
+        -----------
+        Chekc if the Rodrigues vector is in its fundamental zone
+
+        Parameter
+        ---------
+        r_vec: Rodrigues
+            Rodrigues vector representation
+        lattice: str, ['orthorhombic','tetragonal','hexagonal','cubic']
+            Lattice symmetry
+
+        Returns
+        -------
+        Rodrigues
+            equivalent Rodrigues vector in the fundamental zone
+
+        NOTE:
+            migrated from DAMASK.orientation module
+        """
+        r = np.absolute(r_vec.as_array)
+
+        if lattice.lower() in ['cubic', 'bcc', 'fcc']:
+            sqrt2 = np.sqrt(2)
+            return  sqrt2-1.0 >= r[0] \
+                and sqrt2-1.0 >= r[1] \
+                and sqrt2-1.0 >= r[2] \
+                and 1.0 >= r[0] + r[1] + r[2]
+        elif lattice.lower() in ['hexagonal', 'hex', 'hcp']:
+            sqrt3 = np.sqrt(3)
+            return  1.0 >= r[0] and 1.0 >= r[1] and 1.0 >= r[2] \
+                and 2.0 >= sqrt3*r[0] + r[1] \
+                and 2.0 >= sqrt3*r[1] + r[0] \
+                and 2.0 >= sqrt3 + r[2]
+        elif lattice.lower() in ['tetragonal', 'tet']:
+            sqrt2 = np.sqrt(2)
+            return  1.0 >= r[0] and 1.0 >= r[1] \
+                and sqrt2 >= r[0] + r[1] \
+                and sqrt2 >= r[2] + 1.0
+        elif lattice.lower() in ['orthorhombic', 'orth']:
+            return  1.0 >= r[0] and 1.0 >= r[1] and 1.0 >= r[2]
+        else:
+            return True
 
 
 @dataclass
