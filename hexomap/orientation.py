@@ -99,105 +99,6 @@ class Rodrigues:
         """
         return np.arctan(norm(self.as_array))*2
 
-    @staticmethod
-    def in_fundamental_zone(r_vec: 'Rodrigues', lattice: str) -> bool:
-        """
-        Description
-        -----------
-        Chekc if the Rodrigues vector is in its fundamental zone
-
-        Parameter
-        ---------
-        r_vec: Rodrigues
-            Rodrigues vector representation
-        lattice: str, ['orthorhombic','tetragonal','hexagonal','cubic']
-            Lattice symmetry
-
-        Returns
-        -------
-        bool
-            in FZ or not
-
-        NOTE:
-            migrated from DAMASK.orientation module
-        """
-        r = np.absolute(r_vec.as_array)
-
-        if lattice.lower() in ['cubic', 'bcc', 'fcc']:
-            sqrt2 = np.sqrt(2)
-            return  sqrt2-1.0 >= r[0] \
-                and sqrt2-1.0 >= r[1] \
-                and sqrt2-1.0 >= r[2] \
-                and 1.0 >= r[0] + r[1] + r[2]
-        elif lattice.lower() in ['hexagonal', 'hex', 'hcp']:
-            sqrt3 = np.sqrt(3)
-            return  1.0 >= r[0] and 1.0 >= r[1] and 1.0 >= r[2] \
-                and 2.0 >= sqrt3*r[0] + r[1] \
-                and 2.0 >= sqrt3*r[1] + r[0] \
-                and 2.0 >= sqrt3 + r[2]
-        elif lattice.lower() in ['tetragonal', 'tet']:
-            sqrt2 = np.sqrt(2)
-            return  1.0 >= r[0] and 1.0 >= r[1] \
-                and sqrt2 >= r[0] + r[1] \
-                and sqrt2 >= r[2] + 1.0
-        elif lattice.lower() in ['orthorhombic', 'orth']:
-            return  1.0 >= r[0] and 1.0 >= r[1] and 1.0 >= r[2]
-        else:
-            return True
-
-    @staticmethod
-    def in_standard_stereographic_triangle(r_vec: 'Rodrigues', 
-                                           lattice: str,
-                                        ) -> bool:
-        """
-        Description
-        -----------
-        Check if given Rodrigues vector lies in the standard stereographic
-        triangle of given lattice.
-
-        ref:
-            Representation of Orientation and Disorientation Data for Cubic, 
-            Hexagonal, Tetragonal and Orthorhombic Crystals
-            Acta Cryst. (1991). A47, 780-789
-        
-        Parameters
-        ----------
-        r_vec: Rodrigues
-            input rodrigues vector
-        lattice: str
-            lattice name
-
-        Returns
-        -------
-        bool
-
-        NOTE
-        ----
-        This function is adapted from the orientation module in DAMASK
-        (damask.mpie.de)        
-        """
-        r = r_vec.as_array
-
-        if lattice.lower() in ['cubic', 'bcc', 'fcc']:
-            return  r[0] >= r[1] \
-                and r[1] >= r[2] \
-                and r[2] >= 0.0
-        elif lattice.lower() in ['hexagonal', 'hcp', 'hex']:
-            sqrt3 = np.sqrt(3)
-            return  r[0] >= sqrt3*r[1]\
-                and r[1] >= 0 \
-                and r[2] >= 0
-        elif lattice.lower() in ['tetragonal', 'tet']:
-            return  r[0] >= r[1] \
-                and r[1] >= 0 \
-                and r[2] >= 0
-        elif lattice.lower() in ['orthorhombic', 'ortho']:
-            return  r[0] >= 0 \
-                and r[1] >= 0 \
-                and r[2] >= 0
-        else:
-            return True
-
 
 @dataclass
 class Quaternion:
@@ -571,6 +472,10 @@ class Orientation:
     @property
     def as_quaternion(self) -> 'Quaternion':
         return self.q
+
+    @property
+    def as_rodrigues(self):
+        return self.q.as_rodrigues
 
     @property
     def as_eulers(self) -> 'Eulers':
