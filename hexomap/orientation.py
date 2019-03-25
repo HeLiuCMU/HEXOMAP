@@ -60,8 +60,8 @@ class Eulers:
         #   However, I am providing the conversion to (orientation) matrix
         #   here for some backward compatbility.
         c1, s1 = np.cos(self.phi1), np.sin(self.phi1)
-        c,  s  = np.cos(self.phi), np.sin(self.phi)
-        c2, s2 =  np.cos(self.phi2), np.sin(self.phi2)
+        c,  s  = np.cos(self.phi ), np.sin(self.phi )
+        c2, s2 = np.cos(self.phi2), np.sin(self.phi2)
         return np.array([
             [ c1*c2-s1*c*s2,  s1*c2+c1*c*s2, s*s2],
             [-c1*s2-s1*c*c2, -s1*s2+c1*c*c2, s*c2],
