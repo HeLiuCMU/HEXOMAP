@@ -424,6 +424,110 @@ class Frame:
         return np.dot(_m, np.dot(t_old, _m.T))
 
 
+@dataclass(frozen=True)
+class Symmetry:
+    """
+    Crystal symmetry class that provides symmetry operators (in quaternion)
+    and (static) method for reducing to fundamental zone
+    
+    ref:
+    https://en.wikipedia.org/wiki/Crystal_system
+    https://damask.mpie.de/Documentation/CrystalLattice
+    """
+    lattice: str  # [None,'orthorhombic','tetragonal','hexagonal','cubic']
+
+    @property
+    def sym_operator(self):
+        """
+        Description
+        -----------
+        Return a list of symmetry operator in quaternions
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        list
+            list of quaternions as symmetry operators
+        """
+        if self.lattice is None:
+            return Quaternion(1,0,0,0)
+        elif self.lattice.lower() == 'orthorhombic':
+            return [
+                Quaternion(*me) for me in [
+                    [ 1.0,  0.0,  0.0,  0.0 ],
+                    [ 0.0,  1.0,  0.0,  0.0 ],
+                    [ 0.0,  0.0,  1.0,  0.0 ],
+                    [ 0.0,  0.0,  0.0,  1.0 ],
+                ]
+            ]
+        elif self.lattice.lower() == 'tetragonal':
+            sqrt2 = np.sqrt(2)
+            return [
+                Quaternion(*me) for me in [
+                    [ 1.0,        0.0,        0.0,        0.0       ],
+                    [ 0.0,        1.0,        0.0,        0.0       ],
+                    [ 0.0,        0.0,        1.0,        0.0       ],
+                    [ 0.0,        0.0,        0.0,        1.0       ],
+                    [ 0.0,        0.5*sqrt2,  0.5*sqrt2,  0.0       ],
+                    [ 0.0,       -0.5*sqrt2,  0.5*sqrt2,  0.0       ],
+                    [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                    [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                ]
+            ]
+        elif self.lattice.lower() == 'hexagonal':
+            sqrt3 = np.sqrt(3)
+            return [
+                Quaternion(*me) for me in [
+                    [ 1.0,        0.0,        0.0,        0.0       ],
+                    [-0.5*sqrt3,  0.0,        0.0,       -0.5       ],
+                    [ 0.5,        0.0,        0.0,        0.5*sqrt3 ],
+                    [ 0.0,        0.0,        0.0,        1.0       ],
+                    [-0.5,        0.0,        0.0,        0.5*sqrt3 ],
+                    [-0.5*sqrt3,  0.0,        0.0,        0.5       ],
+                    [ 0.0,        1.0,        0.0,        0.0       ],
+                    [ 0.0,       -0.5*sqrt3,  0.5,        0.0       ],
+                    [ 0.0,        0.5,       -0.5*sqrt3,  0.0       ],
+                    [ 0.0,        0.0,        1.0,        0.0       ],
+                    [ 0.0,       -0.5,       -0.5*sqrt3,  0.0       ],
+                    [ 0.0,        0.5*sqrt3,  0.5,        0.0       ],
+                ]
+            ]
+        elif self.lattice.lower() == 'cubic':
+            sqrt2 = np.sqrt(2)
+            return [
+                Quaternion(*me) for me in [
+                    [ 1.0,        0.0,        0.0,        0.0       ],
+                    [ 0.0,        1.0,        0.0,        0.0       ],
+                    [ 0.0,        0.0,        1.0,        0.0       ],
+                    [ 0.0,        0.0,        0.0,        1.0       ],
+                    [ 0.0,        0.0,        0.5*sqrt2,  0.5*sqrt2 ],
+                    [ 0.0,        0.0,        0.5*sqrt2, -0.5*sqrt2 ],
+                    [ 0.0,        0.5*sqrt2,  0.0,        0.5*sqrt2 ],
+                    [ 0.0,        0.5*sqrt2,  0.0,       -0.5*sqrt2 ],
+                    [ 0.0,        0.5*sqrt2, -0.5*sqrt2,  0.0       ],
+                    [ 0.0,       -0.5*sqrt2, -0.5*sqrt2,  0.0       ],
+                    [ 0.5,        0.5,        0.5,        0.5       ],
+                    [-0.5,        0.5,        0.5,        0.5       ],
+                    [-0.5,        0.5,        0.5,       -0.5       ],
+                    [-0.5,        0.5,       -0.5,        0.5       ],
+                    [-0.5,       -0.5,        0.5,        0.5       ],
+                    [-0.5,       -0.5,        0.5,       -0.5       ],
+                    [-0.5,       -0.5,       -0.5,        0.5       ],
+                    [-0.5,        0.5,       -0.5,       -0.5       ],
+                    [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                    [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                    [-0.5*sqrt2,  0.0,        0.5*sqrt2,  0.0       ],
+                    [-0.5*sqrt2,  0.0,       -0.5*sqrt2,  0.0       ],
+                    [-0.5*sqrt2,  0.5*sqrt2,  0.0,        0.0       ],
+                    [-0.5*sqrt2, -0.5*sqrt2,  0.0,        0.0       ],
+                ]
+            ]
+        else:
+            raise ValueError(f"Unknown lattice structure {self.lattice}")
+
+
 @dataclass
 class Orientation:
     """
