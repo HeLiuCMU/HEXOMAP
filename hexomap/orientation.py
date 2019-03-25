@@ -100,7 +100,7 @@ class Rodrigues:
         return np.arctan(norm(self.as_array))*2
 
     @staticmethod
-    def in_fundamental_zone(r_vec: 'Rodrigues', lattice: str):
+    def in_fundamental_zone(r_vec: 'Rodrigues', lattice: str) -> bool:
         """
         Description
         -----------
@@ -115,8 +115,8 @@ class Rodrigues:
 
         Returns
         -------
-        Rodrigues
-            equivalent Rodrigues vector in the fundamental zone
+        bool
+            in FZ or not
 
         NOTE:
             migrated from DAMASK.orientation module
@@ -142,6 +142,59 @@ class Rodrigues:
                 and sqrt2 >= r[2] + 1.0
         elif lattice.lower() in ['orthorhombic', 'orth']:
             return  1.0 >= r[0] and 1.0 >= r[1] and 1.0 >= r[2]
+        else:
+            return True
+
+    @staticmethod
+    def in_standard_stereographic_triangle(r_vec: 'Rodrigues', 
+                                           lattice: str,
+                                        ) -> bool:
+        """
+        Description
+        -----------
+        Check if given Rodrigues vector lies in the standard stereographic
+        triangle of given lattice.
+
+        ref:
+            Representation of Orientation and Disorientation Data for Cubic, 
+            Hexagonal, Tetragonal and Orthorhombic Crystals
+            Acta Cryst. (1991). A47, 780-789
+        
+        Parameters
+        ----------
+        r_vec: Rodrigues
+            input rodrigues vector
+        lattice: str
+            lattice name
+
+        Returns
+        -------
+        bool
+
+        NOTE
+        ----
+        This function is adapted from the orientation module in DAMASK
+        (damask.mpie.de)        
+        """
+        r = r_vec.as_array
+
+        if lattice.lower() in ['cubic', 'bcc', 'fcc']:
+            return  r[0] >= r[1] \
+                and r[1] >= r[2] \
+                and r[2] >= 0.0
+        elif lattice.lower() in ['hexagonal', 'hcp', 'hex']:
+            sqrt3 = np.sqrt(3)
+            return  r[0] >= sqrt3*r[1]\
+                and r[1] >= 0 \
+                and r[2] >= 0
+        elif lattice.lower() in ['tetragonal', 'tet']:
+            return  r[0] >= r[1] \
+                and r[1] >= 0 \
+                and r[2] >= 0
+        elif lattice.lower() in ['orthorhombic', 'ortho']:
+            return  r[0] >= 0 \
+                and r[1] >= 0 \
+                and r[2] >= 0
         else:
             return True
 
@@ -183,6 +236,10 @@ class Quaternion:
     @property
     def as_array(self) -> np.ndarray:
         return np.array([self.w, self.x, self.y, self.z])
+    
+    @property
+    def as_rodrigues(self) -> 'Rodrigues':
+        return Rodrigues(*(self.imag/self.real))
 
     @property
     def real(self):
@@ -484,110 +541,6 @@ class Frame:
         """
         _m = Frame.transformation_matrix(f_old, f_new)[0:3, 0:3]
         return np.dot(_m, np.dot(t_old, _m.T))
-
-
-@dataclass(frozen=True)
-class Symmetry:
-    """
-    Crystal symmetry class that provides symmetry operators (in quaternion)
-    and (static) method for reducing to fundamental zone
-    
-    ref:
-    https://en.wikipedia.org/wiki/Crystal_system
-    https://damask.mpie.de/Documentation/CrystalLattice
-    """
-    lattice: str  # [None,'orthorhombic','tetragonal','hexagonal','cubic']
-
-    @property
-    def sym_operator(self):
-        """
-        Description
-        -----------
-        Return a list of symmetry operator in quaternions
-
-        Parameters
-        ----------
-
-        Returns
-        -------
-        list
-            list of quaternions as symmetry operators
-        """
-        if self.lattice is None:
-            return Quaternion(1,0,0,0)
-        elif self.lattice.lower() in ['orthorhombic', 'ortho']:
-            return [
-                Quaternion(*me) for me in [
-                    [ 1.0,  0.0,  0.0,  0.0 ],
-                    [ 0.0,  1.0,  0.0,  0.0 ],
-                    [ 0.0,  0.0,  1.0,  0.0 ],
-                    [ 0.0,  0.0,  0.0,  1.0 ],
-                ]
-            ]
-        elif self.lattice.lower() in ['tetragonal', 'tet']:
-            sqrt2 = np.sqrt(2)
-            return [
-                Quaternion(*me) for me in [
-                    [ 1.0,        0.0,        0.0,        0.0       ],
-                    [ 0.0,        1.0,        0.0,        0.0       ],
-                    [ 0.0,        0.0,        1.0,        0.0       ],
-                    [ 0.0,        0.0,        0.0,        1.0       ],
-                    [ 0.0,        0.5*sqrt2,  0.5*sqrt2,  0.0       ],
-                    [ 0.0,       -0.5*sqrt2,  0.5*sqrt2,  0.0       ],
-                    [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                    [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                ]
-            ]
-        elif self.lattice.lower() in ['hexagonal', 'hcp', 'hex']:
-            sqrt3 = np.sqrt(3)
-            return [
-                Quaternion(*me) for me in [
-                    [ 1.0,        0.0,        0.0,        0.0       ],
-                    [-0.5*sqrt3,  0.0,        0.0,       -0.5       ],
-                    [ 0.5,        0.0,        0.0,        0.5*sqrt3 ],
-                    [ 0.0,        0.0,        0.0,        1.0       ],
-                    [-0.5,        0.0,        0.0,        0.5*sqrt3 ],
-                    [-0.5*sqrt3,  0.0,        0.0,        0.5       ],
-                    [ 0.0,        1.0,        0.0,        0.0       ],
-                    [ 0.0,       -0.5*sqrt3,  0.5,        0.0       ],
-                    [ 0.0,        0.5,       -0.5*sqrt3,  0.0       ],
-                    [ 0.0,        0.0,        1.0,        0.0       ],
-                    [ 0.0,       -0.5,       -0.5*sqrt3,  0.0       ],
-                    [ 0.0,        0.5*sqrt3,  0.5,        0.0       ],
-                ]
-            ]
-        elif self.lattice.lower() in ['cubic', 'bcc', 'fcc']:
-            sqrt2 = np.sqrt(2)
-            return [
-                Quaternion(*me) for me in [
-                    [ 1.0,        0.0,        0.0,        0.0       ],
-                    [ 0.0,        1.0,        0.0,        0.0       ],
-                    [ 0.0,        0.0,        1.0,        0.0       ],
-                    [ 0.0,        0.0,        0.0,        1.0       ],
-                    [ 0.0,        0.0,        0.5*sqrt2,  0.5*sqrt2 ],
-                    [ 0.0,        0.0,        0.5*sqrt2, -0.5*sqrt2 ],
-                    [ 0.0,        0.5*sqrt2,  0.0,        0.5*sqrt2 ],
-                    [ 0.0,        0.5*sqrt2,  0.0,       -0.5*sqrt2 ],
-                    [ 0.0,        0.5*sqrt2, -0.5*sqrt2,  0.0       ],
-                    [ 0.0,       -0.5*sqrt2, -0.5*sqrt2,  0.0       ],
-                    [ 0.5,        0.5,        0.5,        0.5       ],
-                    [-0.5,        0.5,        0.5,        0.5       ],
-                    [-0.5,        0.5,        0.5,       -0.5       ],
-                    [-0.5,        0.5,       -0.5,        0.5       ],
-                    [-0.5,       -0.5,        0.5,        0.5       ],
-                    [-0.5,       -0.5,        0.5,       -0.5       ],
-                    [-0.5,       -0.5,       -0.5,        0.5       ],
-                    [-0.5,        0.5,       -0.5,       -0.5       ],
-                    [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                    [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                    [-0.5*sqrt2,  0.0,        0.5*sqrt2,  0.0       ],
-                    [-0.5*sqrt2,  0.0,       -0.5*sqrt2,  0.0       ],
-                    [-0.5*sqrt2,  0.5*sqrt2,  0.0,        0.0       ],
-                    [-0.5*sqrt2, -0.5*sqrt2,  0.0,        0.0       ],
-                ]
-            ]
-        else:
-            raise ValueError(f"Unknown lattice structure {self.lattice}")
 
 
 @dataclass
