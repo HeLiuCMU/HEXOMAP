@@ -515,7 +515,7 @@ class Symmetry:
         """
         if self.lattice is None:
             return Quaternion(1,0,0,0)
-        elif self.lattice.lower() == 'orthorhombic':
+        elif self.lattice.lower() in ['orthorhombic', 'ortho']:
             return [
                 Quaternion(*me) for me in [
                     [ 1.0,  0.0,  0.0,  0.0 ],
@@ -524,7 +524,7 @@ class Symmetry:
                     [ 0.0,  0.0,  0.0,  1.0 ],
                 ]
             ]
-        elif self.lattice.lower() == 'tetragonal':
+        elif self.lattice.lower() in ['tetragonal', 'tet']:
             sqrt2 = np.sqrt(2)
             return [
                 Quaternion(*me) for me in [
@@ -538,7 +538,7 @@ class Symmetry:
                     [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
                 ]
             ]
-        elif self.lattice.lower() == 'hexagonal':
+        elif self.lattice.lower() in ['hexagonal', 'hcp', 'hex']:
             sqrt3 = np.sqrt(3)
             return [
                 Quaternion(*me) for me in [
@@ -556,7 +556,7 @@ class Symmetry:
                     [ 0.0,        0.5*sqrt3,  0.5,        0.0       ],
                 ]
             ]
-        elif self.lattice.lower() == 'cubic':
+        elif self.lattice.lower() in ['cubic', 'bcc', 'fcc']:
             sqrt2 = np.sqrt(2)
             return [
                 Quaternion(*me) for me in [
