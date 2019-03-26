@@ -14,6 +14,9 @@ with the exceptions:
        between orientations can only be done when all of them are converted
        to the same frame.
     2. Always prefer SI units.
+
+Conversion chain:
+    Rodrigues (angle,axis) <-> quaternion <-> Euler angles(ZXZ) <-> rotation matrix
 """
 
 import numpy as np
