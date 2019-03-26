@@ -237,6 +237,31 @@ class Rodrigues:
         """
         return np.arctan(norm(self.as_array))*2
 
+    @staticmethod
+    def rodrigues_from_quaternions(quats: np.ndarray) -> np.ndarray:
+        """
+        Description
+        -----------
+            Vectorized batch conversion from unitary quaternions to
+            Rodrigues vectors
+
+        Parameters
+        ----------
+        quats: np.ndarray
+            input quaternions stack along the first axis
+        
+        Returns
+        -------
+        np.ndarray
+            output rodrigues vectors stack along the first axis
+        """
+        try:
+            quats = quats.reshape(-1, 4)
+        except:
+            raise ValueError("Row stack input quaternions")
+        
+        return quats[:,1:4]/quats[:,0][:,None]
+
 
 @dataclass
 class Quaternion:
@@ -463,6 +488,13 @@ class Quaternion:
         )
 
     @staticmethod
+    def from_rodrigues(ro: 'Rodrigues') -> 'Quaternion':
+        """Construct an equivalent quaternion from given Rodrigues"""
+        if not isinstance(ro, Rodrigues):
+            ro = Rodrigues(*ro)
+        return Quaternion.from_angle_axis(ro.rot_ang, ro.rot_axis)
+
+    @staticmethod
     def from_matrix(m: np.ndarray) -> 'Quaternion':
         """Construct quaternion from rotation matrix"""
         return Quaternion.from_eulers(Eulers.from_matrix(m))
@@ -672,28 +704,31 @@ class Orientation:
     
     @frame.setter
     def frame(self, new_frame: Frame) -> None:
-        pass
+        # frame update
+        _m = self.q.as_matrix
+        for i in range(3):
+            _m[:,i] = Frame.transform_vector(_m[:,i], self.frame, new_frame)
+        self.q = Quaternion.from_matrix(_m)
+        self.f = new_frame
 
     @property
     def as_quaternion(self) -> 'Quaternion':
         return self.q
 
     @property
-    def as_rodrigues(self):
-        return self.q.as_rodrigues
-
-    @property
     def as_eulers(self) -> 'Eulers':
-        pass
+        return self.q.as_eulers
 
     @property
-    def as_angleaxis(self) -> tuple:
-        pass
+    def as_matrix(self) -> np.ndarray:
+        return self.q.as_matrix
 
     @staticmethod
     def random_orientations(n: int, frame: Frame) -> list:
         """Return n random orientations represented in the given frame"""
-        return []
+        return [
+            Orientation(Quaternion.from_random(), frame) for _ in range(n)
+        ]
 
 
 if __name__ == "__main__":
