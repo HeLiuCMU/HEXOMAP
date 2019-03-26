@@ -301,12 +301,8 @@ class Quaternion:
 
     @property
     def as_matrix(self) -> np.ndarray:
-        """Return the corresponding rotation matrix"""
-        return np.array([
-            [1.0-2.0*(self.y*self.y+self.z*self.z),     2.0*(self.x*self.y-self.z*self.w),     2.0*(self.x*self.z+self.y*self.w)],
-            [    2.0*(self.x*self.y+self.z*self.w), 1.0-2.0*(self.x*self.x+self.z*self.z),     2.0*(self.y*self.z-self.x*self.w)],
-            [    2.0*(self.x*self.z-self.y*self.w),     2.0*(self.x*self.w+self.y*self.z), 1.0-2.0*(self.x*self.x+self.y*self.y)],
-        ])
+        """Return the rotation matrix"""
+        return self.as_eulers.as_matrix
 
     @property
     def real(self):
@@ -425,8 +421,11 @@ class Quaternion:
         ------
         Quaternion
         """
-        axis = normalize(axis)
-        return Quaternion(np.cos(angle/2), *(np.sin(angle/2)*axis))
+        if iszero(angle):
+            return Quaternion(1, 0, 0, 0)
+        else:
+            axis = normalize(axis)
+            return Quaternion(np.cos(angle/2), *(np.sin(angle/2)*axis))
 
     @staticmethod
     def from_eulers(euler: 'Eulers') -> 'Quatrnion':
@@ -450,46 +449,8 @@ class Quaternion:
 
     @staticmethod
     def from_matrix(m: np.ndarray) -> 'Quaternion':
-        """
-        Construct a quaternion from rotation matrix
-
-        ref:
-            http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
-        """
-        _tr = np.trace(m)
-
-        if _tr > 0:
-            _s = 0.5/np.sqrt(_tr + 1.0)
-            return Quaternion(
-                0.25/_s,
-                (m[2,1] - m[1,2])*_s,
-                (m[0,2] - m[2,0])*_s,
-                (m[1,0] - m[0,1])*_s,
-            )
-        elif (m[0,0] > m[1,1]) and (m[0,0] > m[2,2]):
-            _s = 2.0*np.sqrt(m[0,0] - m[1,1] - m[2,2] + 1.0)
-            return Quaternion(
-                (m[2,1] - m[1,2])/_s,
-                0.25*_s,
-                (m[0,1] + m[1,0])/_s,
-                (m[0,2] + m[2,0])/_s,
-            )
-        elif m[1,1] > m[2,2]:
-            _s = 2.0*np.sqrt(-m[0,0] + m[1,1] - m[2,2] + 1.0)
-            return Quaternion(
-                (m[0,2] - m[2,0])/_s,
-                (m[0,1] + m[1,0])/_s,
-                0.25*_s,
-                (m[1,2] + m[2,1])/_s,
-            )
-        else:
-            _s = 2.0*np.sqrt(-m[0,0] - m[1,1] + m[2,2] + 1.0)
-            return Quaternion(
-                (m[1,0] - m[0,1])/_s,
-                (m[0,2] + m[2,0])/_s,
-                (m[1,2] + m[2,1])/_s,
-                0.25*_s,
-            )
+        """Construct quaternion from rotation matrix"""
+        return Quaternion.from_eulers(Eulers.from_matrix(m))
 
     @staticmethod
     def from_random():

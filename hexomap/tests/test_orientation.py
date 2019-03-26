@@ -57,6 +57,12 @@ class TestQuaternion(unittest.TestCase):
             euler = Eulers(*((np.random.random(3)-0.5)*2*np.pi))
             q = Quaternion.from_eulers(euler)
             np.testing.assert_allclose(euler.as_array, q.as_eulers.as_array)
+    
+    def test_conversion_quaternion_matrix(self):
+        for _ in range(self.n_cases):
+            m = Eulers(*((np.random.random(3)-0.5)*2*np.pi)).as_matrix
+            q = Quaternion.from_matrix(m)
+            np.testing.assert_allclose(m, q.as_matrix)
 
 
 class TestFrame(unittest.TestCase):
