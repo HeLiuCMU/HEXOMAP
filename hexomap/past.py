@@ -21,8 +21,9 @@ Mat2EulerZXZ           = lambda m: Eulers.from_matrix(m).as_array
 Mat2EulerZXZVectorized = Eulers.matrices_to_eulers 
 # -- rod_from_quaternion
 # NOTE:
-#   the original function use column stacked quaternions,
-#   the new function use row stacked to be consistent with other method.
+#   the original function use COLUMN (axis=1) stacked quaternions,
+#   the new function use ROW (axis=0) stacked to be consistent with 
+#   the other methods in the same module.
 rod_from_quaternion = lambda qs: Rodrigues.rodrigues_from_quaternions(qs.T).T
 
 # Backward compatibility for FZfile
