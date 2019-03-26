@@ -138,6 +138,52 @@ class Eulers:
         m[:,2,0], m[:,2,1], m[:,2,2] =          s*s2,           s*c2,     c
 
         return m
+    
+    @staticmethod
+    def matrices_to_eulers(matrices: np.ndarray) -> np.ndarray:
+        """
+        Description
+        -----------
+            Vectorized batch conversion from stack of rotation matrices to 
+            Euler angles (Bunge)
+
+        Parameter
+        ---------
+        matrices: np.ndarray
+            stack of rotation matrices
+
+        Returns
+        -------
+        np.ndarray
+            stakc of Euler angles (Bunge)
+
+        Note
+        ----
+        Testing with 10k rotation matrices
+            original implementation
+        >>%timeit eulers_o = Mat2EulerZXZVectorized(Rs) 
+        2.01 ms ± 87.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+            current implementation
+        >>%timeit eulers_n = Eulers.matrices_to_eulers(Rs)
+        1.45 ms ± 8.63 µs per loop (mean ± std. dev. of 7 runs, 1000 loops each)
+        """
+        try:
+            matrices = matrices.reshape((-1,3,3))
+        except:
+            raise ValueError("Please stack rotation matrices along 1st-axis")
+        
+        eulers = np.zeros((matrices.shape[0], 3))
+
+        # first work the degenerated cases
+        _idx = np.isclose(matrices[:,2,2]**2, 1)
+        eulers[_idx, 2] =  np.arctan2(matrices[_idx,1,0], matrices[_idx,0,0]) 
+        # then the general cases
+        _idx = (1 - _idx).astype(bool)
+        eulers[_idx, 0] = np.arctan2(matrices[_idx,0,2], -matrices[_idx,1,2])
+        eulers[_idx, 1] = np.arccos(matrices[_idx,2,2]),
+        eulers[_idx, 2] = np.arctan2(matrices[_idx,2,0], matrices[_idx,2,1]),
+
+        return eulers%(2*np.pi)
 
 
 @dataclass
