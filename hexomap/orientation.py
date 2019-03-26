@@ -121,6 +121,15 @@ class Eulers:
         np.ndarray
             rotation matrices representation of the input Euler angles with
             the shape of (n_eulers, 3, 3)
+
+        NOTE
+        ----
+        Testing with 10k eulers
+            original implementation
+        >>%timeit m_old = EulerZXZ2MatVectorized(eulers)
+        1.17 ms ± 10.1 µs per loop (mean ± std. dev. of 7 runs, 1000 loops each)
+        >>%timeit m_new = Eulers.eulers_to_matrices(eulers)
+        1.2 ms ± 22.1 µs per loop (mean ± std. dev. of 7 runs, 1000 loops each)
         """
         # ensure shape is correct
         try:
