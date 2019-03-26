@@ -217,11 +217,14 @@ class Rodrigues:
     @property
     def rot_ang(self) -> float:
         """
+        Description
+        -----------
         Rotation angle in radians
 
-        NOTE:
-            Restrict the rotation angle to [0-pi], therefore the tan term is 
-            always positive
+        NOTE
+        ----
+        Restrict the rotation angle to [0-pi], therefore the tan term is 
+        always positive
         """
         return np.arctan(norm(self.as_array))*2
 
