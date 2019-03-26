@@ -41,9 +41,6 @@ class Eulers:
     order: str='zxz'
     convention: str='Bunge'
 
-    def __post_init__(self):
-        self.phi = self.phi%np.pi 
-
     @property
     def as_array(self) -> np.ndarray:
         return np.array([self.phi1, self.phi, self.phi2])
