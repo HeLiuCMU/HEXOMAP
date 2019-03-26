@@ -41,9 +41,10 @@ def npy2h5(fName, h5Name, material,lLayerIdx, q=11):
             ds.attrs['info']='hit ratio of simulated peaks and experimental peaks'
     print('=== saved format:')
     h5print(h5Name)
-lFName = [f'dummy_2_single_crystal_furnace_nf_copperBCC_q11_rot720_z{layer}_150x150_0.007_shift_0.0_0.0_0.0.npy' for layer in range(3)]
-print(lFName)
-h5Name = f'dummy_2_single_crystal_furnace_nf_copperBCC_q11_rot720_3layers_150x150_0.007_shift_0.0_0.0_0.0.h5'
-print(h5Name)
-lLayerIdx = np.arange(3)
-npy2h5(lFName, h5Name, 'copperBCC', lLayerIdx,q=11)
+if __name__ == "__main__":
+    lFName = [f'dummy_2_single_crystal_furnace_nf_copperBCC_q11_rot720_z{layer}_150x150_0.007_shift_0.0_0.0_0.0.npy' for layer in range(3)]
+    print(lFName)
+    h5Name = f'dummy_2_single_crystal_furnace_nf_copperBCC_q11_rot720_3layers_150x150_0.007_shift_0.0_0.0_0.0.h5'
+    print(h5Name)
+    lLayerIdx = np.arange(3)
+    npy2h5(lFName, h5Name, 'copperBCC', lLayerIdx,q=11)
