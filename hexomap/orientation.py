@@ -17,12 +17,15 @@ with the exceptions:
 """
 
 import numpy as np
-from dataclasses import dataclass
-from typing import Union
-from hexomap.npmath import norm
-from hexomap.npmath import normalize
-from hexomap.npmath import random_three_vector
+
+from dataclasses     import dataclass
+from typing          import Union
+from hexomap.npmath  import norm
+from hexomap.npmath  import normalize
+from hexomap.npmath  import random_three_vector
 from hexomap.utility import methdispatch
+from hexomap.utility import iszero
+from hexomap.utility import isone
 
 
 @dataclass
@@ -40,6 +43,12 @@ class Eulers:
     in_radians: bool=True
     order: str='zxz'
     convention: str='Bunge'
+
+    def __post_init__(self):
+        # always use SI units
+        _cnvt = np.array if self.in_radians else np.radians
+        self.phi1, self.phi, self.phi2 = _cnvt([self.phi1, self.phi, self.phi2])%(2*np.pi)
+        self.in_radians = True
 
     @property
     def as_array(self) -> np.ndarray:
@@ -64,6 +73,35 @@ class Eulers:
             [ s1*c2+c1*c*s2, -s1*s2+c1*c*c2, -c1*s],
             [          s*s2,           s*c2,     c],
         ])
+    
+    @staticmethod
+    def from_matrix(m: np.ndarray):
+        """
+        Description
+        -----------
+            Initialize an Euler angle with a given rotation matrix
+        
+        Parameters
+        ----------
+        m: np.ndarray
+            input rotation matrix
+        
+        Returns
+        -------
+        Eulers
+        """
+        if isone(m[2,2]**2):
+            return Eulers(
+                0.0,
+                0.0,
+                np.arctan2(m[1,0], m[0,0]), 
+            )
+        else:
+            return Eulers(
+                np.arctan2(m[0,2], -m[1,2]),
+                np.arccos(m[2,2]),
+                np.arctan2(m[2,0], m[2,1]),
+            )
 
     @staticmethod
     def eulers_to_matrices(eulers: np.ndarray) -> np.ndarray:

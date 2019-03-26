@@ -13,8 +13,10 @@ from hexomap.orientation import Eulers
 
 # Backward compatibility for RotRep
 # -- Euler -> Rotation matrix
-EulerZXZ2Mat = lambda e: Eulers(*e).as_matrix
+EulerZXZ2Mat           = lambda e: Eulers(*e).as_matrix
 EulerZXZ2MatVectorized = Eulers.eulers_to_matrices
+# -- Rotation matrix -> EulerZXZ
+Mat2EulerZXZ = lambda m: Eulers.from_matrix(m).as_array
 
 # Backward compatibility for FZfile
 
