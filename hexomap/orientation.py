@@ -26,6 +26,7 @@ from hexomap.npmath  import random_three_vector
 from hexomap.utility import methdispatch
 from hexomap.utility import iszero
 from hexomap.utility import isone
+from hexomap.utility import standarize_euler
 
 
 @dataclass
@@ -33,9 +34,12 @@ class Eulers:
     """
     Euler angles representation of orientation.
 
+    phi1: [0, 2pi]
+    phi:  [0, pi]
+    phi2: [0, 2pi]
+
     Euler angle definitions:
         'Bunge' :  z -> x -> z     // prefered
-        'Tayt–Briant' x -> y -> z  // roll-pitch-yaw
     """
     phi1: float  # [0, 2pi)
     phi:  float  # [0,  pi]
@@ -45,9 +49,11 @@ class Eulers:
     convention: str='Bunge'
 
     def __post_init__(self):
-        # always use SI units
-        _cnvt = np.array if self.in_radians else np.radians
-        self.phi1, self.phi, self.phi2 = _cnvt([self.phi1, self.phi, self.phi2])%(2*np.pi)
+        # force euler to the standard range
+        _euler = np.array([self.phi1, self.phi, self.phi2])
+        self.phi1, self.phi, self.phi2 = standarize_euler(_euler, 
+                                                          self.in_radians,
+                                                        )
         self.in_radians = True
 
     @property
@@ -274,39 +280,33 @@ class Quaternion:
     @property
     def as_eulers(self) -> 'Eulers':
         """
-        Conversion of ACTIVE rotation to Euler angles taken from:
-            Melcher, A. etal.
-            Conversion of EBSD data by a quaternion based algorithm to 
-            be used for grain structure simulations
-            Technische Mechanik 30 (2010) pp 401--413
+        Quaternion to Euler angles
         """
-        eulers = np.zeros(3)
-        if iszero(self.x) and iszero(self.y):
-            eulers[0] = np.arctan2(
-                2.0 * self.w * self.z,
-                self.w**2.0 - self.z**2.0,
-                )
-        elif iszero(self.w) and iszero(self.z):
-            eulers[0] = np.arctan2(
-                2.0*self.x*self.y,
-                self.x**2.0 - self.y**2.0
-                )
-            eulers[1] = np.pi
+        qu = self.as_array
+
+        q03 = qu[0]**2+qu[3]**2
+        q12 = qu[1]**2+qu[2]**2
+        chi = np.sqrt(q03*q12)
+
+        if iszero(chi):
+            eu = np.array([np.arctan2(2.0*qu[0]*qu[3],qu[0]**2-qu[3]**2), 0.0,   0.0]) if iszero(q12) else \
+                 np.array([np.arctan2(2.0*qu[1]*qu[2],qu[1]**2-qu[2]**2), np.pi, 0.0])
         else:
-            chi = np.sqrt((self.w**2 + self.z**2)*(self.x**2 + self.y**2))
-            eulers[0] = np.arctan2(
-                (self.w * self.y + self.x * self.z)/2./chi,
-                (self.w * self.x - self.y * self.z)/2./chi,
-                )
-            eulers[1] = np.arctan2(
-                2.*chi,
-                self.w**2 + self.z**2 - (self.x**2 + self.y**2),
-                )
-            eulers[2] = np.arctan2(
-                (self.z * self.x - self.y * self.w)/2./chi,
-                (self.w * self.x + self.y * self.z)/2./chi,
-                )
-        return Eulers(*eulers)
+            eu = np.array([np.arctan2((qu[0]*qu[2]+qu[1]*qu[3])*chi, (qu[0]*qu[1]-qu[2]*qu[3])*chi ),
+                           np.arctan2( 2.0*chi, q03-q12 ), 
+                           np.arctan2((-qu[0]*qu[2]+qu[1]*qu[3])*chi, (qu[0]*qu[1]+qu[2]*qu[3])*chi )])
+
+        # reduce Euler angles to definition range, i.e a lower limit of 0.0
+        return Eulers(*eu)
+
+    @property
+    def as_matrix(self) -> np.ndarray:
+        """Return the corresponding rotation matrix"""
+        return np.array([
+            [1.0-2.0*(self.y*self.y+self.z*self.z),     2.0*(self.x*self.y-self.z*self.w),     2.0*(self.x*self.z+self.y*self.w)],
+            [    2.0*(self.x*self.y+self.z*self.w), 1.0-2.0*(self.x*self.x+self.z*self.z),     2.0*(self.y*self.z-self.x*self.w)],
+            [    2.0*(self.x*self.z-self.y*self.w),     2.0*(self.x*self.w+self.y*self.z), 1.0-2.0*(self.x*self.x+self.y*self.y)],
+        ])
 
     @property
     def real(self):
@@ -436,20 +436,60 @@ class Quaternion:
         #   single dispatch based polymorphysm did not work for static method
         #   therefore using try-catch block for a temp solution
         try:
-            phi1, phi, phi2 = euler.as_array/2.0
+            ee = 0.5*euler
         except:
-            phi1, phi, phi2 = euler/2.0
-        
-        c1, s1 = np.cos(phi1), np.sin(phi1)
-        c2, s2 = np.cos(phi ), np.sin(phi )
-        c3, s3 = np.cos(phi2), np.sin(phi2)
-
+            ee = 0.5*euler.as_array
+        cPhi = np.cos(ee[1])
+        sPhi = np.sin(ee[1])
         return Quaternion(
-             c1 * c2 * c3 - s1 * c2 * s3,
-             c1 * s2 * c3 + s1 * s2 * s3,
-            -c1 * s2 * s3 + s1 * s2 * c3,
-             c1 * c2 * s3 + s1 * c2 * c3,
+            cPhi*np.cos(ee[0]+ee[2]),
+            sPhi*np.cos(ee[0]-ee[2]),
+            sPhi*np.sin(ee[0]-ee[2]),
+            cPhi*np.sin(ee[0]+ee[2]),
         )
+
+    @staticmethod
+    def from_matrix(m: np.ndarray) -> 'Quaternion':
+        """
+        Construct a quaternion from rotation matrix
+
+        ref:
+            http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
+        """
+        _tr = np.trace(m)
+
+        if _tr > 0:
+            _s = 0.5/np.sqrt(_tr + 1.0)
+            return Quaternion(
+                0.25/_s,
+                (m[2,1] - m[1,2])*_s,
+                (m[0,2] - m[2,0])*_s,
+                (m[1,0] - m[0,1])*_s,
+            )
+        elif (m[0,0] > m[1,1]) and (m[0,0] > m[2,2]):
+            _s = 2.0*np.sqrt(m[0,0] - m[1,1] - m[2,2] + 1.0)
+            return Quaternion(
+                (m[2,1] - m[1,2])/_s,
+                0.25*_s,
+                (m[0,1] + m[1,0])/_s,
+                (m[0,2] + m[2,0])/_s,
+            )
+        elif m[1,1] > m[2,2]:
+            _s = 2.0*np.sqrt(-m[0,0] + m[1,1] - m[2,2] + 1.0)
+            return Quaternion(
+                (m[0,2] - m[2,0])/_s,
+                (m[0,1] + m[1,0])/_s,
+                0.25*_s,
+                (m[1,2] + m[2,1])/_s,
+            )
+        else:
+            _s = 2.0*np.sqrt(-m[0,0] - m[1,1] + m[2,2] + 1.0)
+            return Quaternion(
+                (m[1,0] - m[0,1])/_s,
+                (m[0,2] + m[2,0])/_s,
+                (m[1,2] + m[2,1])/_s,
+                0.25*_s,
+            )
 
     @staticmethod
     def from_random():

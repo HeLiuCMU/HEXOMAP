@@ -9,6 +9,7 @@ import unittest
 import numpy as np
 from functools import reduce
 from hexomap.orientation import Quaternion
+from hexomap.orientation import Eulers
 from hexomap.orientation import Frame
 from hexomap.orientation import Orientation
 from hexomap.npmath import ang_between
@@ -18,8 +19,8 @@ from hexomap.npmath import normalize
 class TestQuaternion(unittest.TestCase):
 
     def setUp(self):
-        n_cases = 1000
-        self.angs = np.random.random(n_cases) * np.pi
+        self.n_cases = 1000
+        self.angs = np.random.random(self.n_cases) * np.pi
         self.axis = (np.random.random(3) - 0.5)
         self.qs = [Quaternion.from_angle_axis(ang, self.axis) 
                         for ang in self.angs
@@ -50,6 +51,12 @@ class TestQuaternion(unittest.TestCase):
             new_vec = Quaternion.quatrotate(Quaternion.from_angle_axis(ang_step, axis), vec)
             np.testing.assert_allclose(ang_step, ang_between(vec, new_vec))
             vec = new_vec
+
+    def test_conversion_quaternion_eulers(self):
+        for _ in range(self.n_cases):
+            euler = Eulers(*((np.random.random(3)-0.5)*2*np.pi))
+            q = Quaternion.from_eulers(euler)
+            np.testing.assert_allclose(euler.as_array, q.as_eulers.as_array)
 
 
 class TestFrame(unittest.TestCase):
