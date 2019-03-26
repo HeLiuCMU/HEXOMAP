@@ -4,7 +4,7 @@ import scipy.ndimage as ndi
 import glob
 import time
 from numba import jit
-def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048]):
+def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048],logfile=None):
     '''
     take median over omega as background
     initial: finle name initial. e.g.:'/home/heliu/work/shahani_feb19_part/nf_part/dummy_2_rt_before_heat_nf/dummy_2_rt_before_heat_nf_'
@@ -22,6 +22,8 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
     start = time.time()
     for layer in range(NLayer):
         print(f'layer: {layer}')
+        if logfile is not None:
+            logfile.write('')
         for det in range(NDet):
             print(f'det: {det}')
             for rot in range(NRot):
@@ -29,12 +31,32 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
                 idx = layer * NDet * NRot + det * NRot + rot + startIdx
                 fName = f'{initial}{idx:06d}{end}'
                 print(fName)
-                imgStack[:,:,rot] = plt.imread(fName)
-                print('img loaded')
+                if logfile is not None:
+                    logfile.write(f'layer: {layer}, det: {det}, rot: {rot}, {fName} \n')
+                try:
+                    imgStack[:,:,rot] = plt.imread(fName)
+                    print('img loaded')
+                except FileNotFoundError:
+                    print(f'FILE NOT FOUND!!! {fName}')
+                    if logfile is not None:
+                        logfile.write(f'FILE NOT FOUND!!! {fName} \n ')
                 #sys.stdout.write(f'\r {rot}')
                 #sys.stdout.flush()
+            if logfile is not None:
+                logfile.write(f'applying median filter \n')
             bkg = np.median(imgStack, axis=2)
-            np.save(f'{outInitial}_z{layer}_det_{det}.npy', bkg)
+            if logfile is not None:
+                logfile.write(f'complete median filter \n')
+            try:
+                np.save(f'{outInitial}_z{layer}_det_{det}.npy', bkg)
+                print(f'saved bkg as {outInitial}_z{layer}_det_{det}.npy \n')
+                if logfile is not None:
+                    logfile.write(f'saved bkg as {outInitial}_z{layer}_det_{det}.npy \n')
+            except:
+                print(f'FAIL SAVING as {outInitial}_z{layer}_det_{det}.npy \n')
+                if logfile is not None:
+                    logfile.write(f'FAIL SAVING as {outInitial}_z{layer}_det_{det}.npy \n')
+                    
             lBkg.append(bkg)
     end = time.time()
     print('\r')
@@ -119,16 +141,16 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
                 lIDOut.extend(lIDTmp)
     return lXOut, lYOut, lIDOut, lIntensityOut
 
-def segmentation_numba(img, bkg, baseline=10, minNPixel=4):
+def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=2):
     '''
     
     '''
     #start = time.time()
     imgSub = img- bkg
-    imgSubMed = ndi.median_filter(imgSub,size=2)
+    imgSubMed = ndi.median_filter(imgSub,size=medianSize)
     imgBase = imgSubMed - baseline
     imgBase[imgBase<0] = 0
-    imgBaseMedian = ndi.median_filter(imgBase, size=2)
+    imgBaseMedian = ndi.median_filter(imgBase, size=medianSize)
     log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
     label,N = ndi.label(log<0)
     label = ndi.grey_dilation(label,size=(3,3))
@@ -139,16 +161,16 @@ def segmentation_numba(img, bkg, baseline=10, minNPixel=4):
     return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lID).astype(np.int32), np.array(lIntensity).astype(np.int32)
 
 
-def segmentation(img, bkg, baseline=10, minNPixel=4):
+def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=2):
     '''
     
     '''
     start = time.time()
     imgSub = img- bkg
-    imgSubMed = ndi.median_filter(imgSub,size=2)
+    imgSubMed = ndi.median_filter(imgSub,size=medianSize)
     imgBase = imgSubMed - baseline
     imgBase[imgBase<0] = 0
-    imgBaseMedian = ndi.median_filter(imgBase, size=2)
+    imgBaseMedian = ndi.median_filter(imgBase, size=medianSize)
     log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
     label,N = ndi.label(log<0)
     label = ndi.grey_dilation(label,size=(3,3))
