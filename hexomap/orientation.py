@@ -63,9 +63,9 @@ class Eulers:
         c,  s  = np.cos(self.phi ), np.sin(self.phi )
         c2, s2 = np.cos(self.phi2), np.sin(self.phi2)
         return np.array([
-            [ c1*c2-s1*c*s2,  s1*c2+c1*c*s2, s*s2],
-            [-c1*s2-s1*c*c2, -s1*s2+c1*c*c2, s*c2],
-            [          s1*s,          -c1*s,    c],
+            [ c1*c2-s1*c*s2, -c1*s2-s1*c*c2,  s1*s],
+            [ s1*c2+c1*c*s2, -s1*s2+c1*c*c2, -c1*s],
+            [          s*s2,           s*c2,     c],
         ])
 
 
