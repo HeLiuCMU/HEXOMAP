@@ -272,6 +272,43 @@ class Quaternion:
         return Rodrigues(*(self.imag/self.real))
 
     @property
+    def as_eulers(self) -> 'Eulers':
+        """
+        Conversion of ACTIVE rotation to Euler angles taken from:
+            Melcher, A. etal.
+            Conversion of EBSD data by a quaternion based algorithm to 
+            be used for grain structure simulations
+            Technische Mechanik 30 (2010) pp 401--413
+        """
+        eulers = np.zeros(3)
+        if iszero(self.x) and iszero(self.y):
+            eulers[0] = np.arctan2(
+                2.0 * self.w * self.z,
+                self.w**2.0 - self.z**2.0,
+                )
+        elif iszero(self.w) and iszero(self.z):
+            eulers[0] = np.arctan2(
+                2.0*self.x*self.y,
+                self.x**2.0 - self.y**2.0
+                )
+            eulers[1] = np.pi
+        else:
+            chi = np.sqrt((self.w**2 + self.z**2)*(self.x**2 + self.y**2))
+            eulers[0] = np.arctan2(
+                (self.w * self.y + self.x * self.z)/2./chi,
+                (self.w * self.x - self.y * self.z)/2./chi,
+                )
+            eulers[1] = np.arctan2(
+                2.*chi,
+                self.w**2 + self.z**2 - (self.x**2 + self.y**2),
+                )
+            eulers[2] = np.arctan2(
+                (self.z * self.x - self.y * self.w)/2./chi,
+                (self.w * self.x + self.y * self.z)/2./chi,
+                )
+        return Eulers(*eulers)
+
+    @property
     def real(self):
         return self.w
 
@@ -390,6 +427,29 @@ class Quaternion:
         """
         axis = normalize(axis)
         return Quaternion(np.cos(angle/2), *(np.sin(angle/2)*axis))
+
+    @staticmethod
+    def from_eulers(euler: 'Eulers') -> 'Quatrnion':
+        """ Return a quaternion based on given Euler Angles """
+        # allow euler as an numpy array
+        # NOTE:
+        #   single dispatch based polymorphysm did not work for static method
+        #   therefore using try-catch block for a temp solution
+        try:
+            phi1, phi, phi2 = euler.as_array/2.0
+        except:
+            phi1, phi, phi2 = euler/2.0
+        
+        c1, s1 = np.cos(phi1), np.sin(phi1)
+        c2, s2 = np.cos(phi ), np.sin(phi )
+        c3, s3 = np.cos(phi2), np.sin(phi2)
+
+        return Quaternion(
+             c1 * c2 * c3 - s1 * c2 * s3,
+             c1 * s2 * c3 + s1 * s2 * s3,
+            -c1 * s2 * s3 + s1 * s2 * c3,
+             c1 * c2 * s3 + s1 * c2 * c3,
+        )
 
     @staticmethod
     def from_random():
