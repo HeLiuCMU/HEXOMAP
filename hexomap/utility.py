@@ -4,6 +4,8 @@
 Utility module for hexomap package.
 """
 
+import numpy as np
+
 from functools import singledispatch
 from functools import update_wrapper
 
@@ -25,6 +27,16 @@ def methdispatch(func):
     wrapper.register = dispatcher.register
     update_wrapper(wrapper, func)
     return wrapper
+
+
+def isone(a):
+    """Work around with float precision issues"""
+    return np.isclose(a, 1.0, atol=1.0e-8, rtol=0.0)
+
+
+def iszero(a):
+    """Work around with float precision issues"""
+    return np.isclose(a, 0.0, atol=1.0e-12, rtol=0.0)
 
 
 if __name__ == "__main__":
