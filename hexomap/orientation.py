@@ -51,7 +51,7 @@ class Eulers:
     @property
     def as_matrix(self):
         """
-        Return the PASSIVE rotation matrix, a.k.a. orientation matrix
+        Return the active rotation matrix
         """
         # NOTE:
         #   It is not recommended to directly associated Euler angles with
