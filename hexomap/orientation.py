@@ -289,12 +289,12 @@ class Quaternion:
         chi = np.sqrt(q03*q12)
 
         if iszero(chi):
-            eu = np.array([np.arctan2(2.0*qu[0]*qu[3],qu[0]**2-qu[3]**2), 0.0,   0.0]) if iszero(q12) else \
-                 np.array([np.arctan2(2.0*qu[1]*qu[2],qu[1]**2-qu[2]**2), np.pi, 0.0])
+            eu = np.array([np.arctan2(-1*2.0*qu[0]*qu[3],qu[0]**2-qu[3]**2), 0.0,   0.0]) if iszero(q12) else \
+            np.array([np.arctan2(2.0*qu[1]*qu[2],qu[1]**2-qu[2]**2),         np.pi, 0.0])
         else:
-            eu = np.array([np.arctan2((qu[0]*qu[2]+qu[1]*qu[3])*chi, (qu[0]*qu[1]-qu[2]*qu[3])*chi ),
-                           np.arctan2( 2.0*chi, q03-q12 ), 
-                           np.arctan2((-qu[0]*qu[2]+qu[1]*qu[3])*chi, (qu[0]*qu[1]+qu[2]*qu[3])*chi )])
+            eu = np.array([np.arctan2((-1*qu[0]*qu[2]+qu[1]*qu[3])*chi, (-1*qu[0]*qu[1]-qu[2]*qu[3])*chi ),
+                       np.arctan2( 2.0*chi, q03-q12 ), 
+                       np.arctan2(( 1*qu[0]*qu[2]+qu[1]*qu[3])*chi, (-1*qu[0]*qu[1]+qu[2]*qu[3])*chi )])
 
         # reduce Euler angles to definition range, i.e a lower limit of 0.0
         return Eulers(*eu)
@@ -442,10 +442,10 @@ class Quaternion:
         cPhi = np.cos(ee[1])
         sPhi = np.sin(ee[1])
         return Quaternion(
-            cPhi*np.cos(ee[0]+ee[2]),
-            sPhi*np.cos(ee[0]-ee[2]),
-            sPhi*np.sin(ee[0]-ee[2]),
-            cPhi*np.sin(ee[0]+ee[2]),
+            +cPhi*np.cos(ee[0]+ee[2]),
+            -sPhi*np.cos(ee[0]-ee[2]),
+            -sPhi*np.sin(ee[0]-ee[2]),
+            -cPhi*np.sin(ee[0]+ee[2]),
         )
 
     @staticmethod
