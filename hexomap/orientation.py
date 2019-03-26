@@ -65,6 +65,42 @@ class Eulers:
             [          s*s2,           s*c2,     c],
         ])
 
+    @staticmethod
+    def eulers_to_matrices(eulers: np.ndarray) -> np.ndarray:
+        """
+        Description
+        -----------
+            Vectorized batch conversion from Eulers (Bunge) angles to rotation
+            matices
+        
+        Parameters
+        ----------
+        eulers: np.ndarray
+            euler angles with the shape of (n_eulers, 3)
+        
+        Returns
+        -------
+        np.ndarray
+            rotation matrices representation of the input Euler angles with
+            the shape of (n_eulers, 3, 3)
+        """
+        # ensure shape is correct
+        try:
+            eulers = eulers.reshape((-1, 3))
+        except:
+            raise ValueError(f"Eulers angles much be ROW/horizontal stacked")
+        
+        c1, s1 = np.cos(eulers[:,0]), np.sin(eulers[:,0])
+        c,  s  = np.cos(eulers[:,1]), np.sin(eulers[:,1])
+        c2, s2 = np.cos(eulers[:,2]), np.sin(eulers[:,2])
+        
+        m = np.zeros((eulers.shape[0], 3, 3))
+        m[:,0,0], m[:,0,1], m[:,0,2] = c1*c2-s1*c*s2, -c1*s2-s1*c*c2,  s1*s
+        m[:,1,0], m[:,1,1], m[:,1,2] = s1*c2+c1*c*s2, -s1*s2+c1*c*c2, -c1*s
+        m[:,2,0], m[:,2,1], m[:,2,2] =          s*s2,           s*c2,     c
+
+        return m
+
 
 @dataclass
 class Rodrigues:
