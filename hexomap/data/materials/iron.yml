@@ -2,7 +2,7 @@ atomic number: &atomz 26
 atomic weight: 55.845
 variants:
   iron_bcc:
-    crystal structure: "BCC"
+    crystal_structure: "BCC"
     lattice constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 2.856
