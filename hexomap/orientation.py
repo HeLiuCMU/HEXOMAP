@@ -291,7 +291,8 @@ class Quaternion:
         self.standardize()
     
     def standardize(self) -> None:
-        _norm = norm([self.w, self.x, self.y, self.z]) * np.sign(self.w)
+        _sgn = -1 if self.w < 0 else 1
+        _norm = norm([self.w, self.x, self.y, self.z]) * _sgn
         self.w /= _norm
         self.x /= _norm
         self.y /= _norm
@@ -356,6 +357,14 @@ class Quaternion:
     @property
     def norm(self) -> float:
         return np.linalg.norm(self.as_array)
+
+    @property
+    def rot_angle(self):
+        return abs(np.arccos(self.w)*2)
+    
+    @property
+    def rot_axis(self):
+        return -1*normalize(self.imag) if np.arccos(self.w)<0 else normalize(self.imag)
     
     @property
     def conjugate(self) -> 'Quaternion':
@@ -725,16 +734,6 @@ class Orientation:
     def as_matrix(self) -> np.ndarray:
         return self.q.as_matrix
 
-    @staticmethod
-    def random_orientations(n: int, frame: Frame) -> list:
-        """Return n random orientations represented in the given frame"""
-        # NOTE:
-        # Whether this provides a uniform sampling of an orientation space
-        # is not tested yet.
-        return [
-            Orientation(Quaternion.from_random(), frame) for _ in range(n)
-        ]
-    
     def misorientation(self, other: 'Orientation', lattice: str) -> tuple:
         """
         Description
@@ -770,13 +769,13 @@ class Orientation:
         # 3. Symmetry operators are required for both, fortunately the
         #    quaternion based calculation is really cheap. 
         _drs = [
-            ((other.q*symop_tu).conjugate * (self.q*symop_mi)).as_rodrigues
+            (other.q*symop_tu).conjugate * (self.q*symop_mi)
                         for symop_mi in sym_ops
                         for symop_tu in sym_ops 
             ]
         # Step_4: Locate the one pair with the smallest rotation angle
-        _dr = _drs[np.argmin([me.rot_ang for me in _drs])]
-        return (_dr.rot_ang, _dr.rot_axis)
+        _dr = _drs[np.argmin([me.rot_angle for me in _drs])]
+        return (_dr.rot_angle, _dr.rot_axis)
 
     def misorientations(self, 
                         others: list, 
@@ -792,6 +791,16 @@ class Orientation:
             for other in others:
                 tmp.append(e.submit(self.misorientation, other, lattice))
         return [me.result() for me in tmp]
+    
+    @staticmethod
+    def random_orientations(n: int, frame: Frame) -> list:
+        """Return n random orientations represented in the given frame"""
+        # NOTE:
+        # Whether this provides a uniform sampling of an orientation space
+        # is not tested yet.
+        return [
+            Orientation(Quaternion.from_random(), frame) for _ in range(n)
+        ]
 
 
 def sym_operator(lattice: str) -> list:
