@@ -72,6 +72,33 @@ def in_fundamental_zone(o: "Orientation", lattice: str) -> bool:
         return True
 
 
+def to_fundamental_zone(o: 'Orientation', lattice: str) -> "Orientation":
+    """
+    Description
+    -----------
+    Reduce the orientation to the fundamental zone with given lattice symmetry
+
+    Parameters
+    ----------
+    o: Orientation
+        Input orientation
+
+    lattice: str
+        Lattice name
+    
+    Returns
+    -------
+    Orientation
+        Orientation with attitude expressed in the fundamental zone of given
+        lattice symmetry type
+    """
+    _q = Quaternion(*o.q.as_array)
+    for symop in sym_operator(lattice):
+        o.q = _q*symop
+        if in_fundamental_zone(o, lattice):
+            return o
+
+
 def in_standard_stereographic_triangle(o: 'Orientation',
                                        lattice: str,
                                     ) -> bool:
