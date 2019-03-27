@@ -391,12 +391,12 @@ class Quaternion:
         raise ValueError("Scale a unitary quaternion is meaningless!")
 
     @staticmethod
-    def combine_two(q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
+    def combine_two(q2: 'Quaternion', q1: 'Quaternion') -> 'Quaternion':
         """
         Description
         -----------
         Return the quaternion that represents the compounded rotation, i.e.
-            q3 = Quaternion.combine_two(q1, q2)
+            q3 = Quaternion.combine_two(q2, q1)
         where q3 is the single rotation that is equivalent to rotate by q1,
         then by q2.
 
@@ -414,7 +414,7 @@ class Quaternion:
         """
         # NOTE:
         # Combine two operation into one is as simple as multiply them
-        return q1*q2
+        return q2*q1
 
     @staticmethod
     def average_quaternions(qs: list) -> 'Quaternion':
@@ -512,6 +512,7 @@ class Quaternion:
         Description
         -----------
         Active rotate a given vector v by given unitary quaternion q
+            v' = q*v_asq*q^-1
 
         Parameters
         ----------
@@ -761,7 +762,8 @@ class Orientation:
             other.frame = self.f
         # Step_3: calculate misorientations among all possible pairs
         # NOTE:
-        # 1. Quaternion multiplication q1*q2 means rotate by q1, then q2
+        # 1. Quaternion multiplication q2*q1 means rotate by q1, then q2,
+        #    which is why the symmetry operator is always on the right
         # 2. To calculate disorientation other -> me, we need to do the 
         #    conjudate of other to bring ? to reference frame, then from 
         #    reference frame to me, hence other.conjugate * me
