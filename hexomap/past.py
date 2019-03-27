@@ -11,6 +11,9 @@ NOTE:
 
 from hexomap.orientation import Eulers
 from hexomap.orientation import Rodrigues
+from hexomap.orientation import Orientation
+from hexomap.orientation import Quaternion
+from hexomap.orientation import Frame
 
 # Backward compatibility for RotRep
 # -- Euler -> Rotation matrix
@@ -25,6 +28,14 @@ Mat2EulerZXZVectorized = Eulers.matrices_to_eulers
 #   the new function use ROW (axis=0) stacked to be consistent with 
 #   the other methods in the same module.
 rod_from_quaternion = lambda qs: Rodrigues.rodrigues_from_quaternions(qs.T).T
+# -- Misorien2FZ1
+def Misorien2FZ1(m1, m2, symtype='Cubic'):
+    _f = Frame()
+    o1 = Orientation(Quaternion.from_matrix(m1), _f)
+    o2 = Orientation(Quaternion.from_matrix(m2), _f)
+    
+    ang, axis = o1.misorientation(o2, symtype)
+    return Quaternion.from_angle_axis(ang, axis).as_matrix, ang
 
 # Backward compatibility for FZfile
 
