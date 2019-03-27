@@ -58,6 +58,10 @@ def  generate_random_rot_mat(n, method='new'):
             matTmp = EulerZXZ2Mat(np.array([alpha[i],beta[i],gamma[i]]))
             result[i,:,:] = matTmp
         return result
+# --misorien
+# NOTE:
+#    The original misorien is implememnted in Cuda.  The equivalent one
+#    is available in Orientation class with Python native multi-threading.
 
 # Backward compatibility for MicFileTool
 
