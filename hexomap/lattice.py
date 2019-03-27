@@ -18,111 +18,10 @@ NOTE:
 
 
 import numpy as np
-from dataclasses         import dataclass
-from hexomap.orientation import Quaternion
-from hexomap.orientation import Orientation
-from hexomap.npmath      import normalize
-
-
-def sym_operator(lattice:str) -> list:
-    """
-    Description
-    -----------
-    Return a list of symmetry operator in quaternions based on given lattice
-    structure.  These quaternion are meant to operator on vectors in the
-    crystal frame.
-
-    Parameters
-    ----------
-    lattice: str
-        lattice name
-
-    Returns
-    -------
-    list
-        list of quaternions as symmetry operators
-
-    NOTE
-    ----
-    This function only provides a list, which is not associated with frame.
-    Therefore, one need to keep in mind that these operator are meant for
-    vectors in crystal frame.
-    """
-    if lattice is None:
-        return [Quaternion(1,0,0,0)]
-    elif lattice.lower() in ['orthorhombic', 'ortho']:
-        return [
-            Quaternion(*me) for me in [
-                [ 1.0,  0.0,  0.0,  0.0 ],
-                [ 0.0,  1.0,  0.0,  0.0 ],
-                [ 0.0,  0.0,  1.0,  0.0 ],
-                [ 0.0,  0.0,  0.0,  1.0 ],
-            ]
-        ]
-    elif lattice.lower() in ['tetragonal', 'tet']:
-        sqrt2 = np.sqrt(2)
-        return [
-            Quaternion(*me) for me in [
-                [ 1.0,        0.0,        0.0,        0.0       ],
-                [ 0.0,        1.0,        0.0,        0.0       ],
-                [ 0.0,        0.0,        1.0,        0.0       ],
-                [ 0.0,        0.0,        0.0,        1.0       ],
-                [ 0.0,        0.5*sqrt2,  0.5*sqrt2,  0.0       ],
-                [ 0.0,       -0.5*sqrt2,  0.5*sqrt2,  0.0       ],
-                [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-            ]
-        ]
-    elif lattice.lower() in ['hexagonal', 'hcp', 'hex']:
-        sqrt3 = np.sqrt(3)
-        return [
-            Quaternion(*me) for me in [
-                [ 1.0,        0.0,        0.0,        0.0       ],
-                [-0.5*sqrt3,  0.0,        0.0,       -0.5       ],
-                [ 0.5,        0.0,        0.0,        0.5*sqrt3 ],
-                [ 0.0,        0.0,        0.0,        1.0       ],
-                [-0.5,        0.0,        0.0,        0.5*sqrt3 ],
-                [-0.5*sqrt3,  0.0,        0.0,        0.5       ],
-                [ 0.0,        1.0,        0.0,        0.0       ],
-                [ 0.0,       -0.5*sqrt3,  0.5,        0.0       ],
-                [ 0.0,        0.5,       -0.5*sqrt3,  0.0       ],
-                [ 0.0,        0.0,        1.0,        0.0       ],
-                [ 0.0,       -0.5,       -0.5*sqrt3,  0.0       ],
-                [ 0.0,        0.5*sqrt3,  0.5,        0.0       ],
-            ]
-        ]
-    elif lattice.lower() in ['cubic', 'bcc', 'fcc']:
-        sqrt2 = np.sqrt(2)
-        return [
-            Quaternion(*me) for me in [
-                [ 1.0,        0.0,        0.0,        0.0       ],
-                [ 0.0,        1.0,        0.0,        0.0       ],
-                [ 0.0,        0.0,        1.0,        0.0       ],
-                [ 0.0,        0.0,        0.0,        1.0       ],
-                [ 0.0,        0.0,        0.5*sqrt2,  0.5*sqrt2 ],
-                [ 0.0,        0.0,        0.5*sqrt2, -0.5*sqrt2 ],
-                [ 0.0,        0.5*sqrt2,  0.0,        0.5*sqrt2 ],
-                [ 0.0,        0.5*sqrt2,  0.0,       -0.5*sqrt2 ],
-                [ 0.0,        0.5*sqrt2, -0.5*sqrt2,  0.0       ],
-                [ 0.0,       -0.5*sqrt2, -0.5*sqrt2,  0.0       ],
-                [ 0.5,        0.5,        0.5,        0.5       ],
-                [-0.5,        0.5,        0.5,        0.5       ],
-                [-0.5,        0.5,        0.5,       -0.5       ],
-                [-0.5,        0.5,       -0.5,        0.5       ],
-                [-0.5,       -0.5,        0.5,        0.5       ],
-                [-0.5,       -0.5,        0.5,       -0.5       ],
-                [-0.5,       -0.5,       -0.5,        0.5       ],
-                [-0.5,        0.5,       -0.5,       -0.5       ],
-                [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
-                [-0.5*sqrt2,  0.0,        0.5*sqrt2,  0.0       ],
-                [-0.5*sqrt2,  0.0,       -0.5*sqrt2,  0.0       ],
-                [-0.5*sqrt2,  0.5*sqrt2,  0.0,        0.0       ],
-                [-0.5*sqrt2, -0.5*sqrt2,  0.0,        0.0       ],
-            ]
-        ]
-    else:
-        raise ValueError(f"Unknown lattice structure {lattice}")
+from dataclasses           import dataclass
+from hexomap.npmath        import normalize
+from hexomap.orientation   import Quaternion
+from hexomap.orientation   import Orientation
 
 
 def in_fundamental_zone(o: "Orientation", lattice: str) -> bool:
@@ -361,4 +260,4 @@ def reciprocal_basis_lattice(lattice: str) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    pass
+    print("testing")
