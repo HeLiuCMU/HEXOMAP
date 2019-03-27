@@ -2,8 +2,8 @@ atomic number: &atomz 29
 atomic weight: 63.546
 variants:
   copper:
-    crystal structure: "FCC"
-    lattice constant:
+    crystal_structure: "FCC"
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 3.6149
       - b: 3.6149
@@ -26,8 +26,8 @@ variants:
         - atomic numner: *atomz
     source: "https://www.webelements.com/copper/crystal_structure.html"
   copper_fcc:
-    crystal structure: "FCC"
-    lattice constant:
+    crystal_structure: "FCC"
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 3.692
       - b: 3.692
@@ -50,8 +50,8 @@ variants:
         - atomic numner: *atomz
     source: "?"
   copper_bcc:
-    crystal structure: "BCC"
-    lattice constant:
+    crystal_structure: "BCC"
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 2.947
       - b: 2.947

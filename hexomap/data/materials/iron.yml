@@ -3,7 +3,7 @@ atomic weight: 55.845
 variants:
   iron_bcc:
     crystal_structure: "BCC"
-    lattice constant:
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 2.856
       - b: 2.856
@@ -21,7 +21,7 @@ variants:
     source: "?"
   stainless_steel:
     crystal_structure: "FCC"
-    lattice constant:
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 3.59
       - b: 3.59
@@ -45,7 +45,7 @@ variants:
     source: "?"
   iron_fcc:
     crystal_structure: "FCC"
-    lattice constant:
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 2.856
       - b: 2.856

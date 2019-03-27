@@ -3,7 +3,7 @@ atomic weight: 24.304
 variants:
   WE43:
     crystal_structure: "HCP"
-    lattice constant:
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 3.2094
       - b: 3.2094
@@ -22,7 +22,7 @@ variants:
     alias: "Magnesium Elektron WE43 Alloy (UNS M18430)"
   mg_hcp:
     crystal_structure: "HCP"
-    lattice constant:
+    lattice_constant:
       # -- unit: nm, nm, nm, degree, degree, degree
       - a: 3.2094
       - b: 3.2094
