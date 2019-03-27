@@ -305,7 +305,8 @@ class Quaternion:
     
     @property
     def as_rodrigues(self) -> 'Rodrigues':
-        return Rodrigues(*(self.imag/self.real))
+        _r = self.imag if iszero(self.real) else self.imag/self.real
+        return Rodrigues(*_r)
 
     @property
     def as_eulers(self) -> 'Eulers':
@@ -725,6 +726,10 @@ class Orientation:
     @property
     def as_quaternion(self) -> 'Quaternion':
         return self.q
+
+    @property
+    def as_rodrigues(self) -> 'Rodrigues':
+        return self.q.as_rodrigues
 
     @property
     def as_eulers(self) -> 'Eulers':
