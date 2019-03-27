@@ -22,6 +22,7 @@ from dataclasses           import dataclass
 from hexomap.npmath        import normalize
 from hexomap.orientation   import Quaternion
 from hexomap.orientation   import Orientation
+from hexomap.orientation   import sym_operator
 
 
 def in_fundamental_zone(o: "Orientation", lattice: str) -> bool:

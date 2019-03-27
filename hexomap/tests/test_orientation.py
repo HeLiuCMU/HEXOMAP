@@ -130,17 +130,40 @@ class TestFrame(unittest.TestCase):
 class TestOrientation(unittest.TestCase):
 
     def setUp(self):
-        self.quat = Quaternion(1/np.sqrt(2), 0, 0, -1/np.sqrt(2))
-        self.matx = np.array([[ 0, 1, 0],
-                              [-1, 0, 0],
-                              [ 0, 0, 1],
-                             ])
-        self.ang = np.radians(90)
-        self.axis = np.array([0, 0, -1])
-        self.rodrigues = np.array(0, 0, -1)
-        self.frame = Frame()
-        # make the Orientation
-        self.ori = Orientation(self.quat, self.frame)
+        pass
+
+    def test_misorientation_general(self):
+        frame_lab = Frame()
+        # test_0 general case (None)
+        axis = random_three_vector()
+        q_0 = Quaternion.from_angle_axis(0, axis)
+        o_0 = Orientation(q_0, frame_lab)
+
+        for _ in range(100):
+            # avoid symmetrically 
+            ang = (np.random.random())*np.pi/5
+            o_i = Orientation(Quaternion.from_angle_axis(ang, axis), frame_lab)
+            np.testing.assert_allclose(ang, o_0.misorientation(o_i, None)[0])
+
+    def test_misorientation_cubic(self):
+        frame_lab = Frame()
+        # cubic symmetry
+        axis = np.array([0,0,1])
+        ang0 = np.random.random()*np.pi
+        ang1 = ang0 + np.pi/2
+        o_0 = Orientation(Quaternion.from_angle_axis(ang0, axis), frame_lab)
+        o_1 = Orientation(Quaternion.from_angle_axis(ang1, axis), frame_lab)
+        np.testing.assert_allclose(0, o_0.misorientation(o_1, 'cubic')[0])
+    
+    def test_misorientation_hexagonal(self):
+        frame_lab = Frame()
+        # cubic symmetry
+        axis = np.array([0,0,1])
+        ang0 = np.random.random()*np.pi
+        ang1 = ang0 + np.pi/3
+        o_0 = Orientation(Quaternion.from_angle_axis(ang0, axis), frame_lab)
+        o_1 = Orientation(Quaternion.from_angle_axis(ang1, axis), frame_lab)
+        np.testing.assert_allclose(0, o_0.misorientation(o_1, 'hcp')[0])
 
 
 if __name__ == "__main__":
