@@ -43,6 +43,21 @@ def Misorien2FZ1(m1, m2, symtype='Cubic'):
 GetSymRotMat = lambda s='Cubic': np.array([q.as_matrix for q in sym_operator(s)])
 
 # Backward compatibility for FZfile
+# --generate_random_rot_mat
+def  generate_random_rot_mat(n, method='new'):
+    if method.lower() == 'new':
+        return [Quaternion.from_random().as_matrix for _ in range(n)]
+    else:
+        nEuler = int(n)
+        alpha = np.random.uniform(-np.pi,np.pi,nEuler)
+        gamma = np.random.uniform(-np.pi,np.pi,nEuler)
+        z = np.random.uniform(-1,1,nEuler)
+        beta = np.arccos(z)
+        result = np.empty([nEuler,3,3])
+        for i in range(nEuler):
+            matTmp = EulerZXZ2Mat(np.array([alpha[i],beta[i],gamma[i]]))
+            result[i,:,:] = matTmp
+        return result
 
 # Backward compatibility for MicFileTool
 
