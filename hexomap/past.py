@@ -9,11 +9,14 @@ NOTE:
     to the script to continue use deprecated functions from previous version.
 """
 
+import numpy as np
+
 from hexomap.orientation import Eulers
 from hexomap.orientation import Rodrigues
 from hexomap.orientation import Orientation
 from hexomap.orientation import Quaternion
 from hexomap.orientation import Frame
+from hexomap.orientation import sym_operator
 
 # Backward compatibility for RotRep
 # -- Euler -> Rotation matrix
@@ -36,6 +39,8 @@ def Misorien2FZ1(m1, m2, symtype='Cubic'):
     
     ang, axis = o1.misorientation(o2, symtype)
     return Quaternion.from_angle_axis(ang, axis).as_matrix, ang
+# -- GetSymRotMat
+GetSymRotMat = lambda s='Cubic': np.array([q.as_matrix for q in sym_operator(s)])
 
 # Backward compatibility for FZfile
 
