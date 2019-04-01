@@ -1,0 +1,69 @@
+atomic_number: &atomz 26
+atomic_weight: 55.845
+variants:
+  iron_bcc:
+    crystal_structure: "BCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 2.856
+      b: 2.856
+      c: 2.856
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0.5, 0.5, 0.5]
+        atomic_number: *atomz
+    source: "?"
+  stainless_steel:
+    crystal_structure: "FCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 3.59
+      b: 3.59
+      c: 3.59
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0, 0.5, 0.5]
+        atomic_number: *atomz
+      - atom_3:
+        pos: [0.5, 0, 0.5]
+        atomic_number: *atomz
+      - atom_4:
+        pos: [0.5, 0.5, 0]
+        atomic_number: *atomz
+    source: "?"
+  iron_fcc:
+    crystal_structure: "FCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 2.856
+      b: 2.856
+      c: 2.856
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0, 0.5, 0.5]
+        atomic_number: *atomz
+      - atom_3:
+        pos: [0.5, 0, 0.5]
+        atomic_number: *atomz
+      - atom_4:
+        pos: [0.5, 0.5, 0]
+        atomic_number: *atomz
+    source: "?"

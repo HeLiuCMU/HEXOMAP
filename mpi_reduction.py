@@ -75,7 +75,7 @@ if rank==0:
     start =  time.time()
 if generateBkg:
     if rank==0:
-        lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=NLayer,end=extention)
+        lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=NLayer,end=extention, logfile=logfile)
     else:
         lBkg = None
     lBkg = comm.bcast(lBkg, root=0)
@@ -84,7 +84,11 @@ else:
     lBkg = []
     for layer in range(NLayer):
         for det in range(NDet):
-            lBkg.append(np.load(f'{bkgInitial}_z{layer}_det_{det}.npy'))
+            try:
+                lBkg.append(np.load(f'{bkgInitial}_z{layer}_det_{det}.npy'))
+            except FileNotFoundError:
+                logfile.write(f'FILE NOT FOUND!!! {bkgInitial}_z{layer}_det_{det}.npy \n')
+            
 comm.Barrier()
 if rank==0:
     logfile.write('end generating bkg \n')
@@ -96,7 +100,10 @@ if generateBin:
         bkg = lBkg[lBkgIdx[i]]
         fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
         logfile.write(f"rank: {rank} : {fName}\n")
-        img = plt.imread(fName)
+        try:
+            img = plt.imread(fName)
+        except FileNotFoundError:
+            logfile.write(f"FILE NOT FOUND!!! rank: {rank} : {fName}\n")
         binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
         snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel)
         IntBin.WritePeakBinaryFile(snp, binFileName) 

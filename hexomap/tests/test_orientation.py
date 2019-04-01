@@ -9,6 +9,7 @@ import unittest
 import numpy as np
 from functools import reduce
 from hexomap.orientation import Quaternion
+from hexomap.orientation import Eulers
 from hexomap.orientation import Frame
 from hexomap.orientation import Orientation
 from hexomap.npmath import ang_between
@@ -18,8 +19,8 @@ from hexomap.npmath import normalize
 class TestQuaternion(unittest.TestCase):
 
     def setUp(self):
-        n_cases = 1000
-        self.angs = np.random.random(n_cases) * np.pi
+        self.n_cases = 1000
+        self.angs = np.random.random(self.n_cases) * np.pi
         self.axis = (np.random.random(3) - 0.5)
         self.qs = [Quaternion.from_angle_axis(ang, self.axis) 
                         for ang in self.angs
@@ -50,6 +51,18 @@ class TestQuaternion(unittest.TestCase):
             new_vec = Quaternion.quatrotate(Quaternion.from_angle_axis(ang_step, axis), vec)
             np.testing.assert_allclose(ang_step, ang_between(vec, new_vec))
             vec = new_vec
+
+    def test_conversion_quaternion_eulers(self):
+        for _ in range(self.n_cases):
+            euler = Eulers(*((np.random.random(3)-0.5)*2*np.pi))
+            q = Quaternion.from_eulers(euler)
+            np.testing.assert_allclose(euler.as_array, q.as_eulers.as_array)
+    
+    def test_conversion_quaternion_matrix(self):
+        for _ in range(self.n_cases):
+            m = Eulers(*((np.random.random(3)-0.5)*2*np.pi)).as_matrix
+            q = Quaternion.from_matrix(m)
+            np.testing.assert_allclose(m, q.as_matrix)
 
 
 class TestFrame(unittest.TestCase):
@@ -117,17 +130,40 @@ class TestFrame(unittest.TestCase):
 class TestOrientation(unittest.TestCase):
 
     def setUp(self):
-        self.quat = Quaternion(1/np.sqrt(2), 0, 0, -1/np.sqrt(2))
-        self.matx = np.array([[ 0, 1, 0],
-                              [-1, 0, 0],
-                              [ 0, 0, 1],
-                             ])
-        self.ang = np.radians(90)
-        self.axis = np.array([0, 0, -1])
-        self.rodrigues = np.array(0, 0, -1)
-        self.frame = Frame()
-        # make the Orientation
-        self.ori = Orientation(self.quat, self.frame)
+        pass
+
+    def test_misorientation_general(self):
+        frame_lab = Frame()
+        # test_0 general case (None)
+        axis = random_three_vector()
+        q_0 = Quaternion.from_angle_axis(0, axis)
+        o_0 = Orientation(q_0, frame_lab)
+
+        for _ in range(100):
+            # avoid symmetrically 
+            ang = (np.random.random())*np.pi/5
+            o_i = Orientation(Quaternion.from_angle_axis(ang, axis), frame_lab)
+            np.testing.assert_allclose(ang, o_0.misorientation(o_i, None)[0])
+
+    def test_misorientation_cubic(self):
+        frame_lab = Frame()
+        # cubic symmetry
+        axis = np.array([0,0,1])
+        ang0 = np.random.random()*np.pi
+        ang1 = ang0 + np.pi/2
+        o_0 = Orientation(Quaternion.from_angle_axis(ang0, axis), frame_lab)
+        o_1 = Orientation(Quaternion.from_angle_axis(ang1, axis), frame_lab)
+        np.testing.assert_allclose(0, o_0.misorientation(o_1, 'cubic')[0])
+    
+    def test_misorientation_hexagonal(self):
+        frame_lab = Frame()
+        # cubic symmetry
+        axis = np.array([0,0,1])
+        ang0 = np.random.random()*np.pi
+        ang1 = ang0 + np.pi/3
+        o_0 = Orientation(Quaternion.from_angle_axis(ang0, axis), frame_lab)
+        o_1 = Orientation(Quaternion.from_angle_axis(ang1, axis), frame_lab)
+        np.testing.assert_allclose(0, o_0.misorientation(o_1, 'hcp')[0])
 
 
 if __name__ == "__main__":

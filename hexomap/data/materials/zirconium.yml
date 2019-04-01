@@ -1,0 +1,21 @@
+atomic_number: &atomz 40
+atomic_weight: 91.224
+variants:
+  zr_hcp:
+    crystal_structure: "HCP"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 3.232
+      b: 3.232
+      c: 5.147
+      alpha: 90
+      beta:  90
+      gamma: 120
+    atoms:
+      - atom_1:
+        pos: [1/3, 2/3, 1/4]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [2/3, 1/3, 3/4]
+        atomic_number: *atomz
+    srouce: "https://www.webelements.com/zirconium/crystal_structure.html"

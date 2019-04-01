@@ -1,0 +1,69 @@
+atomic_number: &atomz 29
+atomic_weight: 63.546
+variants:
+  copper:
+    crystal_structure: "FCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 3.6149
+      b: 3.6149
+      c: 3.6149
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0, 0.5, 0.5]
+        atomic_number: *atomz
+      - atom_3:
+        pos: [0.5, 0, 0.5]
+        atomic_number: *atomz
+      - atom_4:
+        pos: [0.5, 0.5, 0]
+        atomic_number: *atomz
+    source: "https://www.webelements.com/copper/crystal_structure.html"
+  copper_fcc:
+    crystal_structure: "FCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 3.692
+      b: 3.692
+      c: 3.692
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0, 0.5, 0.5]
+        atomic_number: *atomz
+      - atom_3:
+        pos: [0.5, 0, 0.5]
+        atomic_number: *atomz
+      - atom_4:
+        pos: [0.5, 0.5, 0]
+        atomic_number: *atomz
+    source: "?"
+  copper_bcc:
+    crystal_structure: "BCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 2.947
+      b: 2.947
+      c: 2.947
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0.5, 0.5, 0.5]
+        atomic_number: *atomz
+    source: "?"

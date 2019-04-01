@@ -14,15 +14,23 @@ with the exceptions:
        between orientations can only be done when all of them are converted
        to the same frame.
     2. Always prefer SI units.
+
+Conversion chain:
+    Rodrigues (angle,axis) <-> quaternion <-> Euler angles(ZXZ) <-> rotation matrix
 """
 
-import numpy as np
-from dataclasses import dataclass
-from typing import Union
-from hexomap.npmath import norm
-from hexomap.npmath import normalize
-from hexomap.npmath import random_three_vector
+import numpy              as np
+import concurrent.futures as cf
+
+from dataclasses     import dataclass
+from typing          import Union
+from hexomap.npmath  import norm
+from hexomap.npmath  import normalize
+from hexomap.npmath  import random_three_vector
 from hexomap.utility import methdispatch
+from hexomap.utility import iszero
+from hexomap.utility import isone
+from hexomap.utility import standarize_euler
 
 
 @dataclass
@@ -30,9 +38,12 @@ class Eulers:
     """
     Euler angles representation of orientation.
 
+    phi1: [0, 2pi]
+    phi:  [0, pi]
+    phi2: [0, 2pi]
+
     Euler angle definitions:
         'Bunge' :  z -> x -> z     // prefered
-        'Tayt–Briant' x -> y -> z  // roll-pitch-yaw
     """
     phi1: float  # [0, 2pi)
     phi:  float  # [0,  pi]
@@ -42,7 +53,12 @@ class Eulers:
     convention: str='Bunge'
 
     def __post_init__(self):
-        self.phi = self.phi%np.pi 
+        # force euler to the standard range
+        _euler = np.array([self.phi1, self.phi, self.phi2])
+        self.phi1, self.phi, self.phi2 = standarize_euler(_euler, 
+                                                          self.in_radians,
+                                                        )
+        self.in_radians = True
 
     @property
     def as_array(self) -> np.ndarray:
@@ -51,7 +67,7 @@ class Eulers:
     @property
     def as_matrix(self):
         """
-        Return the PASSIVE rotation matrix, a.k.a. orientation matrix
+        Return the active rotation matrix
         """
         # NOTE:
         #   It is not recommended to directly associated Euler angles with
@@ -60,28 +76,192 @@ class Eulers:
         #   However, I am providing the conversion to (orientation) matrix
         #   here for some backward compatbility.
         c1, s1 = np.cos(self.phi1), np.sin(self.phi1)
-        c,  s  = np.cos(self.phi), np.sin(self.phi)
-        c2, s2 =  np.cos(self.phi2), np.sin(self.phi2)
+        c,  s  = np.cos(self.phi ), np.sin(self.phi )
+        c2, s2 = np.cos(self.phi2), np.sin(self.phi2)
         return np.array([
-            [ c1*c2-s1*c*s2,  s1*c2+c1*c*s2, s*s2],
-            [-c1*s2-s1*c*c2, -s1*s2+c1*c*c2, s*c2],
-            [          s1*s,          -c1*s,    c],
+            [ c1*c2-s1*c*s2, -c1*s2-s1*c*c2,  s1*s],
+            [ s1*c2+c1*c*s2, -s1*s2+c1*c*c2, -c1*s],
+            [          s*s2,           s*c2,     c],
         ])
+    
+    @staticmethod
+    def from_matrix(m: np.ndarray):
+        """
+        Description
+        -----------
+            Initialize an Euler angle with a given rotation matrix
+        
+        Parameters
+        ----------
+        m: np.ndarray
+            input rotation matrix
+        
+        Returns
+        -------
+        Eulers
+        """
+        if isone(m[2,2]**2):
+            return Eulers(
+                0.0,
+                0.0,
+                np.arctan2(m[1,0], m[0,0]), 
+            )
+        else:
+            return Eulers(
+                np.arctan2(m[0,2], -m[1,2]),
+                np.arccos(m[2,2]),
+                np.arctan2(m[2,0], m[2,1]),
+            )
+
+    @staticmethod
+    def eulers_to_matrices(eulers: np.ndarray) -> np.ndarray:
+        """
+        Description
+        -----------
+            Vectorized batch conversion from Eulers (Bunge) angles to rotation
+            matices
+        
+        Parameters
+        ----------
+        eulers: np.ndarray
+            euler angles with the shape of (n_eulers, 3)
+        
+        Returns
+        -------
+        np.ndarray
+            rotation matrices representation of the input Euler angles with
+            the shape of (n_eulers, 3, 3)
+
+        NOTE
+        ----
+        Testing with 10k eulers
+            original implementation
+        >>%timeit m_old = EulerZXZ2MatVectorized(eulers)
+        1.17 ms ± 10.1 µs per loop (mean ± std. dev. of 7 runs, 1000 loops each)
+        >>%timeit m_new = Eulers.eulers_to_matrices(eulers)
+        1.2 ms ± 22.1 µs per loop (mean ± std. dev. of 7 runs, 1000 loops each)
+        """
+        # ensure shape is correct
+        try:
+            eulers = eulers.reshape((-1, 3))
+        except:
+            raise ValueError(f"Eulers angles much be ROW/horizontal stacked")
+        
+        c1, s1 = np.cos(eulers[:,0]), np.sin(eulers[:,0])
+        c,  s  = np.cos(eulers[:,1]), np.sin(eulers[:,1])
+        c2, s2 = np.cos(eulers[:,2]), np.sin(eulers[:,2])
+        
+        m = np.zeros((eulers.shape[0], 3, 3))
+        m[:,0,0], m[:,0,1], m[:,0,2] = c1*c2-s1*c*s2, -c1*s2-s1*c*c2,  s1*s
+        m[:,1,0], m[:,1,1], m[:,1,2] = s1*c2+c1*c*s2, -s1*s2+c1*c*c2, -c1*s
+        m[:,2,0], m[:,2,1], m[:,2,2] =          s*s2,           s*c2,     c
+
+        return m
+    
+    @staticmethod
+    def matrices_to_eulers(matrices: np.ndarray) -> np.ndarray:
+        """
+        Description
+        -----------
+            Vectorized batch conversion from stack of rotation matrices to 
+            Euler angles (Bunge)
+
+        Parameter
+        ---------
+        matrices: np.ndarray
+            stack of rotation matrices
+
+        Returns
+        -------
+        np.ndarray
+            stakc of Euler angles (Bunge)
+
+        Note
+        ----
+        Testing with 10k rotation matrices
+            original implementation
+        >>%timeit eulers_o = Mat2EulerZXZVectorized(Rs) 
+        2.01 ms ± 87.9 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+            current implementation
+        >>%timeit eulers_n = Eulers.matrices_to_eulers(Rs)
+        1.45 ms ± 8.63 µs per loop (mean ± std. dev. of 7 runs, 1000 loops each)
+        """
+        try:
+            matrices = matrices.reshape((-1,3,3))
+        except:
+            raise ValueError("Please stack rotation matrices along 1st-axis")
+        
+        eulers = np.zeros((matrices.shape[0], 3))
+
+        # first work the degenerated cases
+        _idx = np.isclose(matrices[:,2,2]**2, 1)
+        eulers[_idx, 2] =  np.arctan2(matrices[_idx,1,0], matrices[_idx,0,0]) 
+        # then the general cases
+        _idx = (1 - _idx).astype(bool)
+        eulers[_idx, 0] = np.arctan2(matrices[_idx,0,2], -matrices[_idx,1,2])
+        eulers[_idx, 1] = np.arccos(matrices[_idx,2,2]),
+        eulers[_idx, 2] = np.arctan2(matrices[_idx,2,0], matrices[_idx,2,1]),
+
+        return eulers%(2*np.pi)
 
 
 @dataclass
 class Rodrigues:
     """
-    Rodrigues–Frank vector
+    Rodrigues–Frank vector: ([n_1, n_2, n_3], tan(ω/2))
     """
-    angle: float
-    axis: np.ndarray
+    r1: float
+    r2: float
+    r3: float
 
-    def __post_init__(self):
-        self.axis = normalize(self.axis)
+    @property
+    def as_array(self) -> np.ndarray:
+        """As numpy array"""
+        return np.array([self.r1, self.r2, self.r3])
 
-    def as_array(self):
-        return np.tan(self.angle/2)*self.axis
+    @property
+    def rot_axis(self) -> np.ndarray:
+        """Rotation axis"""
+        return normalize(self.as_array)
+
+    @property
+    def rot_ang(self) -> float:
+        """
+        Description
+        -----------
+        Rotation angle in radians
+
+        NOTE
+        ----
+        Restrict the rotation angle to [0-pi], therefore the tan term is 
+        always positive
+        """
+        return np.arctan(norm(self.as_array))*2
+
+    @staticmethod
+    def rodrigues_from_quaternions(quats: np.ndarray) -> np.ndarray:
+        """
+        Description
+        -----------
+            Vectorized batch conversion from unitary quaternions to
+            Rodrigues vectors
+
+        Parameters
+        ----------
+        quats: np.ndarray
+            input quaternions stack along the first axis
+        
+        Returns
+        -------
+        np.ndarray
+            output rodrigues vectors stack along the first axis
+        """
+        try:
+            quats = quats.reshape(-1, 4)
+        except:
+            raise ValueError("Row stack input quaternions")
+        
+        return quats[:,1:4]/quats[:,0][:,None]
 
 
 @dataclass
@@ -111,7 +291,8 @@ class Quaternion:
         self.standardize()
     
     def standardize(self) -> None:
-        _norm = norm([self.w, self.x, self.y, self.z]) * np.sign(self.w)
+        _sgn = -1 if self.w < 0 else 1
+        _norm = norm([self.w, self.x, self.y, self.z]) * _sgn
         self.w /= _norm
         self.x /= _norm
         self.y /= _norm
@@ -121,6 +302,50 @@ class Quaternion:
     @property
     def as_array(self) -> np.ndarray:
         return np.array([self.w, self.x, self.y, self.z])
+    
+    @property
+    def as_rodrigues(self) -> 'Rodrigues':
+        _r = self.imag if iszero(self.real) else self.imag/self.real
+        return Rodrigues(*_r)
+
+    @property
+    def as_eulers(self) -> 'Eulers':
+        """
+        Quaternion to Euler angles
+        """
+        qu = self.as_array
+
+        q03 = qu[0]**2+qu[3]**2
+        q12 = qu[1]**2+qu[2]**2
+        chi = np.sqrt(q03*q12)
+
+        if iszero(chi):
+            if iszero(q12):
+                eu = np.array([
+                    np.arctan2(-1*2.0*qu[0]*qu[3],qu[0]**2-qu[3]**2), 
+                    0.0,   
+                    0.0,
+                    ]) 
+            else: 
+                eu = np.array([
+                    np.arctan2(2.0*qu[1]*qu[2],qu[1]**2-qu[2]**2),         
+                    np.pi, 
+                    0.0,
+                    ])
+        else:
+            eu = np.array([
+                np.arctan2((-1*qu[0]*qu[2]+qu[1]*qu[3])*chi, (-1*qu[0]*qu[1]-qu[2]*qu[3])*chi ),
+                np.arctan2( 2.0*chi, q03-q12 ), 
+                np.arctan2(( 1*qu[0]*qu[2]+qu[1]*qu[3])*chi, (-1*qu[0]*qu[1]+qu[2]*qu[3])*chi ),
+                ])
+
+        # reduce Euler angles to definition range, i.e a lower limit of 0.0
+        return Eulers(*eu)
+
+    @property
+    def as_matrix(self) -> np.ndarray:
+        """Return the rotation matrix"""
+        return self.as_eulers.as_matrix
 
     @property
     def real(self):
@@ -133,6 +358,14 @@ class Quaternion:
     @property
     def norm(self) -> float:
         return np.linalg.norm(self.as_array)
+
+    @property
+    def rot_angle(self):
+        return abs(np.arccos(self.w)*2)
+    
+    @property
+    def rot_axis(self):
+        return -1*normalize(self.imag) if np.arccos(self.w)<0 else normalize(self.imag)
     
     @property
     def conjugate(self) -> 'Quaternion':
@@ -168,12 +401,12 @@ class Quaternion:
         raise ValueError("Scale a unitary quaternion is meaningless!")
 
     @staticmethod
-    def combine_two(q1: 'Quaternion', q2: 'Quaternion') -> 'Quaternion':
+    def combine_two(q2: 'Quaternion', q1: 'Quaternion') -> 'Quaternion':
         """
         Description
         -----------
         Return the quaternion that represents the compounded rotation, i.e.
-            q3 = Quaternion.combine_two(q1, q2)
+            q3 = Quaternion.combine_two(q2, q1)
         where q3 is the single rotation that is equivalent to rotate by q1,
         then by q2.
 
@@ -191,7 +424,7 @@ class Quaternion:
         """
         # NOTE:
         # Combine two operation into one is as simple as multiply them
-        return q1*q2
+        return q2*q1
 
     @staticmethod
     def average_quaternions(qs: list) -> 'Quaternion':
@@ -239,8 +472,43 @@ class Quaternion:
         ------
         Quaternion
         """
-        axis = normalize(axis)
-        return Quaternion(np.cos(angle/2), *(np.sin(angle/2)*axis))
+        if iszero(angle):
+            return Quaternion(1, 0, 0, 0)
+        else:
+            axis = normalize(axis)
+            return Quaternion(np.cos(angle/2), *(np.sin(angle/2)*axis))
+
+    @staticmethod
+    def from_eulers(euler: 'Eulers') -> 'Quatrnion':
+        """ Return a quaternion based on given Euler Angles """
+        # allow euler as an numpy array
+        # NOTE:
+        #   single dispatch based polymorphysm did not work for static method
+        #   therefore using try-catch block for a temp solution
+        try:
+            ee = 0.5*euler
+        except:
+            ee = 0.5*euler.as_array
+        cPhi = np.cos(ee[1])
+        sPhi = np.sin(ee[1])
+        return Quaternion(
+            +cPhi*np.cos(ee[0]+ee[2]),
+            -sPhi*np.cos(ee[0]-ee[2]),
+            -sPhi*np.sin(ee[0]-ee[2]),
+            -cPhi*np.sin(ee[0]+ee[2]),
+        )
+
+    @staticmethod
+    def from_rodrigues(ro: 'Rodrigues') -> 'Quaternion':
+        """Construct an equivalent quaternion from given Rodrigues"""
+        if not isinstance(ro, Rodrigues):
+            ro = Rodrigues(*ro)
+        return Quaternion.from_angle_axis(ro.rot_ang, ro.rot_axis)
+
+    @staticmethod
+    def from_matrix(m: np.ndarray) -> 'Quaternion':
+        """Construct quaternion from rotation matrix"""
+        return Quaternion.from_eulers(Eulers.from_matrix(m))
 
     @staticmethod
     def from_random():
@@ -254,6 +522,7 @@ class Quaternion:
         Description
         -----------
         Active rotate a given vector v by given unitary quaternion q
+            v' = q*v_asq*q^-1
 
         Parameters
         ----------
@@ -447,24 +716,197 @@ class Orientation:
     
     @frame.setter
     def frame(self, new_frame: Frame) -> None:
-        pass
+        # frame update
+        _m = self.q.as_matrix
+        for i in range(3):
+            _m[:,i] = Frame.transform_vector(_m[:,i], self.frame, new_frame)
+        self.q = Quaternion.from_matrix(_m)
+        self.f = new_frame
 
     @property
     def as_quaternion(self) -> 'Quaternion':
         return self.q
 
     @property
-    def as_eulers(self) -> 'Eulers':
-        pass
+    def as_rodrigues(self) -> 'Rodrigues':
+        return self.q.as_rodrigues
 
     @property
-    def as_angleaxis(self) -> tuple:
-        pass
+    def as_eulers(self) -> 'Eulers':
+        return self.q.as_eulers
 
+    @property
+    def as_matrix(self) -> np.ndarray:
+        return self.q.as_matrix
+
+    def misorientation(self, other: 'Orientation', lattice: str) -> tuple:
+        """
+        Description
+        -----------
+        Calculate the misorientation bewteen self and other assuming given
+        lattice (symmetry)
+
+        Parameters
+        ----------
+        other: Orientation
+            the other orientation instance
+        
+        lattice: str
+            symmetry name
+        
+        Returns
+        -------
+        tuple
+            Return the (angle, axis) pair
+        """
+        # Step_1: get the symmetry operators
+        sym_ops = sym_operator(lattice)
+        # Step_2: make sure both are in the same frame
+        if self.f.name != other.f.name:
+            other.frame = self.f
+        # Step_3: calculate misorientations among all possible pairs
+        # NOTE:
+        # 1. Quaternion multiplication q2*q1 means rotate by q1, then q2,
+        #    which is why the symmetry operator is always on the right
+        # 2. To calculate disorientation other -> me, we need to do the 
+        #    conjudate of other to bring ? to reference frame, then from 
+        #    reference frame to me, hence other.conjugate * me
+        # 3. Symmetry operators are required for both, fortunately the
+        #    quaternion based calculation is really cheap. 
+        _drs = [
+            (other.q*symop_tu).conjugate * (self.q*symop_mi)
+                        for symop_mi in sym_ops
+                        for symop_tu in sym_ops 
+            ]
+        # Step_4: Locate the one pair with the smallest rotation angle
+        _dr = _drs[np.argmin([me.rot_angle for me in _drs])]
+        return (_dr.rot_angle, _dr.rot_axis)
+
+    def misorientations(self, 
+                        others: list, 
+                        lattice: str,
+                        ncores: int=2,
+                    ) -> list:
+        """
+        Batch version of single misorientation calculation using Python native
+        multi-threading library.
+        """
+        tmp = []
+        with cf.ProcessPoolExecutor(ncores) as e:
+            for other in others:
+                tmp.append(e.submit(self.misorientation, other, lattice))
+        return [me.result() for me in tmp]
+    
     @staticmethod
     def random_orientations(n: int, frame: Frame) -> list:
         """Return n random orientations represented in the given frame"""
-        return []
+        # NOTE:
+        # Whether this provides a uniform sampling of an orientation space
+        # is not tested yet.
+        return [
+            Orientation(Quaternion.from_random(), frame) for _ in range(n)
+        ]
+
+
+def sym_operator(lattice: str) -> list:
+    """
+    Description
+    -----------
+    Return a list of symmetry operator in quaternions based on given lattice
+    structure.  These quaternion are meant to operator on vectors in the
+    crystal frame.
+
+    Parameters
+    ----------
+    lattice: str
+        lattice name
+
+    Returns
+    -------
+    list
+        list of quaternions as symmetry operators
+
+    NOTE
+    ----
+    This function only provides a list, which is not associated with frame.
+    Therefore, one need to keep in mind that these operator are meant for
+    vectors in crystal frame.
+    """
+    if lattice is None:
+        return [Quaternion(1,0,0,0)]
+    elif lattice.lower() in ['orthorhombic', 'ortho']:
+        return [
+            Quaternion(*me) for me in [
+                [ 1.0,  0.0,  0.0,  0.0 ],
+                [ 0.0,  1.0,  0.0,  0.0 ],
+                [ 0.0,  0.0,  1.0,  0.0 ],
+                [ 0.0,  0.0,  0.0,  1.0 ],
+            ]
+        ]
+    elif lattice.lower() in ['tetragonal', 'tet']:
+        sqrt2 = np.sqrt(2)
+        return [
+            Quaternion(*me) for me in [
+                [ 1.0,        0.0,        0.0,        0.0       ],
+                [ 0.0,        1.0,        0.0,        0.0       ],
+                [ 0.0,        0.0,        1.0,        0.0       ],
+                [ 0.0,        0.0,        0.0,        1.0       ],
+                [ 0.0,        0.5*sqrt2,  0.5*sqrt2,  0.0       ],
+                [ 0.0,       -0.5*sqrt2,  0.5*sqrt2,  0.0       ],
+                [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+            ]
+        ]
+    elif lattice.lower() in ['hexagonal', 'hcp', 'hex']:
+        sqrt3 = np.sqrt(3)
+        return [
+            Quaternion(*me) for me in [
+                [ 1.0,        0.0,        0.0,        0.0       ],
+                [-0.5*sqrt3,  0.0,        0.0,       -0.5       ],
+                [ 0.5,        0.0,        0.0,        0.5*sqrt3 ],
+                [ 0.0,        0.0,        0.0,        1.0       ],
+                [-0.5,        0.0,        0.0,        0.5*sqrt3 ],
+                [-0.5*sqrt3,  0.0,        0.0,        0.5       ],
+                [ 0.0,        1.0,        0.0,        0.0       ],
+                [ 0.0,       -0.5*sqrt3,  0.5,        0.0       ],
+                [ 0.0,        0.5,       -0.5*sqrt3,  0.0       ],
+                [ 0.0,        0.0,        1.0,        0.0       ],
+                [ 0.0,       -0.5,       -0.5*sqrt3,  0.0       ],
+                [ 0.0,        0.5*sqrt3,  0.5,        0.0       ],
+            ]
+        ]
+    elif lattice.lower() in ['cubic', 'bcc', 'fcc']:
+        sqrt2 = np.sqrt(2)
+        return [
+            Quaternion(*me) for me in [
+                [ 1.0,        0.0,        0.0,        0.0       ],
+                [ 0.0,        1.0,        0.0,        0.0       ],
+                [ 0.0,        0.0,        1.0,        0.0       ],
+                [ 0.0,        0.0,        0.0,        1.0       ],
+                [ 0.0,        0.0,        0.5*sqrt2,  0.5*sqrt2 ],
+                [ 0.0,        0.0,        0.5*sqrt2, -0.5*sqrt2 ],
+                [ 0.0,        0.5*sqrt2,  0.0,        0.5*sqrt2 ],
+                [ 0.0,        0.5*sqrt2,  0.0,       -0.5*sqrt2 ],
+                [ 0.0,        0.5*sqrt2, -0.5*sqrt2,  0.0       ],
+                [ 0.0,       -0.5*sqrt2, -0.5*sqrt2,  0.0       ],
+                [ 0.5,        0.5,        0.5,        0.5       ],
+                [-0.5,        0.5,        0.5,        0.5       ],
+                [-0.5,        0.5,        0.5,       -0.5       ],
+                [-0.5,        0.5,       -0.5,        0.5       ],
+                [-0.5,       -0.5,        0.5,        0.5       ],
+                [-0.5,       -0.5,        0.5,       -0.5       ],
+                [-0.5,       -0.5,       -0.5,        0.5       ],
+                [-0.5,        0.5,       -0.5,       -0.5       ],
+                [-0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                [ 0.5*sqrt2,  0.0,        0.0,        0.5*sqrt2 ],
+                [-0.5*sqrt2,  0.0,        0.5*sqrt2,  0.0       ],
+                [-0.5*sqrt2,  0.0,       -0.5*sqrt2,  0.0       ],
+                [-0.5*sqrt2,  0.5*sqrt2,  0.0,        0.0       ],
+                [-0.5*sqrt2, -0.5*sqrt2,  0.0,        0.0       ],
+            ]
+        ]
+    else:
+        raise ValueError(f"Unknown lattice structure {lattice}")
 
 
 if __name__ == "__main__":
