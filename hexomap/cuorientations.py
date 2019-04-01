@@ -13,7 +13,7 @@ import pycuda.gpuarray as     gpuarray
 
 # load&compile GPU code
 _kernel_code = os.path.join(os.path.dirname(hexomap.__file__), 
-                            "kernel_cuda/orientation_cuda.cu",
+                            "kernel_cuda/device_code.cu",
                            ) 
 cuda_kernel = SourceModule(load_kernel_code(_kernel_code))
 misoren_gpu = cuda_kernel.get_function("misoren")
