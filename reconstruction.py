@@ -21,7 +21,9 @@ from pycuda.curandom import MRG32k3aRandomNumberGenerator
 import sim_utilities
 import RotRep
 import IntBin
-import FZfile
+from hexomap.past import generate_random_rot_mat
+
+
 import time
 import random
 import scipy.ndimage as ndi
@@ -409,7 +411,7 @@ class Reconstructor_GPU():
         self.FZMatH = np.empty([self.searchBatchSize,3,3])
         if self.searchBatchSize > self.FZMat.shape[0]:
             self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
-            self.FZMatH[self.FZMat.shape[0]:,:,:] = FZfile.generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
+            self.FZMatH[self.FZMat.shape[0]:,:,:] = generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
         else:
             raise ValueError(" search batch size less than FZ file size, please increase search batch size")
 
@@ -1298,7 +1300,7 @@ class Reconstructor_GPU():
             matsH = np.empty([self.searchBatchSize, 3, 3])
             if self.searchBatchSize > mats.shape[0]:
                 matsH[:mats.shape[0], :, :] = mats
-                matsH[mats.shape[0]:, :, :] = FZfile.generate_random_rot_mat(
+                matsH[mats.shape[0]:, :, :] = generate_random_rot_mat(
                     self.searchBatchSize - mats.shape[0])
             else:
                 print(f" search batch size less than FZ file size, increase batshsize to {mats.shape[0]}")
@@ -1914,7 +1916,7 @@ class Reconstructor_GPU():
         self.FZMatH = np.empty([self.searchBatchSize, 3, 3])
         if self.searchBatchSize > self.FZMat.shape[0]:
             self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
-            self.FZMatH[self.FZMat.shape[0]:, :, :] = FZfile.generate_random_rot_mat(
+            self.FZMatH[self.FZMat.shape[0]:, :, :] = generate_random_rot_mat(
                 self.searchBatchSize - self.FZMat.shape[0])
         else:
             raise ValueError(" search batch size less than FZ file size, please increase search batch size")
