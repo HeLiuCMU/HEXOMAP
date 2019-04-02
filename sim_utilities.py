@@ -171,7 +171,8 @@ class CrystalStr:
             self.symtype = 'Cubic'
             self.PrimA = 5.471 * np.array([1, 0, 0])
             self.PrimB = 5.471 * np.array([0, 1, 0])
-            self.PrimC = 5.471 * np.array([0, 0, 1])         
+            self.PrimC = 5.471 * np.array([0, 0, 1])  
+            self.addAtom([0, 0, 0], 92)
         elif material.lower() in ['zr', ' zirconium']:
             # hexagonal lattice
             # unit: angstrom, radian
