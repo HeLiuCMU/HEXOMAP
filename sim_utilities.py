@@ -166,6 +166,12 @@ class CrystalStr:
             self.PrimC = 3.224 * np.array([0, 0, 1])
             self.addAtom([0, 0, 0], 26)
             self.addAtom([0.5, 0.5, 0.5], 26)
+        elif material == 'UO2':
+            # bcc lattice
+            self.symtype = 'Cubic'
+            self.PrimA = 5.471 * np.array([1, 0, 0])
+            self.PrimB = 5.471 * np.array([0, 1, 0])
+            self.PrimC = 5.471 * np.array([0, 0, 1])         
         elif material.lower() in ['zr', ' zirconium']:
             # hexagonal lattice
             # unit: angstrom, radian
