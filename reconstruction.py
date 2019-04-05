@@ -116,69 +116,25 @@ class Reconstructor_GPU():
 
     '''
     def __init__(self,rank=0,ctx=None):
-        self.squareMicOutFile = 'DefaultReconOutPut.npy'
-        self.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-        self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
-        self.expdataNDigit = 6
-        # initialize voxel position information
-        self.voxelpos = np.array([[-0.0953125, 0.00270633, 0]])    # nx3 array, voxel positions
-        self.NVoxel = self.voxelpos.shape[0]                       # number of voxels
-        self.voxelAcceptedMat = np.zeros([self.NVoxel,3,3])        # reconstruced rotation matrices
-        self.voxelHitRatio = np.zeros(self.NVoxel)                 # reconstructed hit ratio
-        self.voxelIdxStage0 = range(self.voxelpos.shape[0])       # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
-        self.NTotalVoxel2Recon = None                             # the total number of voxels neeeded for reconstruction, set by self.set_voxel_pos()
-        self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
-        self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
-        self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
-        self.additionalFZ = None
-        self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
-        # experimental data
-        #self.energy = 71.676  # in kev
-        self.energy = 55.587 # in kev
-        self.sample = sim_utilities.CrystalStr('Ti7') # one of the following options:
-        #self.symtype = self.sample.symtype
-        self.maxQ = 8
-        self.etalimit = 81 / 180.0 * np.pi
-        self.detectors = [sim_utilities.Detector(),sim_utilities.Detector()]
-        self.NRot = 180
-        self.NDet = 2
-        self.detScale = 1.0  # the pixel size will be 1/self.detScale and NPixelJ = NPixelJ*self.detScale
-        self.centerJ = [935.166*self.detScale,949.46*self.detScale]# center, horizental direction
-        self.centerK = [1998.96*self.detScale,1996.15*self.detScale]# center, verticle direction
-        self.detPos = [np.array([4.7257,0,0]),np.array([6.67,0,0])] # in mm
-        self.detRot = [np.array([90.6659, 89.4069, 359.073]),np.array([89.4765, 90.2675, 359.22])]# Euler angleZXZ
-        self.NPixelJ = [2048, 2048, 2048]
-        self.NPixelK = [2048, 2048, 2048]
-        self.pixelJ = [0.00148,0.00148,0.00148]
-        self.pixelK = [0.00148,0.00148,0.00148]
-        self.detectors[0].NPixelJ = int(2048*self.detScale)
-        self.detectors[0].NPixelK = int(2048*self.detScale)
-        self.detectors[0].PixelJ = 0.00148/self.detScale
-        self.detectors[0].PixelK = 0.00148/self.detScale
-        self.detectors[1].NPixelJ = int(2048*self.detScale)
-        self.detectors[1].NPixelK = int(2048*self.detScale)
-        self.detectors[1].PixelJ = 0.00148/self.detScale
-        self.detectors[1].PixelK = 0.00148/self.detScale
-
-        self.detectors[0].Move(self.centerJ[0], self.centerK[0], self.detPos[0], RotRep.EulerZXZ2Mat(self.detRot[0] / 180.0 * np.pi))
-        self.detectors[1].Move(self.centerJ[1], self.centerK[1], self.detPos[1], RotRep.EulerZXZ2Mat(self.detRot[1] / 180.0 * np.pi))
-        self.detIdx = range(self.NDet)
-        #detinfor for GPU[0:NJ,1:NK,2:pixelJSize, 3:pixelKSize, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
-        lDetInfoTmp = []
-        for i in range(self.NDet):
-            lDetInfoTmp.append(np.concatenate([np.array([self.detectors[i].NPixelJ,self.detectors[i].NPixelK,
-                                                         self.detectors[i].PixelJ,self.detectors[i].PixelK]),
-                                                self.detectors[i].CoordOrigin,self.detectors[i].Norm,self.detectors[i].Jvector,
-                                               self.detectors[i].Kvector,np.array([self.NRot,-np.pi/2,np.pi/2])]))
-        self.afDetInfoH = np.concatenate(lDetInfoTmp)
-
-        # initialize Scattering Vectors
-        self.sample.getRecipVec()
-        self.sample.getGs(self.maxQ)
-        self.NG = self.sample.Gs.shape[0]
-        self.symMat = RotRep.GetSymRotMat(self.sample.symtype)
-
+        # self.squareMicOutFile = 'DefaultReconOutPut.npy'
+        # # self.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
+        # # self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
+        # # self.expdataNDigit = 6
+        # # # initialize voxel position information
+        # self.voxelpos = np.array([[-0.0953125, 0.00270633, 0]])    # nx3 array, voxel positions
+        # self.NVoxel = self.voxelpos.shape[0]                       # number of voxels
+        # self.voxelAcceptedMat = np.zeros([self.NVoxel,3,3])        # reconstruced rotation matrices
+        # self.voxelHitRatio = np.zeros(self.NVoxel)                 # reconstructed hit ratio
+        # self.voxelIdxStage0 = range(self.voxelpos.shape[0])       # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
+        # self.NTotalVoxel2Recon = None                             # the total number of voxels neeeded for reconstruction, set by self.set_voxel_pos()
+        # self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
+        # self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
+        # # self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
+        # self.additionalFZ = None
+        # self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
+        # # experimental data
         # reconstruction parameters:
+        self.dReconParam = {}
         self.NIteration = 10          # number of orientation search iterations
         self.BoundStart = 0.5          # initial random orientation range
         self.intensity_threshold = -1 # only keep peaks with intensity larger than this value
@@ -274,6 +230,7 @@ class Reconstructor_GPU():
             clear_context_caches()
         import atexit
         atexit.register(_finish_up)
+
     def set_lattice_constant(self, value,symType='Cubic'):
         if symType =='Cubic':
             self.sample.PrimA = value * np.array([1, 0, 0])
@@ -442,6 +399,7 @@ class Reconstructor_GPU():
         eulers, label, numFeatures = self.extract_orientations()
         self.additionalFZ = eulers
         self.serial_recon_multi_stage()
+
     def geometry_optimizer(self, mask=None):
         '''
         combine all the strategies together
@@ -619,97 +577,6 @@ class Reconstructor_GPU():
         rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :, :].reshape([1, self.NDet, 3])
         return 1.0 - maxHitRatio, rot
 
-    def twiddle_refine(self,idxVoxelIn, centerL, centerJ, centerK, centerRot,
-                            rangeL=None, rangeJ=None, rangeK=None):
-        '''
-        This is an implementation of whiddle algorithm for finding parameters for a single value cost function:
-        example usage:
-            with open('geometry_run2_0.91.p', 'rb') as input:
-            centerL, centerJ, centerK, centerRot  = pickle.load(input)
-            S = reconstruction.Reconstructor_GPU()
-            S.set_det_param(centerL, centerJ, centerK, centerRot)
-            S.set_Q(7)
-            print(S.maxQ)
-            S.FZFile = '/home/hedm/work/I9_test_data/Au_Mar17/DataFiles/MyFZ.dat'         # fundamental zone file
-            S.set_sample('iron_bcc')
-            S.energy = 65.351
-            S.expDataInitial = '/home/hedm/work/suter_aug18/johnson_aug18/SB1_postheat_V1__z0_1degree/' # reduced binary data
-            S.expdataNDigit = 6                                                       # number of digit in the binary file name
-            S.create_square_mic([50,50],voxelsize=0.01,shift=[0.0,0.0,0])                             # resolution of reconstruction and voxel size
-            S.squareMicOutFile = 'SB1_V1_Z0_johnson_aug17_100x100_0.005_shift_0_0_0.npy'             # output file name
-            S.searchBatchSize = 6000          # number of orientations search at each iteration, larger number will take longer time.
-            #S.intensity_threshold = 2
-            S.recon_prepare(reverseRot=True)  # at 1ID, left hand rotation needs reverseRot=True
-            S.set_Q(8)
-            aIdxVoxel = np.random.choice(aIdxVoxel,50)
-            centerL, centerJ, centerK, centerRot = S.twiddle_refine(aIdxVoxel,centerL, centerJ, centerK, centerRot)
-        :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
-        :param NIterationPhase2: number of iteratio
-        :param rangeL: mm
-        :param rangeJ: pixel
-        :param rangeK: pixel
-        :param factor0: search box shrick by factor0 during each search
-        :return:
-        '''
-        ii = 0
-        maxHitRatio = 0
-        if rangeL is None:
-            rangeL = 0.05 #mm
-        if rangeJ is None:
-            rangeJ = 20 * self.detScale #pixel
-            rangeRelativeJ = 2
-        if rangeK is None:
-            rangeK = 5 * self.detScale #pixel
-            rangeRelativeK = 1
-        
-        p = [centerL, centerJ, centerK]
-        dp = [rangeL, rangeJ, rangeK, rangeRelativeJ, rangeRelativeK]
-        # Calculate the error
-
-        threshold = 0.1
-
-        while sum(dp) > threshold and dp[0]>0.0005:
-            #idxVoxel = np.random.choice(idxVoxelIn, nVoxel)
-            best_err, centerRot = self.twiddle_loss(idxVoxel, p[0], p[1], p[2], centerRot)
-            for i in range(len(p)):
-                if dp[i]<0.0005:
-                    dp[i] = 0.0005
-                if i<3:
-                    p[i] += dp[i] # update L,J,K together
-                else:
-                    p[i-2][0,1] += dp[i] # update relative J,K
-                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], p[1], p[2], centerRot)
-
-                if err < best_err:  # There was some improvement
-                    best_err = err
-                    centerRot = rotTmp
-                    dp[i] *= 1.1
-                    print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], p[1], p[2],sum(dp)))
-                else:  # There was no improvement
-                    if i<3:
-                        p[i] -= 2 * dp[i] # update L,J,K together
-                    else:
-                        p[i-2][0,1] -= 2 * dp[i] # update relative J,K
-                        
-                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], p[1], p[2], centerRot)
-
-                    if err < best_err:  # There was an improvement
-                        best_err = err
-                        centerRot = rotTmp
-                        dp[i] *= 1.05
-                        print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], p[1], p[2],sum(dp)))
-                    else:  # There was no improvement
-                        if i<3:
-                            p[i] += dp[i] # update L,J,K together
-                        else:
-                            p[i-2][0,1] += dp[i] # update relative J,K
-                        # As there was no improvement, the step size in either
-                        # direction, the step size might simply be too big.
-                        dp[i] *= 0.95
-            #sys.stdout.flush()
-        print(p)
-        return p[0], p[1], p[2], centerRot
-
     def twiddle_refine_backup(self,idxVoxel, centerL, centerJ, centerK, centerRot,
                             rangeL=None, rangeJ=None, rangeK=None):
         '''
@@ -801,189 +668,7 @@ class Reconstructor_GPU():
         #                                        self.postRandomRange)
 
         return rotMatSeed
-    def geo_opt_coordinate_search_backup(self, aL, aJ, aK, aDetRot,
-                           relativeL=0.05,relativeJ=15, relativeK=5,
-                           rate = 1,NIteration=30,factor=0.85, NStep=11, geoSearchNVoxel=1,
-                           lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
-                           NOrienIteration=10, BoundStart=0.5, rangeRot=1.0,rotOptimization=False):
-        '''
-        optimize the geometry of
-        kind of similar to Coordinate Gradient Descent
-        stage: fix relative distance,do not search for rotation
-            search K  most sensitive
-            search L: step should be less than 0.5mm
-            search J: lest sensitive
-            repeat  in order K,L,J, shrink search range.
-        procedure, start with large search range, set rate=1, others as default, if it end up with hitratio>0.65, reduce
-        rate to 0.1, else repeat at rate=1. after hitratio>0.75, can be accepted.
-        Todo:
-            select grain boundary voxels and use them for parameter optimization.
 
-        :param aL:  [NStep, NDet]
-        :param aJ:[NStep, NDet]
-        :param aK:[NStep, NDet]
-        :param aDetRot:[NStep, NDet,3]
-        :param factor: the search range will shrink by factor after each iteration
-        :param relativeJ: search range of relative J between different detectors
-        :param relativeK: search range of relative K between different detectors
-        :param rate: similar to learning rate
-        :param NIteration: number of iterations for searching parameters
-        :param NStep: number of uniform points in search range
-        :param geoSearchNVoxel: number of voxels for searching parameters
-        :return:
-
-        optimize the geometry of
-        stage1: fix relative distance,do not search for rotation
-            search K  most sensitive
-            search L: step should be less than 0.5mm
-            search J: lest sensitive
-            repeat  in order K,L,J, shrink search range.
-        :return:
-        '''
-        if lVoxel is None:
-            x = np.arange(int(0.1*self.squareMicData.shape[0]), int(0.9*self.squareMicData.shape[0]), 1)
-            y = np.arange(int(0.1*self.squareMicData.shape[1]), int(0.9*self.squareMicData.shape[1]), 1)
-            lVoxel = x * self.squareMicData.shape[0] + y
-        if lSearchMatD is None:
-            lSearchMatD = [self.afFZMatD]*np.asarray(lVoxel).size
-        if NSearchOrien is None:
-            NSearchOrien = self.searchBatchSize
-        if self.NDet!=2:
-            raise ValueError('currently this function only support 2 detectors')
-        sys.stdout.flush()
-        L = aL[aL.shape[0]//2,:].reshape([1,self.NDet])
-        J = aJ[aJ.shape[0]//2,:].reshape([1,self.NDet])
-        K = aK[aK.shape[0]//2,:].reshape([1,self.NDet])
-        rot = aDetRot[0,:,:].reshape([1,self.NDet,3])
-        rangeL = (aL[:, 0].max() - aL[:, 0].min()) / 2
-        rangeJ = (aJ[:, 0].max() - aJ[:, 0].min()) / 2
-        rangeK = (aK[:, 0].max() - aK[:, 0].min()) / 2
-        #NIteration = 100
-        #factor = 0.8
-        maxHitRatioPre = 0
-        maxHitRatio = 0
-        for i in range(NIteration):
-            #x = np.random.choice(np.arange(10, 90, 1), geoSearchNVoxel)
-            #y = np.random.choice(np.arange(10, 90, 1), geoSearchNVoxel)
-            #lVoxelIdx = x * self.squareMicData.shape[0] + y
-            lVoxelIdx = np.random.choice(lVoxel, geoSearchNVoxel)
-            # use neighbour rotation, speedup reconstruction
-            if useNeighbour:
-                rotMatSeed = self.get_neighbour_orien(lVoxelIdx, self.accMat, size=5).astype(np.float32)
-                #print(rotMatSeed.shape)
-                lSearchMatD = []
-                for i in range(geoSearchNVoxel):
-                    rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
-                    searchMatD = self.gen_random_matrix(rotMatSeedD,
-                                                        rotMatSeed.shape[0] * rotMatSeed.shape[1] * rotMatSeed.shape[2],
-                                                        40, BoundStart)
-                    lSearchMatD.append(searchMatD)
-                NSearchOrien = rotMatSeed.shape[1] * rotMatSeed.shape[2] * 40
-                #print(NSearchOrien)
-            #update both K
-            aLTmp = L.repeat(3, axis=0) + 0.5 * ( 2 * np.random.rand(3,1) - 1)
-            aLTmp[1,:] = L
-            #print(aLTmp)
-            self.geometry_grid_search(aLTmp, J, aK,rot,lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            K = (1- rate*maxHitRatio**3)*K + (rate*maxHitRatio**3)*aK[np.where(self.geoSearchHitRatio==maxHitRatio)[2][0],:].reshape([1,self.NDet])
-            L = (1 - rate * maxHitRatio ** 3) * L + (rate * maxHitRatio ** 3) * aLTmp[np.where(
-                self.geoSearchHitRatio == maxHitRatio)[0][0], :].reshape([1, self.NDet])
-            #print(' \r update K to {0}, max hitratio is  {1} ||'.format(K, maxHitRatio))
-            #sys.flush()
-            #update both L
-            self.geometry_grid_search(aL, J, K, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            L = (1-rate*maxHitRatio**3)*L + (rate*maxHitRatio**3)*aL[np.argmax(self.geoSearchHitRatio.ravel()),:].reshape([1,self.NDet])
-            #print('\r update L to {0}, max hitratio is  {1} ||'.format(L, maxHitRatio))
-            #sys.stdout.flush()
-            #update both J
-            self.geometry_grid_search(L, aJ, K, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            J = (1-rate*maxHitRatio**3)*J + (rate*maxHitRatio**3)*aJ[np.argmax(self.geoSearchHitRatio.ravel()),:].reshape([1,self.NDet])
-            # print('\r update J to {0}, max hitratio is  {1} ||'.format(J, maxHitRatio))
-            #sys.stdout.flush()
-            dL = np.zeros([NStep,self.NDet])
-            dL[:,1] = np.linspace(-relativeL, relativeL, NStep)
-            dJ = np.zeros([NStep,self.NDet])
-            dJ[:,1] = np.linspace(-relativeJ, relativeJ, NStep)
-            dK = np.zeros([NStep,self.NDet])
-            dK[:,1] = np.linspace(-relativeK, relativeK, NStep)
-
-            aL = L.repeat(dL.shape[0], axis=0) + dL
-            aJ = J.repeat(dJ.shape[0], axis=0) + dJ
-            aK = K.repeat(dK.shape[0], axis=0) + dK
-            # update relative K
-            self.geometry_grid_search(L, J, aK, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            K = (1 - rate*maxHitRatio ** 3) * K + (rate*maxHitRatio ** 3) * aK[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
-                [1, self.NDet])
-            #print('\r update K to {0}, max hitratio is  {1} ||'.format(K, maxHitRatio))
-            #sys.stdout.flush()
-            # update relative L
-            self.geometry_grid_search(aL, J, K, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            L = (1 - rate*maxHitRatio ** 3) * L + (rate*maxHitRatio ** 3) * aL[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
-                [1, self.NDet])
-            #print('\r update L to {0}, max hitratio is  {1} ||'.format(L, maxHitRatio))
-            #sys.stdout.flush()
-            # update relative J
-            self.geometry_grid_search(L, aJ, K, rot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-            # maxHitRatioPre = min(maxHitRatio, 0.7)
-            maxHitRatio = self.geoSearchHitRatio.max()
-            # if(maxHitRatio>maxHitRatioPre):
-            J = (1 - rate*maxHitRatio ** 3) * J + (rate*maxHitRatio ** 3) * aJ[np.argmax(self.geoSearchHitRatio.ravel()), :].reshape(
-                [1, self.NDet])
-            #print('\r update J to {0}, max hitratio is  {1} ||'.format(J, maxHitRatio))
-            #sys.stdout.flush()
-            # update rotation
-            if rotOptimization:
-                self.geometry_grid_search(L, J, K, aDetRot, lVoxelIdx,lSearchMatD,NSearchOrien,NOrienIteration, BoundStart)
-                # maxHitRatioPre = min(maxHitRatio, 0.7)
-                maxHitRatio = self.geoSearchHitRatio.max()
-                # if(maxHitRatio>maxHitRatioPre):
-                rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :,:].reshape([1, self.NDet, 3])
-                #print('\r update rot to {0}, max hitratio is  {1} ,shape or rot is {2}||'.format(rot, maxHitRatio, rot.shape))
-                #sys.stdout.flush()
-                #rangeRot = rangeRot * factor
-                aDetRot = RotRep.generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), rangeRot, aDetRot.shape[0]).reshape(aDetRot.shape)
-                aDetRot[0,:,:] = rot
-            # update relative Range
-            rangeL = rangeL * factor
-            rangeJ = rangeJ * factor
-            rangeK = rangeK * factor
-
-            relativeJ *= factor
-            relativeK *= factor
-            #print(rangeL, rangeJ, rangeK)
-            print(' \r new parameters: {0}, {1}, {2}, max hitratio:{3}, rangeL:{4}, rangeJ:{5}, rangeK:{6}'.format(J,K,L,maxHitRatio,rangeL,rangeJ,rangeK))
-            dL = np.linspace(-rangeL, rangeL, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
-            dJ = np.linspace(-rangeJ, rangeJ, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
-            dK = np.linspace(-rangeK, rangeK, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
-            aL = L.repeat(dL.shape[0], axis=0) + dL
-            aJ = J.repeat(dJ.shape[0], axis=0) + dJ
-            aK = K.repeat(dK.shape[0], axis=0) + dK
-
-
-        # for idxDet in range(self.NDet):
-        #     self.detPos[idxDet][0] = L[0, idxDet]
-        #     self.centerJ[idxDet] = J[0, idxDet]
-        #     self.centerK[idxDet] = K[0, idxDet]
-        #     self.detRot[idxDet] = rot[0, idxDet]
-        # self.set_det()
-        return L,J,K,rot, maxHitRatio
-        #sys.stdout.write(' \r new L: {0}, new J: {1}, new K: {2}, new rot: {3} ||'.format(L, J, K, rot))
-        #sys.flush()
     def geo_opt_coordinate_search(self, aL, aJ, aK, aDetRot,
                            relativeL=0.05,relativeJ=15, relativeK=5,
                            rate = 1,update_threshold=0.1,NIteration=30,factor=0.85, NStep=11, geoSearchNVoxel=1,
@@ -1182,35 +867,6 @@ class Reconstructor_GPU():
                         self.geoSearchHitRatio[idxl, idxJ, idxK,idxRot] = self.geoSearchHitRatio[idxl, idxJ, idxK,idxRot] / len(lVoxelIdx)
         #print(self.geoSearchHitRatio)
         return self.geoSearchHitRatio
-    def hitratio_cpu(self, aJ, aK, aRotN, aHit, NVoxel, NOrientation):
-        '''
-        This is not successful, GPU: 0.03, CPU: 0.9
-        :param aJ: iNVoxel*iNOrientation*iNG*2*iDet ,2 is for omega1 and omega2
-        :param aK:
-        :param aRotN:
-        :param aHit:
-        :return: hitRatio, hitPeakCnt, iNVoxel*iNOrientation
-        '''
-        aJ = aJ.reshape([NVoxel*NOrientation, self.NG * 2, self.NDet])
-        aK = aK.reshape([NVoxel*NOrientation, self.NG * 2, self.NDet])
-        aRotN = aRotN.reshape([NVoxel*NOrientation, self.NG * 2, self.NDet])
-        aHit = aHit.reshape([NVoxel*NOrientation, self.NG * 2, self.NDet])
-        result = np.ones([NVoxel * NOrientation, self.NG * 2])
-        simHit = np.ones([NVoxel * NOrientation, self.NG * 2])==1
-        for i in range(self.NDet):
-            simHit = np.logical_and(simHit, aHit[:,:,i])
-
-        for i in range(self.NDet):
-            tmp = np.zeros([NVoxel*NOrientation, self.NG * 2])
-            imgIdx = aJ[:,:,i][simHit] + aK[:,:,i][simHit] * self.detectors[i].NPixelJ \
-                                      +  aRotN[:,:,i][simHit] * self.detectors[i].NPixelK * self.detectors[i].NPixelJ \
-                                     + self.aiDetStartIdxH[i]
-            tmp[simHit] = self.acExpDataCpuRam[imgIdx]
-            result = result * tmp
-        overlaped = np.sum(result,axis=1)
-        peakCnt = np.sum(simHit, axis=1)
-        hitRatio = overlaped.astype(np.float32)/peakCnt
-        return hitRatio, peakCnt
 
     def create_acExpDataCpuRam(self):
         # for testing cpu verison of hitratio
@@ -1259,76 +915,6 @@ class Reconstructor_GPU():
 
 
         print('=============end of copy exp data to CPU ===========')
-
-    def post_process_test(self):
-        '''
-        todo: impplement using extract orientation, to speed up.
-        In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
-        new candidate orientations are taken from the neighbours around this voxel, random orientations will be generated
-        based on these candidate orientations. this process repeats until no orientations of these grain boundary voxels
-        does not change anymore.
-        need load squareMicData
-        need self.voxelAccptMat
-        :return:
-        '''
-        ############# test section #####################
-        # self.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
-        # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
-        # self.cp_expdata_to_gpu()
-        ############### test section edn ###################
-
-        NVoxelX = self.squareMicData.shape[0]
-        NVoxelY = self.squareMicData.shape[1]
-        accMat = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
-
-        misOrienTmp = self.get_misorien_map(accMat)
-        self.NPostProcess = 0
-        self.NPostVoxelVisited = 0
-        start = time.time()
-        NIterationMax = 200
-        NIteration = 0
-        print('start of post processing, moving grain boundaries untile stable')
-        while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
-            NIteration +=1
-            self.NPostProcess += 1
-            hitratioMask = (self.voxelHitRatio>0.3).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
-            misOrienTmp = ndi.maximum_filter(misOrienTmp * hitratioMask, self.postWindow) # due to expansion mode
-            x, y = np.where(np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1))
-            aIdx = x * NVoxelY + y
-            previousHitRatio = np.copy(self.voxelHitRatio)
-            previousAccMat = np.copy(self.voxelAcceptedMat)
-            eulers = self.extract_orientations(threshold=0.001, mask=(misOrienTmp>0.01))
-            mats = RotRep.EulerZXZ2MatVectorized(eulers)
-            matsH = np.empty([self.searchBatchSize, 3, 3])
-            if self.searchBatchSize > mats.shape[0]:
-                matsH[:mats.shape[0], :, :] = mats
-                matsH[mats.shape[0]:, :, :] = FZfile.generate_random_rot_mat(
-                    self.searchBatchSize - mats.shape[0])
-            else:
-                print(f" search batch size less than FZ file size, increase batshsize to {mats.shape[0]}")
-                self.searchBatchSize = mats.shape[0]
-                matsH = mats
-            rotMatSearchD = gpuarray.to_gpu(matsH.reshape([-1, 9]).astype(np.float32))
-            for i, idx in enumerate(aIdx):
-                self.NPostVoxelVisited += 1
-                self.single_voxel_recon(idx,rotMatSearchD, matsH.shape[0],
-                                        NIteration=self.postNIteration, BoundStart=self.postRandomRange, verbose=False)
-                if self.voxelHitRatio[idx] < previousHitRatio[idx]:
-                    self.voxelHitRatio[idx] = previousHitRatio[idx]
-                    self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
-            accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
-            misOrienTmpNew = self.misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
-            misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
-            accMat = accMatNew.copy()
-            sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
-            sys.stdout.flush()
-        print('number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
-        end = time.time()
-        print(' post process takes is {0} seconds'.format(end-start))
-        # self.squareMicData[:,:,3:6] = (RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
-        # self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
-        # self.save_square_mic('SquareMicTest2_postprocess.npy')
-
 
     def post_process(self):
         '''
@@ -1955,52 +1541,6 @@ class Reconstructor_GPU():
         self.save_mic('test_recon_one_grain_gpu_random_out.txt')
     #def free_GPU_memory(self):
     #    self.afGd.free()
-    def serial_recon_layer(self):
-        '''
-        ==================working version =========================
-        Todo:
-            fix two reconstructed orientation:
-                simulate the two different reconstructed oreintation and compare peaks
-                compute their misoritentation
-        serial reconstruct orientation in a layer, loaded in mic file
-        example usage:
-        R = Reconstructor_GPU()
-        Not Implemented: Setup R experimental parameters
-        R.searchBatchSize = 20000  # number of orientations to search per GPU call
-        R.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
-        R.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
-        R.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
-        R.serial_recon_layer()
-        :return:
-        '''
-        ############## reform for easy reading #############
-        ############ added generate random in GPU #########3
-        ############# search parameters ######################
-        # try adding multiple stage search, first fz file, then generate random around max hitratio
-
-        #self.recon_prepare()
-
-        # timing tools:
-        start = cuda.Event()
-        end = cuda.Event()
-
-        print('==========start of reconstruction======== \n')
-        start.record()  # start timing
-
-        for voxelIdx in self.voxelIdxStage0:
-            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize)
-        print('===========end of reconstruction========== \n')
-        end.record()  # end timing
-        end.synchronize()
-        secs = start.time_till(end) * 1e-3
-        print("SourceModule time {0} seconds.".format(secs))
-        # save roconstruction result
-        self.squareMicData[:,:,3:6] = (RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
-        self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
-        self.accMat = self.voxelAcceptedMat.copy().reshape(
-            [self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
-        self.save_square_mic(self.squareMicOutFile)
-        #self.save_mic('test_recon_one_grain_gpu_random_out.txt')
 
     def fill_neighbour(self):
         '''
@@ -2061,6 +1601,7 @@ class Reconstructor_GPU():
         sys.stdout.write(' \r ++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
         sys.stdout.flush()
         return 1
+
     def flood_fill(self, voxelIdx):
         '''
         This is acturally not a flood fill process, it tries to fill all the voxels with low hitratio
@@ -2168,6 +1709,7 @@ class Reconstructor_GPU():
         self.save_square_mic(self.squareMicOutFile)
         #self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
         #self.ctx.pop()
+
     def serial_recon_expansion_mode(self,startIdx):
         '''
         This is actually a flood fill process.
@@ -2213,6 +1755,7 @@ class Reconstructor_GPU():
         self.accMat = self.voxelAcceptedMat.copy().reshape([self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
         self.save_square_mic(self.squareMicOutFile)
         #self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
+
     def print_sim_results(self):
         # print(self.aJH)
         # print(self.aKH)
@@ -2466,102 +2009,6 @@ class Reconstructor_GPU():
         self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
         del afVoxelPosD
-        
-    def single_voxel_recon_manual(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.5, verbose=True):
-        '''
-        This version tries to use texture memory
-        THis is a working version, no error so far as 20180130
-        try to eliminate the number of memory allocation on GPU, but this seemed go wrong is previous attempts.
-        :param voxelIdx:
-        :param afFZMatD:
-        :param NSearchOrien:
-        :param NIteration:
-        :param BoundStart:
-        :return:
-        '''
-        # reconstruction of single voxel
-        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
-        NVoxel = 1
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
-        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
-        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
-        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
-        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
-        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
-        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
-        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
-        for i in range(NIteration):
-            # print(i)
-            # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-            # update rotation matrix to search
-            if i == 0:
-                rotMatSearchD = afFZMatD.copy()
-            else:
-                rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
-
-            #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-            # kernel calls
-            #start = time.time()
-            #print(NVoxel,NSearchOrien,self.NG)
-            self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
-                          np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                          rotMatSearchD,
-                          afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                          texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
-
-            # this is the most time cosuming part, 0.03s per iteration
-            self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
-                               self.afDetInfoD, np.int32(self.NDet),
-                               np.int32(self.NRot),
-                               aiJD, aiKD, aiRotND, abHitD,
-                               afHitRatioD, aiPeakCntD,texrefs=[self.texref],
-                               block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
-
-            # print('finish sim')
-            # memcpy_dtoh
-            #context.synchronize()
-            self.ctx.synchronize()
-            cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-            cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-            #end = time.time()
-            #print("SourceModule time {0} seconds.".format(end-start))
-            maxHitratioIdx = np.argsort(afHitRatioH)[
-                             :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-            maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-            for jj in range(1, 9):
-                maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-            maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-            maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-            del rotMatSearchD
-        aiJD.free()
-        aiKD.free()
-        afOmegaD.free()
-        abHitD.free()
-        aiRotND.free()
-        afHitRatioD.free()
-        aiPeakCntD.free()
-        maxMat = maxMatD.get().reshape([-1, 3, 3])
-        if verbose:
-            sys.stdout.write('\r voxelIdx: {0}, voxelLeft: {4}/{5}.  max hitratio: {1}, peakcnt: {2},reconstructed euler angle {3}'.format(voxelIdx,
-                                                                                                        afHitRatioH[
-                                                                                                            maxHitratioIdx[
-                                                                                                                0]],
-                                                                                                        aiPeakCntH[
-                                                                                                            maxHitratioIdx[
-                                                                                                                0]],
-                                                                                                        np.array(
-                                                                                                            RotRep.Mat2EulerZXZ(
-                                                                                                                maxMat[0, :,
-                                                                                                                :])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon))
-            sys.stdout.flush()
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
-        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
-        del afVoxelPosD
 
     def recon_boundary(self,lShape, lVoxelSize, shift=None,  mask=None):
         '''
@@ -2621,50 +2068,6 @@ class Reconstructor_GPU():
             lEulerOut.append(avgEuler)
             lEulerOut.append(maxConfEuler)
             xs, ys = np.nonzero(1 - visited)
-        return np.array(lEulerOut)
-
-    def extract_orientations_backup(self, threshold=0.01):
-        '''
-        todo: implement a faster method! e.g. flood filling method.
-        implement a iterate selection instead of using misorien map
-        extract average grain orientations for each grain, may be used as seed for search for twins or optimize grain boundary
-        :returns: uniqueEulers: [nFeature*2, 3], including average orientation and maximum hitratio orientation
-        '''
-        eulers = self.squareMicData[:,:,3:6].reshape([-1, 3])
-        mats = RotRep.EulerZXZ2MatVectorized(eulers / 180.0 * np.pi)
-        idx = self.squareMicData[:,:,6].ravel() > 0.3
-        eulers = eulers[idx, :]
-        mats = mats[idx, :, :]
-        confs = self.squareMicData[:,:,6].ravel()[idx]
-        lEulerOut = []
-        while eulers.shape[0] > 0:
-            lEulerOneGrain = []
-            lConfGrain = []
-            e = eulers[0, :]
-            mat = mats[0, :,: ]
-            conf = confs[0]
-            lEulerOneGrain.append(e)
-            lConfGrain.append(conf)
-            eulers = eulers[1:, :]
-            mats = mats[1:, :, :]
-            confs = confs[1:]
-            #print(eulers.shape)
-            #print(mats.shape)
-            lIdxDelete = []
-            for i in range(eulers.shape[0]):
-                _, misOrien = RotRep.Misorien2FZ1(mat, mats[i,:,:],symtype=self.sample.symtype)
-                if misOrien < threshold:
-                    lEulerOneGrain.append(eulers[i,:])
-                    lConfGrain.append(confs[i])
-                    lIdxDelete.append(i)
-            eulers = np.delete(eulers, lIdxDelete, 0)
-            mats = np.delete(mats, lIdxDelete, 0)
-            confs = np.delete(confs, lIdxDelete, None)
-            avgEuler = np.average(np.array(lEulerOneGrain),axis=0)
-            maxConfEuler = lEulerOneGrain[np.argmax(lConfGrain)]
-            lEulerOut.append(avgEuler)
-            lEulerOut.append(maxConfEuler)
-        #print(lEulerOut)
         return np.array(lEulerOut)
 
     def misorien(self, m0, m1,symMat):
@@ -2738,245 +2141,24 @@ class Reconstructor_GPU():
         self.texref.set_array(cuda.np_to_array(np.zeros([3,3,3]).astype(np.uint8), order='C'))
         
 
-        
-############## test section ###############
-def test_load_fz():
-    S = Reconstructor_GPU()
-    S.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/MyFZ.dat')
-    print(S.FZEuler)
-    print((S.FZEuler.shape))
-def test_load_expdata():
-    S = Reconstructor_GPU()
-    S.NDet = 2
-    S.NRot = 2
-    S.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_',6)
-def calculate_misoren_euler_zxz(euler0,euler1, symtype='Hexagonal'):
-    rotMat0 = RotRep.EulerZXZ2Mat(euler0 / 180.0 * np.pi)
-    rotMat1 = RotRep.EulerZXZ2Mat(euler1 / 180.0 * np.pi)
-    return RotRep.Misorien2FZ1(rotMat0,rotMat1,symtype=symtype)
-def test_floodfill():
-    S = Reconstructor_GPU()
-    S.load_mic('/home/heliu/Dropbox/pycuda/test_recon_one_grain_20180124.txt')
-    S.flood_fill()
-def test_square_mic():
-    s = Reconstructor_GPU()
-    s.create_square_mic()
-    print(s.squareMicData)
-    print(s.voxelpos)
-    print(s.voxelMask)
-def test_gpuarray_take():
-    a = gpuarray.arange(0,100,1,dtype=np.int32)
-    indices = gpuarray.to_gpu(np.array([1,2,4,5]).astype(np.int32))
-    b = gpuarray.take(a,indices)
-    print(b.get())
-    del indices
-    indices = gpuarray.to_gpu(np.array([7, 8, 23, 5]).astype(np.int32))
-    b = gpuarray.take(a, indices)
-    print(b.get())
-def test_mat2eulerzxz():
-    NEulerIn = 6
-    euler = np.array([[111.5003, 80.7666, 266.397],[1.5003, 80.7666, 266.397]]).repeat(NEulerIn/2, axis=0) / 180 * np.pi
-    print(euler)
-    matIn = RotRep.EulerZXZ2MatVectorized(euler)
-    matInD = gpuarray.to_gpu(matIn.astype(np.float32))
-    eulerOutD = gpuarray.empty(NEulerIn*3,np.float32)
-    func = mod.get_function("mat_to_euler_ZXZ")
-    NBlock = 128
-    func(matInD,eulerOutD, np.int32(NEulerIn),block=(NBlock,1,1), grid = (NEulerIn//NBlock+1, 1))
-    eulerOutH = eulerOutD.get().reshape([-1,3])
-    print(eulerOutH)
-def test_rand_amt_neighb():
-    NEulerIn = 2
-    NEighbour = 2
-    bound = 0.1
-    euler = np.array([[89.5003, 80.7666, 266.397]]).repeat(NEulerIn, axis=0)/180*np.pi
-    matIn = RotRep.EulerZXZ2MatVectorized(euler).repeat(NEighbour,axis=0)
-    matInD = gpuarray.to_gpu(matIn.astype(np.float32))
-    S = Reconstructor_GPU()
-    matOutD = S.gen_random_matrix(matInD,NEulerIn,NEighbour,0.01)
-    # print(matIn.shape)
-    # eulerD = gpuarray.to_gpu(euler.astype(np.float32))
-    # matOutD = gpuarray.empty(NEighbour*NEulerIn*9,np.float32)
-    # g = MRG32k3aRandomNumberGenerator()
-    # afRandD = g.gen_uniform(NEighbour*NEulerIn*3, np.float32)
-    # func = mod.get_function("rand_mat_neighb_from_euler")
-    # func(eulerD, matOutD, afRandD, np.float32(bound),grid = (NEighbour,1),block=(NEulerIn,1,1))
-    matH = matOutD.get().reshape([-1,3,3])
-    print(matH.reshape([-1,3,3]))
-    print(RotRep.Mat2EulerZXZVectorized(matH)/np.pi*180)
-    for i in range(matH.shape[0]):
-        print(RotRep.Misorien2FZ1(matIn[i,:,:], matH[i,:,:], 'Hexagonal'))
-def test_random():
-    N = 100
-    g = MRG32k3aRandomNumberGenerator()
-    rand = g.gen_uniform(N, np.float32)
-    disp_func = mod.get_function("display_rand")
-    disp_func(rand, np.int32(N), block=(N,1,1))
-def test_eulerzxz2mat():
-    N = 10000
-    euler = np.array([[89.5003, 80.7666, 266.397]]).repeat(N,axis=0)
-    eulerD = gpuarray.to_gpu(euler.astype(np.float32))
-    matD = gpuarray.empty(N*9, np.float32 )
-    gpu_func = mod.get_function("euler_zxz_to_mat")
-    gpu_func(eulerD,matD,np.int32(N),block=(N,1,1))
-    print(matD.get().reshape([-1,3,3]))
-    print(RotRep.EulerZXZ2MatVectorized(euler))
-def test_post_process():
-    S = Reconstructor_GPU()
-    S.load_square_mic('SquareMicTest1.npy')
-    S.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(S.squareMicData[:,:,3:6].reshape([-1,3])/180.0*np.pi)
-    S.voxelHitRatio = S.squareMicData[:,:,6].ravel()
-    S.post_process()
-def squareMicMIsOrienMap():
-    squareMic0 = np.load('SearchBatchSize_13000_100x100_0.01_run_1.npy')
-    squareMic1 = np.load('SearchBatchSize_13000_100x100_0.01.npy')
-    m0 = RotRep.EulerZXZ2MatVectorized(squareMic0[:,:,3:6]/180.0*np.pi)
-    m1 = RotRep.EulerZXZ2MatVectorized(squareMic1[:, :, 3:6] / 180.0 * np.pi)
-    symMat = RotRep.GetSymRotMat('Hexagonal')
-    misOrien = misorien(m0,m1,symMat).reshape([squareMic0.shape[0],squareMic0.shape[1]])
-    np.save('misOrien_SearchBatchSize_13000_100x100_0.01_differentRun.npy',misOrien)
-def profile_gen_random_gpu():
-    '''
-    10 time generate 20000 (total200000) random orientation takes 0.01s
-    :return:
-    '''
-    S = Reconstructor_GPU()
-    euler = np.array([89.5003, 80.7666, 266.397]) / 180 * np.pi
-    matInD = gpuarray.to_gpu(RotRep.EulerZXZ2Mat(euler))
-    start = cuda.Event()
-    end = cuda.Event()
-    start.record()
-    for i in range(10):
-        matInD = gpuarray.to_gpu(RotRep.EulerZXZ2Mat(euler))
-        matOutD = S.gen_random_matrix(matInD,1,20000,0.01)
-        del matInD
-        del matOutD
-    end.record()
-    end.synchronize()
-    secs = start.time_till(end) * 1e-3
-    print("SourceModule time {0} seconds.".format(secs))
-class SquareMic():
-    def __init__(self,squareMicData, symtype='Hexagonal'):
-        self.squareMicData = squareMicData
-        self.NVoxelX = self.squareMicData.shape[0]
-        self.NVoxelY = self.squareMicData.shape[1]
-        self.symMat = RotRep.GetSymRotMat(symtype)
-    def get_misorien_map(self,m0):
-        '''
-        map the misorienation map
-        e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
-        but it will still return 100x100, filling 0 to the last row/column
-        the misorientatino on that voxel is the max misorienta to its right or up side voxel
-        :param axis: 0 for x direction, 1 for y direction.
-        :return:
-        '''
-        m0 = m0.reshape((self.NVoxelX,self.NVoxelY,9))
-        if m0.ndim<3:
-            raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
-        NVoxelX = m0.shape[0]
-        NVoxelY = m0.shape[1]
-        #m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
-        m1 = np.empty([NVoxelX, NVoxelY, 9])
-        # x direction misorientatoin
-        m1[:-1,:,:] = m0[1:,:,:]
-        m1[-1,:,:] = m0[-1,:,:]
-        misorienX = misorien(m0, m1, self.symMat)
-        # y direction misorientation
-        m1[:,:-1,:] = m0[:,1:,:]
-        m1[:,-1,:] = m0[:,-1,:]
-        misorienY = misorien(m0, m1, self.symMat)
-        self.misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
-        return self.misOrien
-    def save_misOrienMap(self,fName):
-        m0 = RotRep.EulerZXZ2MatVectorized(self.squareMicData[:,:,3:6]/180.0*np.pi)
-        self.get_misorien_map(m0)
-        np.save(fName, self.misOrien)
 
-def grain_boundary():
-    sMic0 = SquareMic(np.load('SearchBatchSize_13000_1000x1000_0.001.npy'))
-    sMic1 = SquareMic(np.load('SearchBatchSize_13000_1000x1000_0.001_repeatrun_1.npy'))
-    sMic0.save_misOrienMap('SearchBatchSize_13000_1000x1000_0.001_misOrienMap.npy')
-    sMic1.save_misOrienMap('SearchBatchSize_13000_1000x1000_0.001_repeatrun_1_misOrienMap.npy')
-def misorien_vs_hitratio():
-    pass
-
-def test_segment_grain():
-
-    #squareMicData = np.load('SearchBatchSize_13000_100x100_0.01_tex_mem_run0.npy')
-    #m0 = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6]/180*np.pi).reshape([squareMicData.shape[0],squareMicData.shape[1],9])
-    eulerRadian = np.load('midas.npy')[:,:,:3]
-    mask = np.load('midas.npy')[:,:,3]
-    m0 = RotRep.EulerZXZ2MatVectorized(eulerRadian).reshape([eulerRadian.shape[0],eulerRadian.shape[1],9])
-    retult = segment_grain_1(m0, symType='Cubic',outFile='midas_grain_id.npy', mask=mask)
-
-def test_misorient_map():
-    eulerRadian = np.load('midas.npy')[:,:,:3]
-    rotMat = RotRep.EulerZXZ2MatVectorized(eulerRadian.reshape([-1,3])).reshape([eulerRadian.shape[0], eulerRadian.shape[1],9])
-    misOrienMap = misorien_map(rotMat,'Cubic')
-    np.save('midas_misOrienMap.npy', misOrienMap)
-    #plt.imshow(misOrienMap)
-    #plt.show()
-############ example usages ###################
-def test_tex_mem():
-    S = Reconstructor_GPU()
-    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
-    S.expdataNDigit = 6
-    S.create_square_mic([10,10],voxelsize=0.01)
-    S.squareMicOutFile = 'SearchBatchSize_13000_10x10_0.01_tex_mem_run0.npy'
-    S.searchBatchSize = 13000
-    S.recon_prepare()
-    S.serial_recon_layer()
-    #S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
-def recon_example():
-    '''
-    This is an example of how to use Reconstructor_GPU
-    :return:
-    '''
-    S = Reconstructor_GPU()
-    #S.FZFile = '/home/heliu/work/I9_test_data/Au_Mar17/DataFiles/MyFZ.dat'
-    #S.expDataInitial = '/home/heliu/work/I9_test_data/Au_Mar17/Integrated_1_degree/Au_Int_z0_'
-    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
-    S.expdataNDigit = 6
-    S.create_square_mic([100,100],voxelsize=0.002,shift=[0.1,0.1,0])
-    S.squareMicOutFile = 'Ti7_100_100_0.002.npy'
-    S.searchBatchSize = 13000
-    S.recon_prepare()
-    #S.serial_recon_layer()
-    S.serial_recon_multi_stage()
-    #S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
-def recon_aws():
-    S = Reconstructor_GPU()
-    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
-    S.expdataNDigit = 6
-    S.create_square_mic([10,10],voxelsize=0.01)
-    S.squareMicOutFile = 'SearchBatchSize_13000_10x10_0.01_tex_mem_run0.npy'
-    S.searchBatchSize = 13000
-    S.recon_prepare()
-    S.serial_recon_layer()
-    #S.serial_recon_expansion_mode(S.squareMicData.shape[0]*S.squareMicData.shape[1]/2 + S.squareMicData.shape[1]/2)
-
-def geo_opt_test():
-    S = Reconstructor_GPU()
-    S.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
-    S.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
-    S.expdataNDigit = 6
-    S.create_square_mic([50, 50], voxelsize=0.01)
-    S.squareMicOutFile = 'SearchBatchSize_13000_100x100_0.01_tex_mem_run0.npy'
-    S.searchBatchSize = 13000
-    S.recon_prepare()
-    S.geometry_optimizer()
 if __name__ == "__main__":
-    #geo_opt_test()
-    recon_example()
-    #S = Reconstructor_GPU()
-    #test_tex_mem()
-    #context.detach()
-    #cuda.stop_profiler()
-    #grain_boundary()
-    #test_segment_grain()
-    #test_misorient_map()
-    #recon_example()
-    #squareMicMIsOrienMap()
+    import config
+    import numpy as np
+    import reconstruction
+    import MicFileTool
+
+    c = config.Config()
+    c.load('../data/johnson_aug18_demo/SB1_postheat_restart_V1_1degree_config.h5')
+    c.display()
+
+    try:
+        S.clean_up()
+    except NameError:
+        pass
+
+    S = reconstruction.Reconstructor_GPU()
+    S.load_config(c)
+    S.serial_recon_multi_stage()
+
+    MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
