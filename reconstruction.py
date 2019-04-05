@@ -165,32 +165,7 @@ class Reconstructor_GPU():
             self.ctx = ctx
         time.sleep(1)
         self._init_gpu()
-    
-    def load_config(self, config, reloadData=True):
-        '''
-        load any configuration from config class
-        config: Config(), defined in config.py
-        '''
-        self.etalimit = config.etalimit
-        self.set_sample(config.sample)
-        self.set_Q(config.maxQ)
-        self.FZFile = config.fileFZ                  # fundamental zone file
-        self.energy = config.energy
-        self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
-        self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
-        self.detIdx = config.fileBinDetIdx
-        self.NRot = int(config.NRot)
-        self.NDet = int(config.NDet)
-        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot)) # set parameter
-        self.create_square_mic(config.micsize,
-                            voxelsize=config.micVoxelSize,
-                            shift=config.micShift,
-                           )# resolution of reconstruction and voxel size
-        self.squareMicOutFile = f'{config._initialString}_q{self.maxQ}_rot{self.NRot}_z{config.fileBinLayerIdx}_' \
-                            + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
-                            + f'_shift_{"_".join(map(str, config.micShift))}.npy' # output file name
-        self.searchBatchSize = int(config.searchBatchSize)    # number of orientations search at each iteration, larger number will take longer time.
-        self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
+
     def _init_gpu(self):
         """
         Initialize GPU device.
@@ -233,6 +208,8 @@ class Reconstructor_GPU():
         import atexit
         atexit.register(_finish_up)
 
+    #========================== setting parameters ========================================
+    # set parameters of reconstructor
     def set_lattice_constant(self, value,symType='Cubic'):
         if symType =='Cubic':
             self.sample.PrimA = value * np.array([1, 0, 0])
@@ -350,63 +327,29 @@ class Reconstructor_GPU():
         self.afDetInfoH = np.concatenate(lDetInfoTmp)
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
-      
-    def recon_prepare(self,reverseRot=False, bReloadExpData=True, clearCpuMemory=True):
+    def set_voxel_pos(self,pos,mask=None):
         '''
-        prepare for reconstruction, copy detector data to GPU
-        :param reverseRot: left hand or right hand rotation
-        :bReloadExpData: if reload experimental data, if relaod, exp data will be read again from hdd
+        set voxel positions as well as mask
+        :param pos: shape=[n_voxel,3] , in form of [x,y,z]
         :return:
         '''
-        # prepare nessasary parameters
-        self.load_fz(self.FZFile)
-        if self.additionalFZ is not None:
-            self.append_fz(self.additionalFZ)
-        if bReloadExpData:
-            if reverseRot:
-                self.load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
-            else:
-                self.load_exp_data(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
-            self.expData[:, 2:4] = self.expData[:, 2:4] * self.detScale  # half the detctor size, to rescale real data
-            #self.expData = np.array([[1,2,3,4]])
-            self.cp_expdata_to_gpu()
-            if clearCpuMemory:
-                self.expData=None
-                self.acExpDataCpuRam = None
-        #self.create_acExpDataCpuRam()
-        # setup serial Reconstruction rotMatCandidate
-        self.FZMatH = np.empty([self.searchBatchSize,3,3])
-        if self.searchBatchSize > self.FZMat.shape[0]:
-            self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
-            self.FZMatH[self.FZMat.shape[0]:,:,:] = FZfile.generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
+        self.voxelpos = pos.reshape([-1,3])  # nx3 array,
+        self.NVoxel = self.voxelpos.shape[0]
+        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
+        self.voxelHitRatio = np.zeros(self.NVoxel)
+        if mask is None:
+            self.voxleMask = np.ones(self.NVoxel)
+        elif mask.size==self.NVoxel:
+            self.voxelMask = mask.ravel()
         else:
-            raise ValueError(" search batch size less than FZ file size, please increase search batch size")
+            raise ValueError(' mask should have the same number of voxel as self.voxelpos')
+        self.voxelIdxStage0 = list(np.where(self.voxelMask==1)[0])   # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
+        self.NTotalVoxel2Recon = len(self.voxelIdxStage0)
+        self.voxelIdxStage1 = []                                # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
+        #print("voxelpos shape is {0}".format(self.voxelpos.shape))
 
-        # initialize device parameters and outputs
-        #self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
-        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
-        self.afFZMatD = gpuarray.to_gpu(self.FZMatH.astype(np.float32))          # no need to modify during process
-
-    def increase_resolution(self, factor, maskThreshold=0.3):
-        '''
-        increase the resolution of squareMic
-            1. increase resolution compared to original mic
-            2. take original orientation into fz
-        :param factor: interger, e.g. 10
-        :param maskThreshold: float, voxel with hitratio>maskThreshold will make the new mask for high-res reconstruction
-        :return:
-        '''
-        newSquareMic = self.squareMicData.repeat(factor,axis=0).repeat(factor,axis=1)
-        mask = np.zeros([newSquareMic.shape[0], newSquareMic.shape[1]])
-        mask[newSquareMic[:,:,6]>maskThreshold] = 1
-        mask = ndi.binary_closing(mask)
-        voxelsize = self.squareMicData[0,0,8]*factor
-        shape = (self.squareMicData.shape[0], self.squareMicData.shape[1])
-        self.create_square_mic(shape=shape, voxelsize=voxelsize, mask=mask)
-        self.squareMicData[:,:, 3:6] = newSquareMic[:,:,3:6]
-        eulers, label, numFeatures = self.extract_orientations()
-        self.additionalFZ = eulers
-        self.serial_recon_multi_stage()
+    #======================== parameter optimization session =======================
+    # optimize geometry of experiemental setup
 
     def geometry_optimizer(self, mask=None):
         '''
@@ -425,6 +368,7 @@ class Reconstructor_GPU():
 
         centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK
+
     def geo_opt_phase_0(self, mask=None,centerL=None, centerJ=None, centerK=None, centerRot=None,
                         rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
                        relativeL=0.05,relativeJ=15, relativeK=5,
@@ -481,6 +425,7 @@ class Reconstructor_GPU():
             NPhase0Iteration +=1
         print(centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK, centerRot
+
     def geo_opt_phase_1(self, centerL, centerJ, centerK, centerRot, mask=None,expandSize=1):
         '''
         with an acceptable parameter, reconstruct an area and select grain boundaries for further refinement
@@ -513,6 +458,7 @@ class Reconstructor_GPU():
 
         aIdxVoxel = x * self.squareMicData.shape[1] + y
         return aIdxVoxel
+
     def geo_opt_phase_2(self,idxVoxel, centerL, centerJ, centerK, centerRot,
                         NIterationPhase2=10, rangeL=None, rangeJ=None, rangeK=None, factor0=0.7,
                         rotOptimization=True):
@@ -875,6 +821,324 @@ class Reconstructor_GPU():
                         self.geoSearchHitRatio[idxl, idxJ, idxK,idxRot] = self.geoSearchHitRatio[idxl, idxJ, idxK,idxRot] / len(lVoxelIdx)
         #print(self.geoSearchHitRatio)
         return self.geoSearchHitRatio
+    # ======================= data io ========================================================
+    # save and load data
+
+    def load_config(self, config, reloadData=True):
+        '''
+        load any configuration from config class
+        config: Config(), defined in config.py
+        '''
+        self.etalimit = config.etalimit
+        self.set_sample(config.sample)
+        self.set_Q(config.maxQ)
+        self.FZFile = config.fileFZ                  # fundamental zone file
+        self.energy = config.energy
+        self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
+        self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
+        self.detIdx = config.fileBinDetIdx
+        self.NRot = int(config.NRot)
+        self.NDet = int(config.NDet)
+        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot)) # set parameter
+        self.create_square_mic(config.micsize,
+                            voxelsize=config.micVoxelSize,
+                            shift=config.micShift,
+                           )# resolution of reconstruction and voxel size
+        self.squareMicOutFile = f'{config._initialString}_q{self.maxQ}_rot{self.NRot}_z{config.fileBinLayerIdx}_' \
+                            + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
+                            + f'_shift_{"_".join(map(str, config.micShift))}.npy' # output file name
+        self.searchBatchSize = int(config.searchBatchSize)    # number of orientations search at each iteration, larger number will take longer time.
+        self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
+
+    def create_square_mic(self, shape=(100, 100), shift=[0, 0, 0], voxelsize=0.01, mask=None):
+        '''
+        initialize a square mic file
+        Currently, the image is treated start from lower left corner, x is horizental direction, y is vertical, X-ray comes from -y shoot to y
+        output mic format: [NVoxelX,NVoxleY,10]
+        each Voxel conatains 10 columns:
+            0-2: voxelpos [x,y,z]
+            3-5: euler angle
+            6: hitratio
+            7: maskvalue. 0: no need for recon, 1: active recon region
+            8: voxelsize
+            9: additional information
+        :param shape: array like [NVoxelX,NVxoelY]
+        :param shift: arraylike, [dx,dy,dz], in mm
+        :param voxelsize: in mm
+        :param mask:
+        :return:
+        '''
+        shape = tuple(shape)
+        if len(shape) != 2:
+            raise ValueError(' input shape should be in the form [x,y]')
+        if mask is None:
+            mask = np.ones(shape)
+        if mask.shape != shape:
+            raise ValueError('mask should be in the same shape as input')
+        shift = np.array(shift).ravel()
+        if shift.size != 3:
+            raise ValueError(' shift size should be 3, (dx,dy,dz)')
+        self.squareMicData = np.zeros([shape[0], shape[1], 10])
+        self.squareMicData[:, :, 7] = mask[:, :]
+        self.squareMicData[:, :, 8] = voxelsize
+        midVoxel = np.array([float(shape[0]) / 2, float(shape[1]) / 2, 0])
+        for ii in range(self.squareMicData.shape[0]):
+            for jj in range(self.squareMicData.shape[1]):
+                self.squareMicData[ii, jj, 0:3] = (np.array([ii + 0.5, jj + 0.5, 0]) - midVoxel) * voxelsize + shift
+        self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
+
+    def save_square_mic(self, fName, format='npy'):
+        '''
+        save square mic data
+        :param format: 'npy' or 'txt' or 'h5'
+        :return:
+        '''
+        if format == 'npy':
+            np.save(fName, self.squareMicData)
+            print('saved as npy format')
+        elif format == 'txt':
+            print('not implemented')
+            pass
+            # np.savetxt(fName,self.squareMicData.reshape([-1,10]),header=str(self.squareMicData.shape))
+            # print('saved as txt format')
+        else:
+            raise ValueError('format could only be npy or txt')
+
+    def load_square_mic(self, mic):
+        self.squareMicData = mic
+        self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
+        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
+        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(
+            self.squareMicData[:, :, 3:6].reshape([-1, 3]) / 180.0 * np.pi)
+        self.voxelHitRatio = self.squareMicData[:, :, 6].ravel()
+
+    def load_square_mic_file(self, fName, format='npy'):
+        if format == 'npy':
+            self.squareMicData = np.load(fName)
+
+            print('load as npy format')
+        elif format == 'txt':
+            print('not implemented')
+            pass
+            # self.squareMicData = np.loadtxt(fName)
+            # print('saved as txt format')
+        else:
+            raise ValueError('format could only be npy or txt')
+        self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
+        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
+        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(
+            self.squareMicData[:, :, 3:6].reshape([-1, 3]) / 180.0 * np.pi)
+        self.voxelHitRatio = self.squareMicData[:, :, 6].ravel()
+
+    def load_I9mic(self, fName):
+        '''
+        load mic file
+        set voxelPos,voxelAcceptedEuler, voxelHitRatio,micEuler
+        :param fNmame:
+        %% Legacy File Format:
+          %% Col 0-2 x, y, z
+          %% Col 3   1 = triangle pointing up, 2 = triangle pointing down
+          %% Col 4 generation number; triangle size = sidewidth /(2^generation number )
+          %% Col 5 Phase - 1 = exist, 0 = not fitted
+          %% Col 6-8 orientation
+          %% Col 9  Confidence
+        :return:
+        '''
+
+        # self.micData = np.loadtxt(fName,skiprows=skiprows)
+        # self.micSideWith =
+        # print(self.micData)
+        # if self.micData.ndim==1:
+        #     micData = self.micData[np.newaxis,:]
+        # if self.micData.ndim==0:
+        #     raise ValueError('number of dimension of mic file is wrong')
+        # self.set_voxel_pos(self.micData[:,:3])
+        with open(fName) as f:
+            content = f.readlines()
+        # print(content[1])
+        # print(type(content[1]))
+        sw = float(content[0])
+        try:
+            snp = np.array([[float(i) for i in s.split()] for s in content[1:]])
+        except ValueError:
+            print('unknown deliminater')
+        if snp.ndim < 2:
+            raise ValueError('snp dimension if not right, possible empty mic file or empty line in micfile')
+        self.micSideWidth = sw
+        self.micData = snp
+        # set the center of triable to voxel position
+        voxelpos = snp[:, :3].copy()
+        voxelpos[:, 0] = snp[:, 0] + 0.5 * sw / (2 ** snp[:, 4])
+        voxelpos[:, 1] = snp[:, 1] + 2 * (1.5 - snp[:, 3]) * sw / (2 ** snp[:, 4]) / 2 / np.sqrt(3)
+        self.set_voxel_pos(voxelpos)
+
+    def save_mic(self, fName):
+        '''
+        save mic for icenine format
+        :param fName:
+        :return:
+        '''
+        print('======= saved to mic file: {0} ========'.format(fName))
+        np.savetxt(fName, self.micData, fmt=['%.6f'] * 2 + ['%d'] * 4 + ['%.6f'] * (self.micData.shape[1] - 6),
+                   delimiter='\t', header=str(self.micSideWidth), comments='')
+
+    def load_fz(self, fName):
+        # load FZ.dat file
+        # self.FZEuler: n_Orientation*3 array
+        # test passed
+        self.FZEuler = np.loadtxt(fName)
+        # initialize orientation Matrices !!! implement on GPU later
+        # self.FZMat = np.zeros([self.FZEuler.shape[0], 3, 3])
+        if self.FZEuler.ndim == 1:
+            print('wrong format of input orientation, should be nx3 numpy array')
+        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler / 180.0 * np.pi)
+        # for i in range(self.FZEuler.shape[0]):
+        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
+        #         [3, 3])
+        return self.FZEuler
+
+    def append_fz(self, eulerIn):
+        '''
+        append more euler angles to fz file
+        ::param eulerIn: np.array, shape=[nEuelr,3]
+        '''
+        eulerIn = eulerIn.reshape([-1, 3])
+        self.FZEuler = np.concatenate((self.FZEuler, eulerIn))
+        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler / 180.0 * np.pi)
+        # for i in range(self.FZEuler.shape[0]):
+        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
+        #         [3, 3])
+        return self.FZEuler
+
+    def load_exp_data_reverse(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
+        '''
+        load experimental binary data self.expData[detIdx,rotIdx,j,k]
+        these data are NOT transfered to GPU yet.
+        :param fInitials: e.g./home/heliu/work/I9_test_data/Integrated/S18_z1_
+        :param digits: number of digits in file name, usually 6,
+        :param remove_overlap: if true,remove overlap peaks. Sometimes too many peaks may overflow the gpu memory
+        :param lDetIdx: index of detectors to use.
+        :return:
+        '''
+        lJ = []
+        lK = []
+        lRot = []
+        lDet = []
+        lIntensity = []
+        lID = []
+        if lDetIdx is None:
+            lDetIdx = np.arange(self.NDet)
+        for i in range(self.NDet):
+            for j in range(self.NRot):
+
+                fName = fInitials + str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
+                sys.stdout.write(f'\r loading det {i}/{self.NDet}, rotation {j}/{self.NRot}, {fName}')
+                sys.stdout.flush()
+                x, y, intensity, id = IntBin.ReadI9BinaryFiles(fName)
+                # print(x,type(x))
+                if x.size == 0:
+                    continue
+
+                # print(x.shape)
+                if remove_overlap == True:
+                    concat = np.hstack([a.reshape(-1, 1) for a in [x, y]])
+                    # print(concat.shape)
+                    u, indices = np.unique(concat, return_index=True, axis=0)
+                    x = x[indices]
+                    y = y[indices]
+                    intensity = intensity[indices]
+                    id = id[indices]
+                    # print(x.shape)
+                select = intensity > intensity_threshold
+                x = x[select]
+                y = y[select]
+                intensity = intensity[select]
+                id = id[select]
+                lJ.append(x[:, np.newaxis])
+                lK.append(y[:, np.newaxis])
+                lDet.append(i * np.ones(x[:, np.newaxis].shape))
+                lRot.append((self.NRot - j - 1) * np.ones(x[:, np.newaxis].shape))
+                lIntensity.append(intensity[:, np.newaxis])
+                lID.append(id)
+
+        self.expData = np.concatenate(
+            [np.concatenate(lDet, axis=0), np.concatenate(lRot, axis=0), np.concatenate(lJ, axis=0),
+             np.concatenate(lK, axis=0)], axis=1)
+        print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
+
+    def load_exp_data(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
+        '''
+        load experimental binary data self.expData[detIdx,rotIdx,j,k]
+        these data are NOT transfered to GPU yet.
+        :param fInitials: e.g./home/heliu/work/I9_test_data/Integrated/S18_z1_
+        :param digits: number of digits in file name, usually 6,
+        :return:
+        '''
+        lJ = []
+        lK = []
+        lRot = []
+        lDet = []
+        lIntensity = []
+        lID = []
+        if lDetIdx is None:
+            lDetIdx = np.arange(self.NDet)
+        print(lDetIdx)
+        for i in range(self.NDet):
+            for j in range(self.NRot):
+                #                 sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i+1,j+1,self.NDet,self.NRot))
+                #                 sys.stdout.flush()
+                fName = fInitials + str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
+                sys.stdout.write(f'\r loading det {i}/{self.NDet}, rotation {j}/{self.NRot}, {fName}')
+                sys.stdout.flush()
+                x, y, intensity, id = IntBin.ReadI9BinaryFiles(fName)
+                if x.size == 0:
+                    continue
+                if remove_overlap == True:
+                    concat = np.hstack([a.reshape(-1, 1) for a in [x, y]])
+                    # print(concat.shape)
+                    u, indices = np.unique(concat, return_index=True, axis=0)
+                    x = x[indices]
+                    y = y[indices]
+                    intensity = intensity[indices]
+                    id = id[indices]
+                    # print(x.shape)
+                select = intensity > intensity_threshold
+                x = x[select]
+                y = y[select]
+                intensity = intensity[select]
+                id = id[select]
+                lJ.append(x[:, np.newaxis])
+                lK.append(y[:, np.newaxis])
+                lDet.append(i * np.ones(x[:, np.newaxis].shape))
+                lRot.append(j * np.ones(x[:, np.newaxis].shape))
+                lIntensity.append(intensity[:, np.newaxis])
+                lID.append(id)
+        self.expData = np.concatenate(
+            [np.concatenate(lDet, axis=0), np.concatenate(lRot, axis=0), np.concatenate(lJ, axis=0),
+             np.concatenate(lK, axis=0)], axis=1)
+        print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
+
+    def save_sim_mic_binary(self, fNameInitial='sim_result_'):
+        '''
+        save simulated result as binary files
+        '''
+        idx = np.where(self.bHitH)
+        j = self.aJH[idx]
+        k = self.aKH[idx]
+        rot = self.aiRotNH[idx]
+        aDetIdx = self.aDetIdx[idx]
+        for idxRot in range(self.NRot):
+            for idxDet in range(self.NDet):
+                idxSelect = np.where(np.logical_and(rot==idxRot,aDetIdx==idxDet))
+                jTmp = j[idxSelect]
+                kTmp = k[idxSelect]
+                snp = [jTmp,kTmp,np.zeros(jTmp.size,dtype=np.int32),np.zeros(jTmp.size,dtype=np.int32)]
+                fName = fNameInitial + f'{idxRot}.bin{idxDet}'
+                IntBin.WritePeakBinaryFile(snp, fName)
+        return 1
+
+    # =================== reconstruction functions ===========================================
+    # these are reconstruction procedures
 
     def create_acExpDataCpuRam(self):
         # for testing cpu verison of hitratio
@@ -923,6 +1187,189 @@ class Reconstructor_GPU():
 
 
         print('=============end of copy exp data to CPU ===========')
+
+    def cp_expdata_to_gpu(self):
+        # try to use texture memory, assuming all detector have same size.
+        # require have defiend self.NDet,self.NRot, and Detctor informations;
+        # self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
+        # self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
+        print('=============start of copy exp data to gpu ===========')
+        #         if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
+        #             raise ValueError(' This version requare all detector have same dimension')
+        if self.expData.shape[1] != 4:
+            raise ValueError('expdata shape should be n_peaks*4')
+        if np.max(self.expData[:, 0]) > self.NDet - 1:
+            raise ValueError('expData contains detector index out of bound')
+        if np.max(self.expData[:, 1]) > self.NRot - 1:
+            raise ValueError('expData contaisn rotation number out of bound')
+        self.aiDetStartIdxH = [
+            0]  # index of Detctor start postition in self.acExpDetImages, e.g. 3 detectors with size 2048x2048, 180 rotations, self.aiDetStartIdx = [0,180*2048*2048,2*180*2048*2048]
+        self.iExpDetImageSize = 0
+        for i in range(self.NDet):
+            self.iExpDetImageSize += self.NRot * self.detectors[i].NPixelJ * self.detectors[i].NPixelK
+            if i < (self.NDet - 1):
+                self.aiDetStartIdxH.append(self.iExpDetImageSize)
+        # create texture memory
+        print('start of create data on cpu ram')
+        self.create_acExpDataCpuRam()
+        print('start of creating texture memory')
+        # self.texref = mod.get_texref("tcExpData")
+        self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
+        self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
+        # del self.acExpDetImages
+        print('end of creating texture memory')
+        # del self.acExpDetImages
+        print('=============end of copy exp data to gpu ===========')
+
+    def recon_prepare(self,reverseRot=False, bReloadExpData=True, clearCpuMemory=True):
+        '''
+        prepare for reconstruction, copy detector data to GPU
+        :param reverseRot: left hand or right hand rotation
+        :bReloadExpData: if reload experimental data, if relaod, exp data will be read again from hdd
+        :return:
+        '''
+        # prepare nessasary parameters
+        self.load_fz(self.FZFile)
+        if self.additionalFZ is not None:
+            self.append_fz(self.additionalFZ)
+        if bReloadExpData:
+            if reverseRot:
+                self.load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
+            else:
+                self.load_exp_data(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
+            self.expData[:, 2:4] = self.expData[:, 2:4] * self.detScale  # half the detctor size, to rescale real data
+            #self.expData = np.array([[1,2,3,4]])
+            self.cp_expdata_to_gpu()
+            if clearCpuMemory:
+                self.expData=None
+                self.acExpDataCpuRam = None
+        #self.create_acExpDataCpuRam()
+        # setup serial Reconstruction rotMatCandidate
+        self.FZMatH = np.empty([self.searchBatchSize,3,3])
+        if self.searchBatchSize > self.FZMat.shape[0]:
+            self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
+            self.FZMatH[self.FZMat.shape[0]:,:,:] = FZfile.generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
+        else:
+            raise ValueError(" search batch size less than FZ file size, please increase search batch size")
+
+        # initialize device parameters and outputs
+        #self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
+        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+        self.afFZMatD = gpuarray.to_gpu(self.FZMatH.astype(np.float32))          # no need to modify during process
+
+    def serial_recon_multi_stage(self, enablePostProcess=True, verbose=True):
+        '''
+                # add multiple stage in serial reconstruction:
+        # Todo:
+        #   done: add flood fill
+        #   done: add post stage check, refill reconstructed orientations to each voxel.
+        # Example Usage:
+        :return:
+        '''
+        # self.recon_prepare()
+
+        # timing tools:
+        #         self.ctx.push()
+        start = cuda.Event()
+        end = cuda.Event()
+        print('==========start of reconstruction======== \n')
+        start.record()  # start timing
+        self.NFloodFill = 0
+        cnt = 0
+        while self.voxelIdxStage0:
+            # start of simulation
+            cnt += 1
+            voxelIdx = random.choice(self.voxelIdxStage0)
+            if cnt % 1 == 0:
+                disp = verbose
+            else:
+                disp = False
+            self.single_voxel_recon(voxelIdx, self.afFZMatD, self.searchBatchSize, verbose=disp,
+                                    NIteration=self.NIteration, BoundStart=self.BoundStart)
+            if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
+                self.flood_fill(voxelIdx)
+                self.NFloodFill += 1
+            try:
+                self.voxelIdxStage0.remove(voxelIdx)
+            except ValueError:
+                pass
+        print('number of flood fills: {0}'.format(self.NFloodFill))
+        if enablePostProcess:
+            self.post_process()
+        print('===========end of reconstruction========== \n')
+        end.record()  # end timing
+        end.synchronize()
+        secs = start.time_till(end) * 1e-3
+        print("SourceModule time {0} seconds.".format(secs))
+        # save roconstruction result
+        self.squareMicData[:, :, 3:6] = (
+                RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
+            [self.squareMicData.shape[0], self.squareMicData.shape[1], 3])
+        self.squareMicData[:, :, 6] = self.voxelHitRatio.reshape(
+            [self.squareMicData.shape[0], self.squareMicData.shape[1]])
+        self.accMat = self.voxelAcceptedMat.copy().reshape(
+            [self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
+        self.save_square_mic(self.squareMicOutFile)
+        # self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
+        # self.ctx.pop()
+
+    def serial_recon_expansion_mode(self, startIdx):
+        '''
+        This is actually a flood fill process.
+        In this mode, it will search the orientation at start point and gradually reachout to the boundary,
+        So that it can save the time wasted on boundaries. ~ 10%~30% of total reconstruction time
+        :return:
+        '''
+        # self.recon_prepare()
+
+        # timing tools:
+        start = cuda.Event()
+        end = cuda.Event()
+        print('==========start of reconstruction======== \n')
+        start.record()  # start timing
+        self.NFloodFill = 0
+        NX = self.squareMicData.shape[0]
+        NY = self.squareMicData.shape[1]
+        visited = np.zeros(NX * NY)
+        if self.voxelHitRatio[startIdx] == 0:
+            self.expansion_unit_run(startIdx, self.afFZMatD)
+        if self.voxelHitRatio[startIdx] < self.expansionStopHitRatio:
+            raise ValueError(' this start point fail to initialize expansion, choose another starting point.')
+        q = [startIdx]
+        visited[startIdx] = 1
+        while q:
+            n = q.pop(0)
+            for x in [min(n + 1, n - n % NY + NY - 1), max(n - n % NY, n - 1),
+                      min(n // NY + 1, NX - 1) * NY + n % NY, max(0, n // NY - 1) * NY + n % NY]:
+                if self.voxelHitRatio[x] == 0:
+                    self.expansion_unit_run(x, self.afFZMatD)
+                if self.voxelHitRatio[x] > self.expansionStopHitRatio and visited[x] == 0:
+                    q.append(x)
+                    visited[x] = 1
+        print('number of flood fills: {0}'.format(self.NFloodFill))
+        self.post_process()
+        print('===========end of reconstruction========== \n')
+        end.record()  # end timing
+        end.synchronize()
+        secs = start.time_till(end) * 1e-3
+        print("SourceModule time {0} seconds.".format(secs))
+        # save roconstruction result
+        self.squareMicData[:, :, 3:6] = (
+                RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
+            [self.squareMicData.shape[0], self.squareMicData.shape[1], 3])
+        self.squareMicData[:, :, 6] = self.voxelHitRatio.reshape(
+            [self.squareMicData.shape[0], self.squareMicData.shape[1]])
+        self.accMat = self.voxelAcceptedMat.copy().reshape(
+            [self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
+        self.save_square_mic(self.squareMicOutFile)
+        # self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
+
+    def serial_recon_multistage_precheck(self):
+        if os.path.isfile(self.squareMicOutFile):
+            input = raw_input('Warning: the out put file {0} have already exist, do you want to overwrite? \n \
+                            Any button to continue, Ctr+C to quit'.format(self.squareMicData))
+        if self.squareMicData is None:
+            raise ValueError('have not initiate square mic yet')
 
     def post_process(self):
         '''
@@ -986,312 +1433,132 @@ class Reconstructor_GPU():
         # self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
         # self.save_square_mic('SquareMicTest2_postprocess.npy')
 
-    def get_misorien_map(self,m0):
+    # FLOOD FILL sub session:
+
+    def fill_neighbour(self):
         '''
-        map the misorienation map
-        e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
-        but it will still return 100x100, filling 0 to the last row/column
-        the misorientatino on that voxel is the max misorientation to its right or up side voxel
-        :param m0: rotation matrix size=[nx,ny,9]
+        NOT FINISHED, seems no need.
+                check neighbour and fill the neighbour
+                :return:
+        '''
+        sys.stdout.write('\r ====================== entering flood fill ===================================')
+        sys.stdout.flush()
+        # select voxels to conduct filling
+        sys.stdout.write(' \r indexstage0 {0}'.format(len(self.voxelIdxStage0)))
+        sys.stdout.flush()
+        # lFloodFillIdx = list()
+        lFloodFillIdx = list(
+            np.where(np.logical_and(self.voxelHitRatio < self.floodFillSelectThreshold, self.voxelMask == 1))[0])
+
+        if not lFloodFillIdx:
+            return 0
+        idxToAccept = []
+        print(len(lFloodFillIdx))
+        # try orientation to fill on all other voxels
+        for i in range((len(lFloodFillIdx) - 1) // self.floodFillNumberVoxel + 1):  # make sure memory is enough
+
+            idxTmp = lFloodFillIdx[i * self.floodFillNumberVoxel: (i + 1) * self.floodFillNumberVoxel]
+            if len(idxTmp) == 0:
+                print('no voxel to reconstruct')
+                return 0
+            elif len(idxTmp) < 350:
+                idxTmp = idxTmp * (349 / len(idxTmp) + 1)
+            print('i: {0}, idxTmp: {1}'.format(i, len(idxTmp)))
+            afVoxelPosD = gpuarray.to_gpu(self.voxelpos[idxTmp, :].astype(np.float32))
+            rotMatH = self.voxelAcceptedMat[self.voxelIdxStage0[0], :, :].reshape([-1, 3, 3]).repeat(len(idxTmp),
+                                                                                                     axis=0).astype(
+                np.float32)
+            rotMatSearchD = gpuarray.to_gpu(rotMatH)
+            afFloodHitRatioH, aiFloodPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, len(idxTmp), 1)
+
+            idxToAccept.append(np.array(idxTmp)[afFloodHitRatioH > self.floodFillAccptThreshold])
+            del afVoxelPosD
+            del rotMatSearchD
+        # print('idxToAccept: {0}'.format(idxToAccept))
+        idxToAccept = np.concatenate(idxToAccept).ravel()
+        # local optimize each voxel
+        for i, idxTmp in enumerate(idxToAccept):
+            # remove from stage 0
+            try:
+                self.voxelIdxStage0.remove(idxTmp)
+            except ValueError:
+                pass
+            # do one time search:
+            rotMatSearchD = self.gen_random_matrix(
+                gpuarray.to_gpu(self.voxelAcceptedMat[self.voxelIdxStage0[0], :, :].astype(np.float32)),
+                1, self.floodFillNumberAngle, self.floodFillRandomRange)
+            self.single_voxel_recon(idxTmp, rotMatSearchD, self.floodFillNumberAngle,
+                                    NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
+            del rotMatSearchD
+        # print('fill {0} voxels'.format(idxToAccept.shape))
+        sys.stdout.write(' \r ++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
+        sys.stdout.flush()
+        return 1
+
+    def flood_fill(self, voxelIdx):
+        '''
+        This is acturally not a flood fill process, it tries to fill all the voxels with low hitratio
+        flood fill all the voxel with confidence level lower than self.floodFillAccptThreshold
         :return:
+        todo: accept to flood filling but only remove from stage0 if conf> larger value
         '''
-        if m0.ndim!=3:
-            raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
-        NVoxelX = m0.shape[0]
-        NVoxelY = m0.shape[1]
-        #m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
-        m1 = np.empty([NVoxelX, NVoxelY, 9])
-        # x direction misorientatoin
-        m1[:-1,:,:] = m0[1:,:,:]
-        m1[-1,:,:] = m0[-1,:,:]
-        misorienX = self.misorien(m0, m1, self.symMat)
-        # y direction misorientation
-        m1[:,:-1,:] = m0[:,1:,:]
-        m1[:,-1,:] = m0[:,-1,:]
-        misorienY = self.misorien(m0, m1, self.symMat)
-        self.misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
-        return self.misOrien
+        # print('====================== entering flood fill ===================================')
+        # select voxels for filling
+        lFloodFillIdx = list(
+            np.where(np.logical_and(self.voxelHitRatio < self.floodFillSelectThreshold, self.voxelMask == 1))[0])
+        if not lFloodFillIdx:
+            return 0
+        idxToAccept = []
+        # print(len(lFloodFillIdx))
+        # try orientation to fill on all other voxels
+        for i in range((len(lFloodFillIdx) - 1) // self.floodFillNumberVoxel + 1):  # make sure memory is enough
 
-    def set_voxel_pos(self,pos,mask=None):
-        '''
-        set voxel positions as well as mask
-        :param pos: shape=[n_voxel,3] , in form of [x,y,z]
-        :return:
-        '''
-        self.voxelpos = pos.reshape([-1,3])  # nx3 array,
-        self.NVoxel = self.voxelpos.shape[0]
-        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
-        self.voxelHitRatio = np.zeros(self.NVoxel)
-        if mask is None:
-            self.voxleMask = np.ones(self.NVoxel)
-        elif mask.size==self.NVoxel:
-            self.voxelMask = mask.ravel()
-        else:
-            raise ValueError(' mask should have the same number of voxel as self.voxelpos')
-        self.voxelIdxStage0 = list(np.where(self.voxelMask==1)[0])   # this contains index of the voxel that have not been tried to be reconstructed, used for flood fill process
-        self.NTotalVoxel2Recon = len(self.voxelIdxStage0)
-        self.voxelIdxStage1 = []                                # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
-        #print("voxelpos shape is {0}".format(self.voxelpos.shape))
+            idxTmp = lFloodFillIdx[i * self.floodFillNumberVoxel: (i + 1) * self.floodFillNumberVoxel]
+            if len(idxTmp) == 0:
+                # print('no voxel to reconstruct')
+                return 0
+            elif len(idxTmp) < 350:
+                idxTmp = idxTmp * (349 // len(idxTmp) + 1)
+            # print('select group: {0}, number of voxel: {1}'.format(i,len(idxTmp)))
+            afVoxelPosD = gpuarray.to_gpu(self.voxelpos[idxTmp, :].astype(np.float32))
+            rotMatH = self.voxelAcceptedMat[voxelIdx, :, :].reshape([-1, 3, 3]).repeat(len(idxTmp),
+                                                                                       axis=0).astype(
+                np.float32)
+            rotMatSearchD = gpuarray.to_gpu(rotMatH)
+            afFloodHitRatioH, aiFloodPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, len(idxTmp), 1)
 
-    def create_square_mic(self,shape=(100,100), shift=[0,0,0], voxelsize=0.01,mask=None):
-        '''
-        initialize a square mic file
-        Currently, the image is treated start from lower left corner, x is horizental direction, y is vertical, X-ray comes from -y shoot to y
-        output mic format: [NVoxelX,NVoxleY,10]
-        each Voxel conatains 10 columns:
-            0-2: voxelpos [x,y,z]
-            3-5: euler angle
-            6: hitratio
-            7: maskvalue. 0: no need for recon, 1: active recon region
-            8: voxelsize
-            9: additional information
-        :param shape: array like [NVoxelX,NVxoelY]
-        :param shift: arraylike, [dx,dy,dz], in mm
-        :param voxelsize: in mm
-        :param mask:
-        :return:
-        '''
-        shape = tuple(shape)
-        if len(shape)!=2:
-            raise ValueError(' input shape should be in the form [x,y]')
-        if mask is None:
-            mask = np.ones(shape)
-        if mask.shape!= shape:
-            raise ValueError('mask should be in the same shape as input')
-        shift = np.array(shift).ravel()
-        if shift.size!=3:
-            raise ValueError(' shift size should be 3, (dx,dy,dz)')
-        self.squareMicData = np.zeros([shape[0],shape[1],10])
-        self.squareMicData[:,:,7] = mask[:,:]
-        self.squareMicData[:,:,8] = voxelsize
-        midVoxel = np.array([float(shape[0]) / 2, float(shape[1]) / 2, 0])
-        for ii in range(self.squareMicData.shape[0]):
-            for jj in range(self.squareMicData.shape[1]):
-                self.squareMicData[ii,jj,0:3] = (np.array([ii+0.5, jj+0.5, 0])-midVoxel)*voxelsize + shift
-        self.set_voxel_pos(self.squareMicData[:,:,:3].reshape([-1,3]), self.squareMicData[:,:,7].ravel())
+            idxToAccept.append(np.array(idxTmp)[afFloodHitRatioH > self.floodFillAccptThreshold])
+            del afVoxelPosD
+            del rotMatSearchD
+        # print('idxToAccept: {0}'.format(idxToAccept))
+        idxToAccept = np.concatenate(idxToAccept).ravel()
+        # local optimize each voxel
+        previousHitRatio = np.copy(self.voxelHitRatio)
+        previousAccMat = np.copy(self.voxelAcceptedMat)
+        for i, idxTmp in enumerate(idxToAccept):
+            # do one time search:
+            rotMatSearchD = self.gen_random_matrix(
+                gpuarray.to_gpu(self.voxelAcceptedMat[voxelIdx, :, :].astype(np.float32)),
+                1, self.floodFillNumberAngle, self.floodFillRandomRange)
+            self.single_voxel_recon(idxTmp, rotMatSearchD, self.floodFillNumberAngle,
+                                    NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange,
+                                    verbose=False)
+            #             if self.voxelHitRatio[idxTmp]<=previousHitRatio[idxTmp]:
+            #                 self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
+            #                 self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
+            try:
+                self.voxelIdxStage0.remove(idxTmp)
+            except ValueError:
+                pass
+            del rotMatSearchD
+        # print('this process fill {0} voxels'.format(idxToAccept.shape))
+        # print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
+        # print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
+        return 1
 
-    def save_square_mic(self, fName, format='npy'):
-        '''
-        save square mic data
-        :param format: 'npy' or 'txt' or 'h5'
-        :return:
-        '''
-        if format=='npy':
-            np.save(fName, self.squareMicData)
-            print('saved as npy format')
-        elif format=='txt':
-            print('not implemented')
-            pass
-            # np.savetxt(fName,self.squareMicData.reshape([-1,10]),header=str(self.squareMicData.shape))
-            # print('saved as txt format')
-        else:
-            raise ValueError('format could only be npy or txt')
 
-    def load_square_mic(self, mic):
-        self.squareMicData = mic
-        self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
-        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
-        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(self.squareMicData[:,:,3:6].reshape([-1,3]) / 180.0 * np.pi)
-        self.voxelHitRatio = self.squareMicData[:,:,6].ravel()
-    def load_square_mic_file(self, fName, format='npy'):
-        if format=='npy':
-            self.squareMicData = np.load(fName)
-
-            print('load as npy format')
-        elif format=='txt':
-            print('not implemented')
-            pass
-            # self.squareMicData = np.loadtxt(fName)
-            # print('saved as txt format')
-        else:
-            raise ValueError('format could only be npy or txt')
-        self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
-        self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
-        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(self.squareMicData[:,:,3:6].reshape([-1,3]) / 180.0 * np.pi)
-        self.voxelHitRatio = self.squareMicData[:,:,6].ravel()
-    def load_I9mic(self,fName):
-        '''
-        load mic file
-        set voxelPos,voxelAcceptedEuler, voxelHitRatio,micEuler
-        :param fNmame:
-        %% Legacy File Format:
-          %% Col 0-2 x, y, z
-          %% Col 3   1 = triangle pointing up, 2 = triangle pointing down
-          %% Col 4 generation number; triangle size = sidewidth /(2^generation number )
-          %% Col 5 Phase - 1 = exist, 0 = not fitted
-          %% Col 6-8 orientation
-          %% Col 9  Confidence
-        :return:
-        '''
-
-        # self.micData = np.loadtxt(fName,skiprows=skiprows)
-        # self.micSideWith =
-        # print(self.micData)
-        # if self.micData.ndim==1:
-        #     micData = self.micData[np.newaxis,:]
-        # if self.micData.ndim==0:
-        #     raise ValueError('number of dimension of mic file is wrong')
-        # self.set_voxel_pos(self.micData[:,:3])
-        with open(fName) as f:
-            content = f.readlines()
-        # print(content[1])
-        # print(type(content[1]))
-        sw = float(content[0])
-        try:
-            snp = np.array([[float(i) for i in s.split()] for s in content[1:]])
-        except ValueError:
-            print('unknown deliminater')
-        if snp.ndim<2:
-            raise ValueError('snp dimension if not right, possible empty mic file or empty line in micfile')
-        self.micSideWidth = sw
-        self.micData = snp
-        # set the center of triable to voxel position
-        voxelpos = snp[:,:3].copy()
-        voxelpos[:,0] = snp[:,0] + 0.5*sw/(2**snp[:,4])
-        voxelpos[:,1] = snp[:,1] + 2*(1.5-snp[:,3]) * sw/(2**snp[:,4])/2/np.sqrt(3)
-        self.set_voxel_pos(voxelpos)
-
-    def save_mic(self,fName):
-        '''
-        save mic for icenine format
-        :param fName:
-        :return:
-        '''
-        print('======= saved to mic file: {0} ========'.format(fName))
-        np.savetxt(fName, self.micData, fmt=['%.6f'] * 2 + ['%d'] * 4 + ['%.6f'] * (self.micData.shape[1] - 6),
-                   delimiter='\t', header=str(self.micSideWidth), comments='')
-
-    def load_fz(self,fName):
-        # load FZ.dat file
-        # self.FZEuler: n_Orientation*3 array
-        #test passed
-        self.FZEuler = np.loadtxt(fName)
-        # initialize orientation Matrices !!! implement on GPU later
-        # self.FZMat = np.zeros([self.FZEuler.shape[0], 3, 3])
-        if self.FZEuler.ndim == 1:
-            print('wrong format of input orientation, should be nx3 numpy array')
-        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler/ 180.0 * np.pi)
-        # for i in range(self.FZEuler.shape[0]):
-        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
-        #         [3, 3])
-        return self.FZEuler
-
-    def append_fz(self,eulerIn):
-        '''
-        append more euler angles to fz file
-        ::param eulerIn: np.array, shape=[nEuelr,3]
-        '''
-        eulerIn = eulerIn.reshape([-1,3])
-        self.FZEuler = np.concatenate((self.FZEuler, eulerIn))
-        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler/ 180.0 * np.pi)
-        # for i in range(self.FZEuler.shape[0]):
-        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
-        #         [3, 3])
-        return self.FZEuler
-        
-    def load_exp_data_reverse(self,fInitials,digits,intensity_threshold=0,remove_overlap=True, lDetIdx=None):
-        '''
-        load experimental binary data self.expData[detIdx,rotIdx,j,k]
-        these data are NOT transfered to GPU yet.
-        :param fInitials: e.g./home/heliu/work/I9_test_data/Integrated/S18_z1_
-        :param digits: number of digits in file name, usually 6,
-        :param remove_overlap: if true,remove overlap peaks. Sometimes too many peaks may overflow the gpu memory
-        :param lDetIdx: index of detectors to use.
-        :return:
-        '''
-        lJ = []
-        lK = []
-        lRot = []
-        lDet = []
-        lIntensity = []
-        lID = []
-        if lDetIdx is None:
-            lDetIdx = np.arange(self.NDet)
-        for i in range(self.NDet):
-            for j in range(self.NRot):
-
-                fName = fInitials+str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
-                sys.stdout.write(f'\r loading det {i}/{self.NDet}, rotation {j}/{self.NRot}, {fName}')
-                sys.stdout.flush()
-                x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
-                #print(x,type(x))
-                if x.size==0:
-                    continue
-                
-                #print(x.shape)
-                if remove_overlap==True:
-                    concat = np.hstack([a.reshape(-1,1) for a in [x, y]])
-                    #print(concat.shape)
-                    u, indices = np.unique(concat, return_index=True,axis=0)
-                    x = x[indices]
-                    y = y[indices]
-                    intensity = intensity[indices]
-                    id = id[indices]
-                    #print(x.shape)
-                select = intensity>intensity_threshold
-                x = x[select]
-                y = y[select]
-                intensity = intensity[select]
-                id =id[select]
-                lJ.append(x[:,np.newaxis])
-                lK.append(y[:,np.newaxis])
-                lDet.append(i*np.ones(x[:,np.newaxis].shape))
-                lRot.append((self.NRot-j-1)*np.ones(x[:,np.newaxis].shape))
-                lIntensity.append(intensity[:,np.newaxis])
-                lID.append(id)
-                
-        self.expData = np.concatenate([np.concatenate(lDet,axis=0),np.concatenate(lRot,axis=0),np.concatenate(lJ,axis=0),np.concatenate(lK,axis=0)],axis=1)
-        print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
-    def load_exp_data(self,fInitials,digits, intensity_threshold=0,remove_overlap=True, lDetIdx=None):
-        '''
-        load experimental binary data self.expData[detIdx,rotIdx,j,k]
-        these data are NOT transfered to GPU yet.
-        :param fInitials: e.g./home/heliu/work/I9_test_data/Integrated/S18_z1_
-        :param digits: number of digits in file name, usually 6,
-        :return:
-        '''
-        lJ = []
-        lK = []
-        lRot = []
-        lDet = []
-        lIntensity = []
-        lID = []
-        if lDetIdx is None:
-            lDetIdx = np.arange(self.NDet)
-        print(lDetIdx)
-        for i in range(self.NDet):
-            for j in range(self.NRot):
-#                 sys.stdout.write('\r loading det {0}/{2}, rotation {1}/{3}'.format(i+1,j+1,self.NDet,self.NRot))
-#                 sys.stdout.flush()
-                fName = fInitials+str(j).zfill(digits) + '.bin' + str(lDetIdx[i])
-                sys.stdout.write(f'\r loading det {i}/{self.NDet}, rotation {j}/{self.NRot}, {fName}')
-                sys.stdout.flush()
-                x,y,intensity,id = IntBin.ReadI9BinaryFiles(fName)
-                if x.size==0:
-                    continue
-                if remove_overlap==True:
-                    concat = np.hstack([a.reshape(-1,1) for a in [x, y]])
-                    #print(concat.shape)
-                    u, indices = np.unique(concat, return_index=True,axis=0)
-                    x = x[indices]
-                    y = y[indices]
-                    intensity = intensity[indices]
-                    id = id[indices]
-                    #print(x.shape)
-                select = intensity>intensity_threshold
-                x = x[select]
-                y = y[select]
-                intensity = intensity[select]
-                id =id[select]
-                lJ.append(x[:,np.newaxis])
-                lK.append(y[:,np.newaxis])
-                lDet.append(i*np.ones(x[:,np.newaxis].shape))
-                lRot.append(j*np.ones(x[:,np.newaxis].shape))
-                lIntensity.append(intensity[:,np.newaxis])
-                lID.append(id)
-        self.expData = np.concatenate([np.concatenate(lDet,axis=0),np.concatenate(lRot,axis=0),np.concatenate(lJ,axis=0),np.concatenate(lK,axis=0)],axis=1)
-        print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
-
+    # ================ simulator section ==============================================
+    # these functions will serve as simulator
 
     def sim_precheck(self):
         #check if inputs are correct
@@ -1299,35 +1566,6 @@ class Reconstructor_GPU():
             raise ValueError('self.NDet does not match self.detectors')
         if  not np.any(self.oriMatToSim):
             raise  ValueError(' oriMatToSim not set ')
-
-    def serial_recon_precheck(self):
-        pass
-
-    def serial_recon_multistage_precheck(self):
-        if os.path.isfile(self.squareMicOutFile):
-            input = raw_input('Warning: the out put file {0} have already exist, do you want to overwrite? \n \
-                            Any button to continue, Ctr+C to quit'.format(self.squareMicData))
-        if self.squareMicData is None:
-            raise ValueError('have not initiate square mic yet')
-            
-    def save_sim_mic_binary(self, fNameInitial='sim_result_'):
-        '''
-        save simulated result as binary files
-        '''
-        idx = np.where(self.bHitH)
-        j = self.aJH[idx]
-        k = self.aKH[idx]
-        rot = self.aiRotNH[idx]
-        aDetIdx = self.aDetIdx[idx]
-        for idxRot in range(self.NRot):
-            for idxDet in range(self.NDet):
-                idxSelect = np.where(np.logical_and(rot==idxRot,aDetIdx==idxDet))
-                jTmp = j[idxSelect]
-                kTmp = k[idxSelect]
-                snp = [jTmp,kTmp,np.zeros(jTmp.size,dtype=np.int32),np.zeros(jTmp.size,dtype=np.int32)]
-                fName = fNameInitial + f'{idxRot}.bin{idxDet}'
-                IntBin.WritePeakBinaryFile(snp, fName)
-        return 1
     
     def sim_mic(self,simMask=None):
         '''
@@ -1409,17 +1647,153 @@ class Reconstructor_GPU():
         #self.print_sim_results()
         return self.aJH, self.aKH, self.bHitH, self.aiRotNH, self.aOmegaH, self.aDetIdx
 
-    def expansion_unit_run(self, voxelIdx, afFZMatD):
+    def print_sim_results(self):
+        # print(self.aJH)
+        # print(self.aKH)
+        # print(self.aiRotNH)
+        # print(self.aOmegaH)
+        # print(self.bHitH)
+        NVoxel = self.voxelPos4Sim.shape[0]
+        NOriPerVoxel = (self.oriMatToSim.shape[0] / NVoxel)
+        print(NVoxel, NOriPerVoxel)
+        for i,hit in enumerate(self.bHitH):
+            if hit:
+                print('VoxelIdx:{5}, Detector: {0}, J: {1}, K: {2},,RotN:{3}, Omega: {4}'.format(i%self.NDet, self.aJH[i],self.aKH[i],self.aiRotNH[i], self.aOmegaH[i],i//(NOriPerVoxel*self.NG*2*self.NDet)))
+
+    # ================== core function ======================================================
+    # these are high computation expensive functions
+
+    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.3, verbose=True, minRange=0.0005, twiddle=True):
         '''
-        These is just a simple combination of single_voxel_recon and flood_fill
-        :param voxelIdx:
-        :param afFZMatD:
-        :return:
+        this version will exhaust orientation until hit ratio does not increase any more
+        input:
+            minRange: search will terminate after search range is lower than this value
+            twiddle: use twiddle like search or not
         '''
-        self.single_voxel_recon(voxelIdx, afFZMatD, self.searchBatchSize)
-        if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
-            self.flood_fill(voxelIdx)
-            self.NFloodFill += 1
+                # reconstruction of single voxel
+        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
+        NVoxel = 1
+        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
+        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
+        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
+        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
+        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
+        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
+        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
+        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
+        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
+        rangeTmp = BoundStart
+        bestHitRatioTmp = 0
+        better = True
+        i = 0
+        if twiddle:
+            while rangeTmp > minRange:
+                # print(i)
+                # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
+                # update rotation matrix to search
+                if i == 0:
+                    rotMatSearchD = afFZMatD.copy()
+                else:
+                    rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
+                                                           NSearchOrien // self.NSelect + 1, rangeTmp)
+
+                self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
+                              np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
+                              rotMatSearchD,
+                              afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                              texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
+
+                # this is the most time cosuming part, 0.03s per iteration
+                self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
+                                   self.afDetInfoD, np.int32(self.NDet),
+                                   np.int32(self.NRot),
+                                   aiJD, aiKD, aiRotND, abHitD,
+                                   afHitRatioD, aiPeakCntD,texrefs=[self.texref],
+                                   block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
+
+                self.ctx.synchronize()
+                cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
+                cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
+                #end = time.time()
+                #print("SourceModule time {0} seconds.".format(end-start))
+                maxHitratioIdx = np.argsort(afHitRatioH)[
+                                 :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
+                maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
+                for jj in range(1, 9):
+                    maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
+                maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
+                maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
+                if afHitRatioH[maxHitratioIdx[0]] > bestHitRatioTmp:
+                    rangeTmp *= 1.5
+                    bestHitRatioTmp = afHitRatioH[maxHitratioIdx[0]]
+                else:
+                    rangeTmp *= 0.5
+                del rotMatSearchD
+                i += 1
+        else:
+            for i in range(NIteration):
+                # print(i)
+                # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
+                # update rotation matrix to search
+                if i == 0:
+                    rotMatSearchD = afFZMatD.copy()
+                else:
+                    rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
+                                                           NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
+
+                #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
+                # kernel calls
+                #start = time.time()
+                #print(NVoxel,NSearchOrien,self.NG)
+                self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
+                              np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
+                              rotMatSearchD,
+                              afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
+                              texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
+
+                # this is the most time cosuming part, 0.03s per iteration
+                self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
+                                   self.afDetInfoD, np.int32(self.NDet),
+                                   np.int32(self.NRot),
+                                   aiJD, aiKD, aiRotND, abHitD,
+                                   afHitRatioD, aiPeakCntD,texrefs=[self.texref],
+                                   block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
+
+                # print('finish sim')
+                # memcpy_dtoh
+                #context.synchronize()
+                self.ctx.synchronize()
+                cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
+                cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
+                #end = time.time()
+                #print("SourceModule time {0} seconds.".format(end-start))
+                maxHitratioIdx = np.argsort(afHitRatioH)[
+                                 :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
+                maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
+                for jj in range(1, 9):
+                    maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
+                maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
+                maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
+                del rotMatSearchD
+        aiJD.free()
+        aiKD.free()
+        afOmegaD.free()
+        abHitD.free()
+        aiRotND.free()
+        afHitRatioD.free()
+        aiPeakCntD.free()
+        maxMat = maxMatD.get().reshape([-1, 3, 3])
+        if verbose:
+            #print(i)
+            np.set_printoptions(precision=4)
+            sys.stdout.write('\rNiter: {6:02d}, vIdx: {0:07d}, prog: {4:07d}/{5:07d}, conf: {1:04f}, pkcnt: {2}, euler: {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
+            sys.stdout.flush()
+        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
+        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
+        del afVoxelPosD
 
     def unit_run_hitratio(self,afVoxelPosD, rotMatSearchD, NVoxel, NOrientation):
         '''
@@ -1474,6 +1848,41 @@ class Reconstructor_GPU():
         afHitRatioD.free()
         aiPeakCntD.free()
         return afHitRatioH, aiPeakCntH
+
+    def expansion_unit_run(self, voxelIdx, afFZMatD):
+        '''
+        These is just a simple combination of single_voxel_recon and flood_fill
+        :param voxelIdx:
+        :param afFZMatD:
+        :return:
+        '''
+        self.single_voxel_recon(voxelIdx, afFZMatD, self.searchBatchSize)
+        if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
+            self.flood_fill(voxelIdx)
+            self.NFloodFill += 1
+
+    # ================== others ===========================================================
+
+    def increase_resolution(self, factor, maskThreshold=0.3):
+        '''
+        increase the resolution of squareMic
+            1. increase resolution compared to original mic
+            2. take original orientation into fz
+        :param factor: interger, e.g. 10
+        :param maskThreshold: float, voxel with hitratio>maskThreshold will make the new mask for high-res reconstruction
+        :return:
+        '''
+        newSquareMic = self.squareMicData.repeat(factor,axis=0).repeat(factor,axis=1)
+        mask = np.zeros([newSquareMic.shape[0], newSquareMic.shape[1]])
+        mask[newSquareMic[:,:,6]>maskThreshold] = 1
+        mask = ndi.binary_closing(mask)
+        voxelsize = self.squareMicData[0,0,8]*factor
+        shape = (self.squareMicData.shape[0], self.squareMicData.shape[1])
+        self.create_square_mic(shape=shape, voxelsize=voxelsize, mask=mask)
+        self.squareMicData[:,:, 3:6] = newSquareMic[:,:,3:6]
+        eulers, label, numFeatures = self.extract_orientations()
+        self.additionalFZ = eulers
+        self.serial_recon_multi_stage()
 
     def profile_recon_layer(self):
         '''
@@ -1550,232 +1959,32 @@ class Reconstructor_GPU():
     #def free_GPU_memory(self):
     #    self.afGd.free()
 
-    def fill_neighbour(self):
+    def get_misorien_map(self,m0):
         '''
-        NOT FINISHED, seems no need.
-                check neighbour and fill the neighbour
-                :return:
-        '''
-        sys.stdout.write('\r ====================== entering flood fill ===================================')
-        sys.stdout.flush()
-        # select voxels to conduct filling
-        sys.stdout.write(' \r indexstage0 {0}'.format(len(self.voxelIdxStage0)))
-        sys.stdout.flush()
-        #lFloodFillIdx = list()
-        lFloodFillIdx = list(
-            np.where(np.logical_and(self.voxelHitRatio < self.floodFillSelectThreshold, self.voxelMask == 1))[0])
-
-        if not lFloodFillIdx:
-            return 0
-        idxToAccept = []
-        print(len(lFloodFillIdx))
-        # try orientation to fill on all other voxels
-        for i in range((len(lFloodFillIdx) - 1) // self.floodFillNumberVoxel + 1):  # make sure memory is enough
-
-            idxTmp = lFloodFillIdx[i * self.floodFillNumberVoxel: (i + 1) * self.floodFillNumberVoxel]
-            if len(idxTmp) == 0:
-                print('no voxel to reconstruct')
-                return 0
-            elif len(idxTmp) < 350:
-                idxTmp = idxTmp * (349 / len(idxTmp) + 1)
-            print('i: {0}, idxTmp: {1}'.format(i, len(idxTmp)))
-            afVoxelPosD = gpuarray.to_gpu(self.voxelpos[idxTmp, :].astype(np.float32))
-            rotMatH = self.voxelAcceptedMat[self.voxelIdxStage0[0], :, :].reshape([-1, 3, 3]).repeat(len(idxTmp),
-                                                                                                     axis=0).astype(
-                np.float32)
-            rotMatSearchD = gpuarray.to_gpu(rotMatH)
-            afFloodHitRatioH, aiFloodPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, len(idxTmp), 1)
-
-            idxToAccept.append(np.array(idxTmp)[afFloodHitRatioH > self.floodFillAccptThreshold])
-            del afVoxelPosD
-            del rotMatSearchD
-        # print('idxToAccept: {0}'.format(idxToAccept))
-        idxToAccept = np.concatenate(idxToAccept).ravel()
-        # local optimize each voxel
-        for i, idxTmp in enumerate(idxToAccept):
-            # remove from stage 0
-            try:
-                self.voxelIdxStage0.remove(idxTmp)
-            except ValueError:
-                pass
-            # do one time search:
-            rotMatSearchD = self.gen_random_matrix(
-                gpuarray.to_gpu(self.voxelAcceptedMat[self.voxelIdxStage0[0], :, :].astype(np.float32)),
-                1, self.floodFillNumberAngle, self.floodFillRandomRange)
-            self.single_voxel_recon(idxTmp, rotMatSearchD, self.floodFillNumberAngle,
-                                    NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange)
-            del rotMatSearchD
-        # print('fill {0} voxels'.format(idxToAccept.shape))
-        sys.stdout.write(' \r ++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
-        sys.stdout.flush()
-        return 1
-
-    def flood_fill(self, voxelIdx):
-        '''
-        This is acturally not a flood fill process, it tries to fill all the voxels with low hitratio
-        flood fill all the voxel with confidence level lower than self.floodFillAccptThreshold
-        :return:
-        todo: accept to flood filling but only remove from stage0 if conf> larger value
-        '''
-        #print('====================== entering flood fill ===================================')
-        # select voxels for filling
-        lFloodFillIdx = list(np.where(np.logical_and(self.voxelHitRatio<self.floodFillSelectThreshold, self.voxelMask==1))[0])
-        if not lFloodFillIdx:
-            return 0
-        idxToAccept = []
-        #print(len(lFloodFillIdx))
-        # try orientation to fill on all other voxels
-        for i in range((len(lFloodFillIdx)-1)//self.floodFillNumberVoxel+1):     #make sure memory is enough
-
-            idxTmp = lFloodFillIdx[i*self.floodFillNumberVoxel: (i+1)*self.floodFillNumberVoxel]
-            if len(idxTmp)==0:
-                #print('no voxel to reconstruct')
-                return 0
-            elif len(idxTmp)<350:
-                idxTmp = idxTmp * (349//len(idxTmp)+1)
-            #print('select group: {0}, number of voxel: {1}'.format(i,len(idxTmp)))
-            afVoxelPosD = gpuarray.to_gpu(self.voxelpos[idxTmp,:].astype(np.float32))
-            rotMatH = self.voxelAcceptedMat[voxelIdx, :, :].reshape([-1, 3, 3]).repeat(len(idxTmp),
-                                                                                                     axis=0).astype(
-                np.float32)
-            rotMatSearchD = gpuarray.to_gpu(rotMatH)
-            afFloodHitRatioH, aiFloodPeakCntH = self.unit_run_hitratio(afVoxelPosD,rotMatSearchD,len(idxTmp),1)
-
-            idxToAccept.append(np.array(idxTmp)[afFloodHitRatioH>self.floodFillAccptThreshold])
-            del afVoxelPosD
-            del rotMatSearchD
-        #print('idxToAccept: {0}'.format(idxToAccept))
-        idxToAccept = np.concatenate(idxToAccept).ravel()
-        # local optimize each voxel
-        previousHitRatio = np.copy(self.voxelHitRatio)
-        previousAccMat = np.copy(self.voxelAcceptedMat)
-        for i, idxTmp in enumerate(idxToAccept):
-            # do one time search:
-            rotMatSearchD = self.gen_random_matrix(gpuarray.to_gpu(self.voxelAcceptedMat[voxelIdx, :, :].astype(np.float32)),
-                                                   1, self.floodFillNumberAngle, self.floodFillRandomRange)
-            self.single_voxel_recon(idxTmp,rotMatSearchD,self.floodFillNumberAngle, NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange,verbose=False)
-#             if self.voxelHitRatio[idxTmp]<=previousHitRatio[idxTmp]:
-#                 self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
-#                 self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
-            try:
-                self.voxelIdxStage0.remove(idxTmp)
-            except ValueError:
-                pass
-            del rotMatSearchD
-        #print('this process fill {0} voxels'.format(idxToAccept.shape))
-        #print('voxels left: {0}'.format(len(self.voxelIdxStage0)))
-        #print('++++++++++++++++++ leaving flood fill +++++++++++++++++++++++')
-        return 1
-    def serial_recon_multi_stage(self,enablePostProcess=True,verbose=True):
-        '''
-                # add multiple stage in serial reconstruction:
-        # Todo:
-        #   done: add flood fill
-        #   done: add post stage check, refill reconstructed orientations to each voxel.
-        # Example Usage:
+        map the misorienation map
+        e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
+        but it will still return 100x100, filling 0 to the last row/column
+        the misorientatino on that voxel is the max misorientation to its right or up side voxel
+        :param m0: rotation matrix size=[nx,ny,9]
         :return:
         '''
-        #self.recon_prepare()
+        if m0.ndim!=3:
+            raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
+        NVoxelX = m0.shape[0]
+        NVoxelY = m0.shape[1]
+        #m0 = self.voxelAcceptedMat.reshape([NVoxelX, NVoxelY, 9])
+        m1 = np.empty([NVoxelX, NVoxelY, 9])
+        # x direction misorientatoin
+        m1[:-1,:,:] = m0[1:,:,:]
+        m1[-1,:,:] = m0[-1,:,:]
+        misorienX = self.misorien(m0, m1, self.symMat)
+        # y direction misorientation
+        m1[:,:-1,:] = m0[:,1:,:]
+        m1[:,-1,:] = m0[:,-1,:]
+        misorienY = self.misorien(m0, m1, self.symMat)
+        self.misOrien = np.maximum(misorienX, misorienY).reshape([NVoxelX, NVoxelY])
+        return self.misOrien
 
-        # timing tools:
-#         self.ctx.push()
-        start = cuda.Event()
-        end = cuda.Event()
-        print('==========start of reconstruction======== \n')
-        start.record()  # start timing
-        self.NFloodFill = 0
-        cnt = 0
-        while self.voxelIdxStage0:
-            # start of simulation
-            cnt+=1
-            voxelIdx = random.choice(self.voxelIdxStage0)
-            if cnt%1==0:
-                disp = verbose
-            else:
-                disp = False
-            self.single_voxel_recon(voxelIdx, self.afFZMatD,self.searchBatchSize,verbose=disp,NIteration=self.NIteration,BoundStart=self.BoundStart)
-            if self.voxelHitRatio[voxelIdx] > self.floodFillStartThreshold:
-                self.flood_fill(voxelIdx)
-                self.NFloodFill += 1
-            try:
-                self.voxelIdxStage0.remove(voxelIdx)
-            except ValueError:
-                pass
-        print('number of flood fills: {0}'.format(self.NFloodFill))
-        if enablePostProcess:
-            self.post_process()
-        print('===========end of reconstruction========== \n')
-        end.record()  # end timing
-        end.synchronize()
-        secs = start.time_till(end) * 1e-3
-        print("SourceModule time {0} seconds.".format(secs))
-        # save roconstruction result
-        self.squareMicData[:,:,3:6] = (RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
-        self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
-        self.accMat = self.voxelAcceptedMat.copy().reshape(
-            [self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
-        self.save_square_mic(self.squareMicOutFile)
-        #self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
-        #self.ctx.pop()
-
-    def serial_recon_expansion_mode(self,startIdx):
-        '''
-        This is actually a flood fill process.
-        In this mode, it will search the orientation at start point and gradually reachout to the boundary,
-        So that it can save the time wasted on boundaries. ~ 10%~30% of total reconstruction time
-        :return:
-        '''
-        #self.recon_prepare()
-
-        # timing tools:
-        start = cuda.Event()
-        end = cuda.Event()
-        print('==========start of reconstruction======== \n')
-        start.record()  # start timing
-        self.NFloodFill = 0
-        NX = self.squareMicData.shape[0]
-        NY = self.squareMicData.shape[1]
-        visited = np.zeros(NX * NY)
-        if self.voxelHitRatio[startIdx] == 0:
-            self.expansion_unit_run(startIdx, self.afFZMatD)
-        if self.voxelHitRatio[startIdx] < self.expansionStopHitRatio:
-            raise ValueError(' this start point fail to initialize expansion, choose another starting point.')
-        q = [startIdx]
-        visited[startIdx] = 1
-        while q:
-            n = q.pop(0)
-            for x in [min(n + 1, n-n%NY + NY-1), max(n-n%NY, n - 1), min(n//NY+1, NX-1)*NY + n%NY, max(0,n//NY-1)*NY + n%NY]:
-                if self.voxelHitRatio[x] == 0:
-                    self.expansion_unit_run(x, self.afFZMatD)
-                if self.voxelHitRatio[x] > self.expansionStopHitRatio and visited[x] == 0:
-                    q.append(x)
-                    visited[x] = 1
-        print('number of flood fills: {0}'.format(self.NFloodFill))
-        self.post_process()
-        print('===========end of reconstruction========== \n')
-        end.record()  # end timing
-        end.synchronize()
-        secs = start.time_till(end) * 1e-3
-        print("SourceModule time {0} seconds.".format(secs))
-        # save roconstruction result
-        self.squareMicData[:,:,3:6] = (RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
-        self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
-        self.accMat = self.voxelAcceptedMat.copy().reshape([self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
-        self.save_square_mic(self.squareMicOutFile)
-        #self.save_mic('Ti7_S18_whole_layer_GPU_output.mic')
-
-    def print_sim_results(self):
-        # print(self.aJH)
-        # print(self.aKH)
-        # print(self.aiRotNH)
-        # print(self.aOmegaH)
-        # print(self.bHitH)
-        NVoxel = self.voxelPos4Sim.shape[0]
-        NOriPerVoxel = (self.oriMatToSim.shape[0] / NVoxel)
-        print(NVoxel, NOriPerVoxel)
-        for i,hit in enumerate(self.bHitH):
-            if hit:
-                print('VoxelIdx:{5}, Detector: {0}, J: {1}, K: {2},,RotN:{3}, Omega: {4}'.format(i%self.NDet, self.aJH[i],self.aKH[i],self.aiRotNH[i], self.aOmegaH[i],i//(NOriPerVoxel*self.NG*2*self.NDet)))
     def gen_random_matrix(self, matInD, NMatIn, NNeighbour, bound):
         '''
         generate orientations around cetrain rotation matrix
@@ -1797,39 +2006,6 @@ class Reconstructor_GPU():
         self.rand_mat_neighb_from_euler(eulerD, matOutD, afRandD, np.float32(bound), grid=(NNeighbour, 1), block=(NMatIn, 1, 1))
         return matOutD
 
-    def cp_expdata_to_gpu(self):
-        # try to use texture memory, assuming all detector have same size.
-        # require have defiend self.NDet,self.NRot, and Detctor informations;
-        #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
-        #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
-        print('=============start of copy exp data to gpu ===========')
-#         if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
-#             raise ValueError(' This version requare all detector have same dimension')
-        if self.expData.shape[1]!=4:
-            raise ValueError('expdata shape should be n_peaks*4')
-        if np.max(self.expData[:,0])>self.NDet-1:
-            raise ValueError('expData contains detector index out of bound')
-        if np.max(self.expData[:,1])>self.NRot-1:
-            raise  ValueError('expData contaisn rotation number out of bound')
-        self.aiDetStartIdxH = [0] # index of Detctor start postition in self.acExpDetImages, e.g. 3 detectors with size 2048x2048, 180 rotations, self.aiDetStartIdx = [0,180*2048*2048,2*180*2048*2048]
-        self.iExpDetImageSize = 0
-        for i in range(self.NDet):
-            self.iExpDetImageSize += self.NRot*self.detectors[i].NPixelJ*self.detectors[i].NPixelK
-            if i<(self.NDet-1):
-                self.aiDetStartIdxH.append(self.iExpDetImageSize)
-        # create texture memory
-        print('start of create data on cpu ram')
-        self.create_acExpDataCpuRam()
-        print('start of creating texture memory')
-        #self.texref = mod.get_texref("tcExpData")
-        self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
-        self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
-        #del self.acExpDetImages
-        print('end of creating texture memory')
-        #del self.acExpDetImages
-        print('=============end of copy exp data to gpu ===========')
-
-        
     def test_hitratio_vs_misorien(self, voxelIdx, EulerIn, NSearchOrien, NIteration=1, BoundStart=0.5, verbose=True):
         '''
         try to plot the relation between misorientation and hitratio.
@@ -1884,138 +2060,6 @@ class Reconstructor_GPU():
         aiRotND.free()
         afHitRatioD.free()
         aiPeakCntD.free()
-        del afVoxelPosD
-        
-    def single_voxel_recon(self, voxelIdx, afFZMatD, NSearchOrien, NIteration=10, BoundStart=0.3, verbose=True, minRange=0.0005, twiddle=True):
-        '''
-        this version will exhaust orientation until hit ratio does not increase any more
-        input:
-            minRange: search will terminate after search range is lower than this value
-            twiddle: use twiddle like search or not
-        '''
-                # reconstruction of single voxel
-        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
-        NVoxel = 1
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
-        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
-        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
-        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
-        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
-        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
-        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
-        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
-        rangeTmp = BoundStart
-        bestHitRatioTmp = 0
-        better = True
-        i = 0
-        if twiddle:
-            while rangeTmp > minRange:
-                # print(i)
-                # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-                # update rotation matrix to search
-                if i == 0:
-                    rotMatSearchD = afFZMatD.copy()
-                else:
-                    rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                           NSearchOrien // self.NSelect + 1, rangeTmp)
-
-                self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
-                              np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                              rotMatSearchD,
-                              afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                              texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
-
-                # this is the most time cosuming part, 0.03s per iteration
-                self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
-                                   self.afDetInfoD, np.int32(self.NDet),
-                                   np.int32(self.NRot),
-                                   aiJD, aiKD, aiRotND, abHitD,
-                                   afHitRatioD, aiPeakCntD,texrefs=[self.texref],
-                                   block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
-
-                self.ctx.synchronize()
-                cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-                cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-                #end = time.time()
-                #print("SourceModule time {0} seconds.".format(end-start))
-                maxHitratioIdx = np.argsort(afHitRatioH)[
-                                 :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-                maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-                for jj in range(1, 9):
-                    maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-                maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-                maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-                if afHitRatioH[maxHitratioIdx[0]] > bestHitRatioTmp:
-                    rangeTmp *= 1.5
-                    bestHitRatioTmp = afHitRatioH[maxHitratioIdx[0]] 
-                else:
-                    rangeTmp *= 0.5
-                del rotMatSearchD
-                i += 1
-        else:
-            for i in range(NIteration):
-                # print(i)
-                # print('nvoxel: {0}, norientation:{1}'.format(1, NSearchOrien)
-                # update rotation matrix to search
-                if i == 0:
-                    rotMatSearchD = afFZMatD.copy()
-                else:
-                    rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                           NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
-
-                #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-                # kernel calls
-                #start = time.time()
-                #print(NVoxel,NSearchOrien,self.NG)
-                self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
-                              np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                              rotMatSearchD,
-                              afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                              texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
-
-                # this is the most time cosuming part, 0.03s per iteration
-                self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
-                                   self.afDetInfoD, np.int32(self.NDet),
-                                   np.int32(self.NRot),
-                                   aiJD, aiKD, aiRotND, abHitD,
-                                   afHitRatioD, aiPeakCntD,texrefs=[self.texref],
-                                   block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
-
-                # print('finish sim')
-                # memcpy_dtoh
-                #context.synchronize()
-                self.ctx.synchronize()
-                cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-                cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-                #end = time.time()
-                #print("SourceModule time {0} seconds.".format(end-start))
-                maxHitratioIdx = np.argsort(afHitRatioH)[
-                                 :-(self.NSelect + 1):-1]  # from larges hit ratio to smaller
-                maxMatIdx = 9 * maxHitratioIdx.ravel().repeat(9)  # self.NSelect*9
-                for jj in range(1, 9):
-                    maxMatIdx[jj::9] = maxMatIdx[0::9] + jj
-                maxHitratioIdxD = gpuarray.to_gpu(maxMatIdx.astype(np.int32))
-                maxMatD = gpuarray.take(rotMatSearchD, maxHitratioIdxD)
-                del rotMatSearchD            
-        aiJD.free()
-        aiKD.free()
-        afOmegaD.free()
-        abHitD.free()
-        aiRotND.free()
-        afHitRatioD.free()
-        aiPeakCntD.free()
-        maxMat = maxMatD.get().reshape([-1, 3, 3])
-        if verbose:
-            #print(i)
-            np.set_printoptions(precision=4)
-            sys.stdout.write('\rNiter: {6:02d}, vIdx: {0:07d}, prog: {4:07d}/{5:07d}, conf: {1:04f}, pkcnt: {2}, euler: {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
-            sys.stdout.flush()
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
-        self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
         del afVoxelPosD
 
     def recon_boundary(self,lShape, lVoxelSize, shift=None,  mask=None):
