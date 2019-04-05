@@ -223,7 +223,7 @@ def misorien_between(mic0, mic1, symType, angleRange=None,colorbar=True, saveNam
         plt.savefig(saveName)
     plt.show()
     return misorien
-def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,colorbar=True, saveName=None,outUnit='degree', mask=None):
+def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,colorbar=True, saveName=None,outUnit='degree', mask=None, ax=None):
     '''
     plot the misorientation compared to certain euler angle.
     Input:
@@ -298,6 +298,73 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     
+def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0):
+    '''
+    visualize binary files, first column is single frame, second column is integrated frames
+    '''
+    figure, ax = plt.subplots(2, NDet)
+    for idxDet in range(NDet):
+        # single frame
+        idxRot = 0  # index of rotation (0~719)
+        idxLayer = 0
+        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRot),idxDet))
+        ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
+        ax[0,idxDet].axis('scaled')
+        ax[0,idxDet].set_xlim((0,2048))
+        ax[0,idxDet].set_ylim((0,2048))
+        ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRot}')
+
+        # integrated frame:
+        idxLayer = 0
+        lX = []
+        lY = []
+        for idxRot in range(NRot):
+            #print(b)
+            b = IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{idxRot:06d}.bin{idxDet}')
+            lX.append(b[0])
+            lY.append(b[1])
+        aX = np.concatenate(lX)
+        aY = np.concatenate(lY)
+        print(aX)
+        print(aY)
+        ax[1,idxDet].plot(2047-aX,2047-aY,'b.')  
+        ax[1,idxDet].axis('scaled')
+        ax[1,idxDet].set_xlim((0,2048))
+        ax[1,idxDet].set_ylim((0,2048))
+        ax[1,idxDet].set_title(f'integrated frame layer:{idxLayer}, det:{idxDet}')
+
+    plt.show()
+def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
+    '''
+    plot the square mic data
+    image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
+    :param squareMicData: [NVoxelX,NVoxelY,10], each Voxel conatains 10 columns:
+            0-2: voxelpos [x,y,z]
+            3-5: euler angle
+            6: hitratio
+            7: maskvalue. 0: no need for recon, 1: active recon region
+            8: voxelsize
+            9: additional information
+    :return:
+    '''
+    mat = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
+    quat = np.empty([mat.shape[0],4])
+    rod = np.empty([mat.shape[0],3])
+    for i in range(mat.shape[0]):
+        quat[i, :] = RotRep.quaternion_from_matrix(mat[i, :, :])
+        rod[i, :] = RotRep.rod_from_quaternion(quat[i, :])
+    hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
+    img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
+    # make sure display correctly
+    #img[:,:,:] = img[::-1,:,:]
+    img = np.swapaxes(img,0,1)
+    fig, axes = plt.subplots(1,2)
+    axes[0].imshow(img,origin='lower')
+    confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower')
+    fig.colorbar(confMap, ax=axes[1],fraction=0.046, pad=0.04)
+    if saveName is not None:
+        plt.savefig(saveName)
+    plt.show()
 def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     '''
     plot the square mic data
