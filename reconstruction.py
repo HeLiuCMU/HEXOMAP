@@ -130,10 +130,11 @@ class Reconstructor_GPU():
         # self.voxelIdxStage1 = []                    # this contains index  the voxel that have hit ratio > threshold on reconstructed voxel, used for flood fill process
         # self.micData = np.zeros([self.NVoxel,11])                  # mic data loaded from mic file, get with self.load_mic(fName), detail format see in self.load_mic()
         # # self.FZEuler = np.array([[89.5003, 80.7666, 266.397]])     # fundamental zone euler angles, loaded from I9 fz file.
-        # self.additionalFZ = None
+        self.additionalFZ = None
         # self.oriMatToSim = np.zeros([self.NVoxel,3,3])             # the orientation matrix for simulation, nx3x3 array, n = Nvoxel*OrientationPerVoxel
         # # experimental data
         # reconstruction parameters:
+        self.detScale = 1 # scale down detector dimension to save memeory, usually don't change this other than 1
         self.dReconParam = {}
         self.NIteration = 10          # number of orientation search iterations
         self.BoundStart = 0.5          # initial random orientation range
@@ -170,9 +171,10 @@ class Reconstructor_GPU():
         load any configuration from config class
         config: Config(), defined in config.py
         '''
+        self.etalimit = config.etalimit
+        self.set_sample(config.sample)
         self.set_Q(config.maxQ)
         self.FZFile = config.fileFZ                  # fundamental zone file
-        self.set_sample(config.sample)
         self.energy = config.energy
         self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
         self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
@@ -214,13 +216,13 @@ class Reconstructor_GPU():
         # initialize tfG
         self.tfG = mod.get_texref("tfG")
         self.ctx.push()
-        self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
-        self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
+        #self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
+        #self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
         self.ctx.pop()
         self.texref = mod.get_texref("tcExpData")
         self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
-        print(self.sample.Gs.shape)
-        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+        #print(self.sample.Gs.shape)
+        #self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
         def _finish_up():
             self.ctx.pop()
@@ -262,11 +264,14 @@ class Reconstructor_GPU():
 
     def set_sample(self,sampleStr):
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
-        self.sample.getRecipVec()
-        self.sample.getGs(self.maxQ)
         self.symMat = RotRep.GetSymRotMat(self.sample.symtype)
         #print(self.sample.Gs.astype(np.float32))
-        self.set_Q(self.maxQ)
+        try:
+            self.set_Q(self.maxQ)
+        except AttributeError:
+            self.maxQ = 9
+            self.set_Q(self.maxQ)
+            print(f'set Q automatically to {self.maxQ}')
 
     def set_Q(self,Q):
         self.maxQ = Q
@@ -322,8 +327,11 @@ class Reconstructor_GPU():
         copy detector information to gpu
         :return:
         '''
-        del self.afDetInfoD
-        del self.afDetInfoH
+        try:
+            del self.afDetInfoD
+            del self.afDetInfoH
+        except AttributeError:
+            pass
         self.detectors = []
         for i in range(self.NDet):
             self.detectors.append(sim_utilities.Detector())
@@ -2149,7 +2157,12 @@ if __name__ == "__main__":
     import MicFileTool
 
     c = config.Config()
-    c.load('../data/johnson_aug18_demo/SB1_postheat_restart_V1_1degree_config.h5')
+    c.load('data/johnson_aug18_demo/demo_gold_twiddle_3.h5')
+    c.fileFZ = 'data/FZ_files/CubicFZ.dat'
+    c.fileBin= 'data/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    c.micVoxelSize = 0.005
+    c.micsize = [15,15]
+
     c.display()
 
     try:
