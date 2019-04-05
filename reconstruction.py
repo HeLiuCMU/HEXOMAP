@@ -311,16 +311,20 @@ class Reconstructor_GPU():
         self.sample.getGs(self.maxQ)
         self.symMat = RotRep.GetSymRotMat(self.sample.symtype)
         #print(self.sample.Gs.astype(np.float32))
-        self.NG = self.sample.Gs.shape[0]
-        #self.tfG = mod.get_texref("tfG")
-        self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
-        self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
+        self.set_Q(self.maxQ)
 
     def set_Q(self,Q):
         self.maxQ = Q
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
         self.NG = self.sample.Gs.shape[0]
+        if self.NG > 1024:
+            print('WARNING: Number of G vector exceed 1024, need to reduce maxQ! This limit is due to GPU block size')
+            while self.NG > 1024:
+                self.maxQ -= 1
+                self.sample.getGs(self.maxQ)
+                self.NG = self.sample.Gs.shape[0]
+            print(f'WARNING: maxQ has been reset to {self.maxQ}!')
         #self.tfG = mod.get_texref("tfG")
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)

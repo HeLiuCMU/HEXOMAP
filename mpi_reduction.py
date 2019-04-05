@@ -22,24 +22,24 @@ rank = comm.Get_rank()
 mpirun -n 1 python mpi_reduction_Au2_NF_LineFocus.py
 '''
 ################################ Input Session #######################################
-startIdx = 38282
+startIdx = 198218
 NRot = 720
-NDet = 4
-NLayer = 1
-idxLayer = [0]
+NDet = 2
+NLayer = 26
+idxLayer = np.arange(26)
 lIdxImg = None
 #lIdxImg  = [np.arange(x*1800,x*1800+NRot) for x in range(5)]
 #lIdxImg = np.hstack(lIdxImg).astype(np.int32)
 extention = '.tif'
-initial = f'/media/heliu/feb2019/suter_feb19/nf/Au2_NF_LineFocus/Au2_NF_LineFocus_'
+initial = f'/media/heliu/feb2019/shahani_feb19/nf/dummy_2_rt_815_2_nf/dummy_2_rt_815_2_nf_'
 digitLength = 6
-outputDirectory = '/home/heliu/work/suter_feb19/Au2_NF_LineFocus/'
-identifier = 'Au2_NF_LineFocus'
+outputDirectory = '/home/heliu/work/shahani_feb19/reduction/dummy_2_rt_815_2_nf/'
+identifier = 'dummy_2_rt_815_2_nf'
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
 binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
 logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
-generateBkg = True
-generateBin = False
+generateBkg = False
+generateBin = True
 baseline = 10
 minNPixel = 4
 ####################################################################################
@@ -63,11 +63,17 @@ lIdxRot = np.tile(np.arange(NRot), NDet * NLayer)
 lBkgIdx = np.arange(NLayer * NDet).repeat(NRot)
 NPerCore = int(np.ceil(float(NTotal)/size))
 
-lIdxImg = lIdxImg[rank*NPerCore:(rank+1)*NPerCore]
-lIdxLayer = lIdxLayer[rank*NPerCore:(rank+1)*NPerCore]
-lIdxDet = lIdxDet[rank*NPerCore:(rank+1)*NPerCore]
-lIdxRot = lIdxRot[rank*NPerCore:(rank+1)*NPerCore]
-lBkgIdx = lBkgIdx[rank*NPerCore:(rank+1)*NPerCore]
+
+lIdxImg = lIdxImg[rank::size]
+lIdxLayer = lIdxLayer[rank::size]
+lIdxDet = lIdxDet[rank::size]
+lIdxRot = lIdxRot[rank::size]
+lBkgIdx = lBkgIdx[rank::size]
+# lIdxImg = lIdxImg[rank*NPerCore:(rank+1)*NPerCore]
+# lIdxLayer = lIdxLayer[rank*NPerCore:(rank+1)*NPerCore]
+# lIdxDet = lIdxDet[rank*NPerCore:(rank+1)*NPerCore]
+# lIdxRot = lIdxRot[rank*NPerCore:(rank+1)*NPerCore]
+# lBkgIdx = lBkgIdx[rank*NPerCore:(rank+1)*NPerCore]
 #print(lIdxImg)
 # generate background:
 if rank==0:
@@ -75,7 +81,7 @@ if rank==0:
     start =  time.time()
 if generateBkg:
     if rank==0:
-        lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=NLayer,end=extention, logfile=logfile)
+        lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=NLayer,end=extention,logfile=logfile)
     else:
         lBkg = None
     lBkg = comm.bcast(lBkg, root=0)
@@ -84,11 +90,7 @@ else:
     lBkg = []
     for layer in range(NLayer):
         for det in range(NDet):
-            try:
-                lBkg.append(np.load(f'{bkgInitial}_z{layer}_det_{det}.npy'))
-            except FileNotFoundError:
-                logfile.write(f'FILE NOT FOUND!!! {bkgInitial}_z{layer}_det_{det}.npy \n')
-            
+            lBkg.append(np.load(f'{bkgInitial}_z{layer}_det_{det}.npy'))
 comm.Barrier()
 if rank==0:
     logfile.write('end generating bkg \n')
@@ -100,10 +102,7 @@ if generateBin:
         bkg = lBkg[lBkgIdx[i]]
         fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
         logfile.write(f"rank: {rank} : {fName}\n")
-        try:
-            img = plt.imread(fName)
-        except FileNotFoundError:
-            logfile.write(f"FILE NOT FOUND!!! rank: {rank} : {fName}\n")
+        img = plt.imread(fName)
         binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
         snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel)
         IntBin.WritePeakBinaryFile(snp, binFileName) 
@@ -111,5 +110,5 @@ if generateBin:
 
 if rank==0:
     end = time.time()
-    logfile.write(f'time taken generating binary: {end - start} seconds')
+    logfile.write(f'time taken generating binary: {end - start} seconds \n')
 logfile.close() 
