@@ -1,37 +1,42 @@
 import numpy as np
 import h5py
+import yaml
 class Config(object):
-    micsize = np.array([150, 150])
-    micVoxelSize = 0.007
-    micShift = np.array([0.0, 0.0, 0.0])
-    expdataNDigit = 6
-    energy = 55.587 # in kev
-    sample = 'gold'
-    maxQ = 8
-    etalimit = 81 / 180.0 * np.pi
-    NRot = 180
-    NDet = 2
-    searchBatchSize = 10000
-    reverseRot=True          # for aero, is True, for rams: False
-    detL = np.array([[ 8.9587, 10.9587]])
-    detJ = np.array([[1020.4672, 1035.6063]]) 
-    detK = np.array([[1995.8868, 1990.6409]])
-    detRot = np.array([[[89.0107, 91.0776, -0.4593],
-                  [88.8744, 90.8149, -0.4466]]])
-    detNJ = np.array([2048,2048, 2048, 2048])
-    detNK=np.array([2048, 2048, 2048, 2048])
-    detPixelJ=np.array([0.00148,0.00148,0.00148,0.00148])
-    detPixelK=np.array([0.00148,0.00148,0.00148,0.00148])
-    fileBin = 'binary_file_initial'
-    fileBinDigit = 6
-    fileBinDetIdx = np.array([0, 1])
-    fileBinLayerIdx = 0
-    fileFZ = 'fz file'
-    _initialString = 'test_initial'
-
-    def __init__(self):
+    def __init__(self,configure_file_name='ConfigExample.yml'):
         """Set values of computed attributes."""
         self.__name =  'name'
+        try:
+            with open(configure_file_name,'r') as f:
+                dataMap=yaml.safe_load(f)
+        except IOError as e:
+            print("Couldn't open file (%s)."%e)
+        micsize = np.array(dataMap['ReconParam']['micsize'])
+        micVoxelSize = dataMap['ReconParam']['micVoxelSize']
+        micShift = np.array(dataMap['ReconParam']['micShift'])
+        expdataNDigit = dataMap['InOut_Files']['expdataNDigit']
+        energy = dataMap['Setup']['energy'] # in kev
+        sample = dataMap['Material_Name']
+        maxQ = dataMap['ReconParam']['maxQ']
+        etalimit = dataMap['ReconParam']['etalimit']
+        NRot = dataMap['Setup']['NRot']
+        NDet = dataMap['Setup']['NDet']
+        searchBatchSize = dataMap['ReconParam']['searchBatchSize']
+        reverseRot=dataMap['Setup']['reverseRot']          # for aero, is True, for rams: False
+        detL = np.array(dataMap['Setup']['detL'])
+        detJ = np.array(dataMap['Setup']['detJ']) 
+        detK = np.array(dataMap['Setup']['detK'])
+        detRot = np.array(dataMap['Setup']['detRot'])
+        detNJ = np.array(dataMap['Setup']['detNJ'])
+        detNK=np.array(dataMap['Setup']['detNK'])
+        detPixelJ=np.array(dataMap['Setup']['detPixelJ'])
+        detPixelK=np.array(dataMap['Setup']['detPixelK'])
+        fileBin = dataMap['InOut_Files']['fileBin']
+        fileBinDigit = dataMap['InOut_Files']['fileBinDigit']
+        fileBinDetIdx = np.array(dataMap['InOut_Files']['fileBinDetIdx'])
+        fileBinLayerIdx = dataMap['InOut_Files']['fileBinLayerIdx']
+        fileFZ = dataMap['fileFZ']
+        _initialString = dataMap['InOut_Files']['initialString']
+
 
     def display(self):
         """Display Configuration values."""
