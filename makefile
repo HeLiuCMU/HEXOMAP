@@ -28,4 +28,3 @@ clean:
 	@echo "Clean up workbench"
 	rm  -fv   *.tmp
 	rm  -fv   tmp_*
-
