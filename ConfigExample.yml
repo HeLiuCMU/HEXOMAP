@@ -1,0 +1,55 @@
+#############################################################################
+# Experiment configurations
+#############################################################################
+energy: 65.351 #keV
+detJ: [[1020.4672, 1035.6063]] #number of pixels
+detK: [[1995.8868, 1990.6409]] #number of pixels
+detL: [[ 8.9587, 10.9587]] #mm 
+detRot: [[[89.0107, 91.0776, -0.4593],[88.8744, 90.8149, -0.4466]]]  #degree
+detNJ: [2048, 2048, 2048, 2048]
+detNK: [2048, 2048, 2048, 2048]
+detPixelJ: [0.00148,0.00148,0.00148,0.00148] #mm
+detPixelK: [0.00148,0.00148,0.00148,0.00148] #mm
+
+Omega-Range: [ -90 , 90] #degree
+NRot: 180
+NDet: 2
+
+reverseRot: true # for aero, is True, for rams: False
+
+
+
+#############################################################################
+# Configuration for material
+#############################################################################
+
+sample: 'gold'
+fileFZ: 'hexomap/data/fundamental_zon/cubic.dat'
+
+
+
+#############################################################################
+# Reconstruction parameters
+#############################################################################
+
+etalimit:  1.4137 # radian
+maxQ:       8
+micsize: [150,150]
+micVoxelSize: 0.007 #mm
+micShift: [0,0,0]
+searchBatchSize: 10000
+
+
+
+#############################################################################
+# Files and file path
+#############################################################################
+
+expdataNdigit: 6
+fileBin: 'binary_file_initial'
+fileBinDigit: 6
+fileBinDetIdx: [0,1]
+fileBinLayerIdx: 0
+_initialString: 'demo_gold_'
+
+
