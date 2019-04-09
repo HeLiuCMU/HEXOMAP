@@ -218,7 +218,7 @@ class Reconstructor_GPU():
             self.sample.PrimB = value * np.array([0, 1, 0])
             self.sample.PrimC = value * np.array([0, 0, 1])
         else: 
-                raise ValueError('not implemented') #todo@hel1 not implemented error
+            raise ValueError('not implemented') #todo@hel1 not implemented error
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
         self.NG = self.sample.Gs.shape[0]
