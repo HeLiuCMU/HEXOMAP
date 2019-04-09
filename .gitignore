@@ -149,3 +149,7 @@ dmypy.json
 
 ### Python Patch ###
 .venv/
+
+### Local test files ###
+tmp_*
+
