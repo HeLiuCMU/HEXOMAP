@@ -1,5 +1,7 @@
 # HEXOMAP: High Energy X-ray Orientation Mapping
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/HeLiuCMU/HEXOMAP.git/v0.2?filepath=examples%2FAu_cube%2Fdemo_Au_cube.ipynb)
+
 __HEXOMAP__ is a Cuda-based (realized through pycuda) near-filed high-energy
 X-ray diffraction ([NF-HEDM](https://www.andrew.cmu.edu/user/suter/3dxdm/3dxdm.html))
 reconstruction toolkit that provides 3D microstructure reconstructed with high
