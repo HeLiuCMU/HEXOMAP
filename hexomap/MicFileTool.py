@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.collections import PolyCollection
-import RotRep
+from hexomap.past import *
 import sys
 #import bokeh
 
@@ -126,11 +126,11 @@ def plot_mic(snp,sw,plotType,minConfidence,scattersize=2):
     if plotType==3:
         print('h')
         for i in range(N):
-            mat[i,:,:] = RotRep.EulerZXZ2Mat(snp[i,6:9]/180*np.pi)
+            mat[i,:,:] = EulerZXZ2Mat(snp[i,6:9]/180*np.pi)
             #print mat[i,:,:]
-            quat[i,:] = RotRep.quaternion_from_matrix(mat[i,:,:])
+            quat[i,:] = quaternion_from_matrix(mat[i,:,:])
             #print quat[i,:]
-            rod[i,:] = RotRep.rod_from_quaternion(quat[i,:])
+            rod[i,:] = rod_from_quaternion(quat[i,:])
         print(rod)
         fig, ax = plt.subplots()
         ax.scatter(snp[:,0],snp[:,1],s=scattersize,facecolors=(rod+np.array([1,1,1]))/2)
@@ -148,7 +148,7 @@ def segment_grain(mic, symType='Hexagonal', threshold=0.01,show=True, save=True,
     # timing tools:
     NX = mic.shape[0]
     NY = mic.shape[1]
-    m0 = RotRep.EulerZXZ2MatVectorized(mic[:,:,3:6].reshape([-1,3])/180.0*np.pi)
+    m0 = EulerZXZ2MatVectorized(mic[:,:,3:6].reshape([-1,3])/180.0*np.pi)
 
     visited = np.zeros(NX * NY)
     result = np.empty(NX * NY)
@@ -168,7 +168,7 @@ def segment_grain(mic, symType='Hexagonal', threshold=0.01,show=True, save=True,
         while q:
             n = q.pop(0)
             for x in [min(n + 1, n-n%NY + NY-1), max(n-n%NY, n - 1), min(n//NY+1, NX-1)*NY + n%NY, max(0,n//NY-1)*NY + n%NY]:
-                _, misorientation = RotRep.Misorien2FZ1(m0[n,:].reshape([3,3]), m0[x,:].reshape([3,3]), symType)
+                _, misorientation = Misorien2FZ1(m0[n,:].reshape([3,3]), m0[x,:].reshape([3,3]), symType)
                 #print(misorientation)
                 if misorientation<threshold and visited[x] == 0:
                     q.append(x)
@@ -199,15 +199,15 @@ def misorien_between(mic0, mic1, symType, angleRange=None,colorbar=True, saveNam
     if mask is None:
         mask = np.ones([NX, NY])
     eulers0 = mic0[:, :, 3:6]
-    mats0 = RotRep.EulerZXZ2MatVectorized(eulers0.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+    mats0 = EulerZXZ2MatVectorized(eulers0.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
     confs0 = mic0[:, :, 6]
     eulers1 = mic1[:, :, 3:6]
-    mats1 = RotRep.EulerZXZ2MatVectorized(eulers1.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+    mats1 = EulerZXZ2MatVectorized(eulers1.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
     confs1 = mic1[:, :, 6]
     misorien = np.empty([NX, NY])
     for x in range(NX):
         for y in range(NY):
-            _, misOrien = RotRep.Misorien2FZ1(mats0[x, y, :, :], mats1[x, y, :, :], symtype=symType)
+            _, misOrien = Misorien2FZ1(mats0[x, y, :, :], mats1[x, y, :, :], symtype=symType)
             if outUnit=='degree':
                 misorien[x,y] = misOrien/np.pi*180.0
             elif outUnit=='radian':
@@ -242,13 +242,13 @@ def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,col
     if mask is None:
         mask = np.ones([NX, NY])
     eulers = squareMicData[:, :, 3:6]
-    mats = RotRep.EulerZXZ2MatVectorized(eulers.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+    mats = EulerZXZ2MatVectorized(eulers.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
     confs = squareMicData[:, :, 6]
-    mat0 = RotRep.EulerZXZ2Mat(eulerIn/ 180.0 * np.pi)
+    mat0 = EulerZXZ2Mat(eulerIn/ 180.0 * np.pi)
     misorien = np.empty([NX, NY])
     for x in range(NX):
         for y in range(NY):
-            _, misOrien = RotRep.Misorien2FZ1(mat0, mats[x, y, :, :], symtype=symType)
+            _, misOrien = Misorien2FZ1(mat0, mats[x, y, :, :], symtype=symType)
             if outUnit=='degree':
                 misorien[x,y] = misOrien/np.pi*180.0
             elif outUnit=='radian':
@@ -286,12 +286,12 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
             9: additional information
     :return:
     '''
-    mat = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
+    mat = EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
     quat = np.empty([mat.shape[0],4])
     rod = np.empty([mat.shape[0],3])
     for i in range(mat.shape[0]):
-        quat[i, :] = RotRep.quaternion_from_matrix(mat[i, :, :])
-        rod[i, :] = RotRep.rod_from_quaternion(quat[i, :])
+        quat[i, :] = quaternion_from_matrix(mat[i, :, :])
+        rod[i, :] = rod_from_quaternion(quat[i, :])
     hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
     img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
     # make sure display correctly
@@ -347,12 +347,12 @@ def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
             9: additional information
     :return:
     '''
-    mat = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
+    mat = EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
     quat = np.empty([mat.shape[0],4])
     rod = np.empty([mat.shape[0],3])
     for i in range(mat.shape[0]):
-        quat[i, :] = RotRep.quaternion_from_matrix(mat[i, :, :])
-        rod[i, :] = RotRep.rod_from_quaternion(quat[i, :])
+        quat[i, :] = quaternion_from_matrix(mat[i, :, :])
+        rod[i, :] = rod_from_quaternion(quat[i, :])
     hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
     img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
     # make sure display correctly
@@ -378,12 +378,12 @@ def plot_square_mic(squareMicData,minHitRatio,saveName=None):
             9: additional information
     :return:
     '''
-    mat = RotRep.EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
+    mat = EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
     quat = np.empty([mat.shape[0],4])
     rod = np.empty([mat.shape[0],3])
     for i in range(mat.shape[0]):
-        quat[i, :] = RotRep.quaternion_from_matrix(mat[i, :, :])
-        rod[i, :] = RotRep.rod_from_quaternion(quat[i, :])
+        quat[i, :] = quaternion_from_matrix(mat[i, :, :])
+        rod[i, :] = rod_from_quaternion(quat[i, :])
     hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
     img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
     # make sure display correctly
@@ -466,9 +466,9 @@ class MicFile():
             rod = np.empty([N,3])
             if self.bcolor1==False:
                 for i in range(N):
-                    mat[i,:,:] = RotRep.EulerZXZ2Mat(self.snp[i,6:9]/180.0*np.pi)
-                    quat[i,:] = RotRep.quaternion_from_matrix(mat[i,:,:])
-                    rod[i,:] = RotRep.rod_from_quaternion(quat[i,:])
+                    mat[i,:,:] = EulerZXZ2Mat(self.snp[i,6:9]/180.0*np.pi)
+                    quat[i,:] = quaternion_from_matrix(mat[i,:,:])
+                    rod[i,:] = rod_from_quaternion(quat[i,:])
                 self.color1=(rod+np.array([1,1,1]))/2
                 self.bcolor1=True
             if self.bpatches==False:
