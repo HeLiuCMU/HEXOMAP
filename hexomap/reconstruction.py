@@ -20,7 +20,7 @@ from pycuda.compiler import SourceModule
 from pycuda.curandom import MRG32k3aRandomNumberGenerator
 import sim_utilities
 from hexomap.past import *
-import IntBin
+from hexomap import IntBin
 from hexomap.past import generate_random_rot_mat
 
 
