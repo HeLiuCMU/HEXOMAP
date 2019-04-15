@@ -19,7 +19,7 @@ import numpy as np
 from pycuda.compiler import SourceModule
 from pycuda.curandom import MRG32k3aRandomNumberGenerator
 import sim_utilities
-import RotRep
+from hexomap.past import *
 import IntBin
 from hexomap.past import generate_random_rot_mat
 
@@ -53,7 +53,7 @@ def segment_grain(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='def
     mShape = m0.shape[0:2]
     mask = np.zeros(mShape)
     result = np.empty(mShape)
-    symMat = RotRep.GetSymRotMat(symType)
+    symMat = GetSymRotMat(symType)
     id = 0
     while np.sum((mask==0).ravel()) > 0:
         x,y = np.where(mask==0)
@@ -95,7 +95,7 @@ def segment_grain_1(m0, symType='Hexagonal', threshold=0.01,save=True,outFile='d
         while q:
             n = q.pop(0)
             for x in [min(n + 1, n-n%NY + NY-1), max(n-n%NY, n - 1), min(n//NY+1, NX-1)*NY + n%NY, max(0,n//NY-1)*NY + n%NY]:
-                _, misorientation = RotRep.Misorien2FZ1(m0[n,:].reshape([3,3]), m0[x,:].reshape([3,3]), symType)
+                _, misorientation = Misorien2FZ1(m0[n,:].reshape([3,3]), m0[x,:].reshape([3,3]), symType)
                 #print(misorientation)
                 if misorientation<threshold and visited[x] == 0:
                     q.append(x)
@@ -244,7 +244,7 @@ class Reconstructor_GPU():
 
     def set_sample(self,sampleStr):
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
-        self.symMat = RotRep.GetSymRotMat(self.sample.symtype)
+        self.symMat = GetSymRotMat(self.sample.symtype)
         #print(self.sample.Gs.astype(np.float32))
         try:
             self.set_Q(self.maxQ)
@@ -319,7 +319,7 @@ class Reconstructor_GPU():
             self.detectors[i].NPixelK = int(self.NPixelK[i]*self.detScale)
             self.detectors[i].PixelJ = self.pixelJ[i]/self.detScale
             self.detectors[i].PixelK = self.pixelK[i]/self.detScale
-            self.detectors[i].Move(self.centerJ[i], self.centerK[i], self.detPos[i], RotRep.EulerZXZ2Mat(self.detRot[i] / 180.0 * np.pi))
+            self.detectors[i].Move(self.centerJ[i], self.centerK[i], self.detPos[i], EulerZXZ2Mat(self.detRot[i] / 180.0 * np.pi))
         #detinfor for GPU[0:NJ,1:JK,2:pixelJ, 3:pixelK, 4-6: coordOrigin, 7-9:Norm 10-12 JVector, 13-16: KVector, 17: NRot, 18: angleStart, 19: angleEnd
         lDetInfoTmp = []
         for i in range(self.NDet):
@@ -413,7 +413,7 @@ class Reconstructor_GPU():
         dL = np.linspace(-rangeL, rangeL, 10).reshape([-1, 1]).repeat(2, axis=1)
         dJ = np.linspace(-rangeJ, rangeJ, 10).reshape([-1, 1]).repeat(2, axis=1)
         dK = np.linspace(-rangeK, rangeK, 10).reshape([-1, 1]).repeat(2, axis=1)
-        aDetRot = RotRep.generarte_random_eulerZXZ(centerRot, rangeRot, 10).reshape([-1,self.NDet,3])
+        aDetRot = generarte_random_eulerZXZ(centerRot, rangeRot, 10).reshape([-1,self.NDet,3])
         NPhase0Iteration = 0
         maxHitRatio = 0
         ##################### phase 0 #########################################
@@ -524,9 +524,9 @@ class Reconstructor_GPU():
         NSearchOrien = rotMatSeed.shape[1] * rotMatSeed.shape[2] * 40
 
         ######### generate detecter rotation
-        aDetRot = RotRep.generarte_random_eulerZXZ(centerRot, 0.3, 2).reshape([-1, self.NDet, 3])
+        aDetRot = generarte_random_eulerZXZ(centerRot, 0.3, 2).reshape([-1, self.NDet, 3])
 
-        #aDetRot = RotRep.generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), 0.3, 10).reshape([-1, self.NDet, 3])
+        #aDetRot = generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), 0.3, 10).reshape([-1, self.NDet, 3])
 
         ######### calculate cost, take the maximum hit ratio
         self.geometry_grid_search(centerL, centerJ, centerK, aDetRot, idxVoxel, lSearchMatD, NSearchOrien, NIteration=2, BoundStart=0.01)
@@ -767,7 +767,7 @@ class Reconstructor_GPU():
                 maxHitRatio = self.geoSearchHitRatio.max()
                 if(maxHitRatio>update_threshold):
                     rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :,:].reshape([1, self.NDet, 3])
-                    aDetRot = RotRep.generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), rangeRot, aDetRot.shape[0]).reshape(aDetRot.shape)
+                    aDetRot = generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), rangeRot, aDetRot.shape[0]).reshape(aDetRot.shape)
                     aDetRot[0,:,:] = rot
             # update relative Range
             rangeL = rangeL * factor
@@ -911,7 +911,7 @@ class Reconstructor_GPU():
         self.squareMicData = mic
         self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
         self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
-        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(
+        self.voxelAcceptedMat = EulerZXZ2MatVectorized(
             self.squareMicData[:, :, 3:6].reshape([-1, 3]) / 180.0 * np.pi)
         self.voxelHitRatio = self.squareMicData[:, :, 6].ravel()
 
@@ -929,7 +929,7 @@ class Reconstructor_GPU():
             raise ValueError('format could only be npy or txt')
         self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
         self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
-        self.voxelAcceptedMat = RotRep.EulerZXZ2MatVectorized(
+        self.voxelAcceptedMat = EulerZXZ2MatVectorized(
             self.squareMicData[:, :, 3:6].reshape([-1, 3]) / 180.0 * np.pi)
         self.voxelHitRatio = self.squareMicData[:, :, 6].ravel()
 
@@ -994,9 +994,9 @@ class Reconstructor_GPU():
         # self.FZMat = np.zeros([self.FZEuler.shape[0], 3, 3])
         if self.FZEuler.ndim == 1:
             print('wrong format of input orientation, should be nx3 numpy array')
-        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler / 180.0 * np.pi)
+        self.FZMat = EulerZXZ2MatVectorized(self.FZEuler / 180.0 * np.pi)
         # for i in range(self.FZEuler.shape[0]):
-        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
+        #     self.FZMat[i, :, :] = EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
         #         [3, 3])
         return self.FZEuler
 
@@ -1007,9 +1007,9 @@ class Reconstructor_GPU():
         '''
         eulerIn = eulerIn.reshape([-1, 3])
         self.FZEuler = np.concatenate((self.FZEuler, eulerIn))
-        self.FZMat = RotRep.EulerZXZ2MatVectorized(self.FZEuler / 180.0 * np.pi)
+        self.FZMat = EulerZXZ2MatVectorized(self.FZEuler / 180.0 * np.pi)
         # for i in range(self.FZEuler.shape[0]):
-        #     self.FZMat[i, :, :] = RotRep.EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
+        #     self.FZMat[i, :, :] = EulerZXZ2Mat(self.FZEuler[i, :] / 180.0 * np.pi).reshape(
         #         [3, 3])
         return self.FZEuler
 
@@ -1306,7 +1306,7 @@ class Reconstructor_GPU():
         print("SourceModule time {0} seconds.".format(secs))
         # save roconstruction result
         self.squareMicData[:, :, 3:6] = (
-                RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
+                Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
             [self.squareMicData.shape[0], self.squareMicData.shape[1], 3])
         self.squareMicData[:, :, 6] = self.voxelHitRatio.reshape(
             [self.squareMicData.shape[0], self.squareMicData.shape[1]])
@@ -1358,7 +1358,7 @@ class Reconstructor_GPU():
         print("SourceModule time {0} seconds.".format(secs))
         # save roconstruction result
         self.squareMicData[:, :, 3:6] = (
-                RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
+                Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
             [self.squareMicData.shape[0], self.squareMicData.shape[1], 3])
         self.squareMicData[:, :, 6] = self.voxelHitRatio.reshape(
             [self.squareMicData.shape[0], self.squareMicData.shape[1]])
@@ -1432,7 +1432,7 @@ class Reconstructor_GPU():
         print('number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
         end = time.time()
         print(' post process takes is {0} seconds'.format(end-start))
-        # self.squareMicData[:,:,3:6] = (RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
+        # self.squareMicData[:,:,3:6] = (Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
         # self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
         # self.save_square_mic('SquareMicTest2_postprocess.npy')
 
@@ -1582,7 +1582,7 @@ class Reconstructor_GPU():
         self.voxelPos4Sim = self.squareMicData[x,y,0:3].reshape([-1,3])
         print(self.voxelPos4Sim.shape)
         euler = self.squareMicData[x, y, 3:6] / 180 * np.pi
-        self.oriMatToSim = RotRep.EulerZXZ2MatVectorized(euler)
+        self.oriMatToSim = EulerZXZ2MatVectorized(euler)
         print(self.oriMatToSim.shape)
         self.run_sim(self.voxelPos4Sim, self.oriMatToSim)
 
@@ -1792,9 +1792,9 @@ class Reconstructor_GPU():
         if verbose:
             #print(i)
             np.set_printoptions(precision=4)
-            sys.stdout.write('\rNiter: {6:02d}, vIdx: {0:07d}, prog: {4:07d}/{5:07d}, conf: {1:04f}, pkcnt: {2}, euler: {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(RotRep.Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
+            sys.stdout.write('\rNiter: {6:02d}, vIdx: {0:07d}, prog: {4:07d}/{5:07d}, conf: {1:04f}, pkcnt: {2}, euler: {3}'.format(voxelIdx,afHitRatioH[maxHitratioIdx[0]],aiPeakCntH[maxHitratioIdx[0]],np.array(Mat2EulerZXZ(maxMat[0, :,:])) / np.pi * 180, len(self.voxelIdxStage0),self.NTotalVoxel2Recon, i))
             sys.stdout.flush()
-        self.voxelAcceptedMat[voxelIdx, :, :] = RotRep.Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
+        self.voxelAcceptedMat[voxelIdx, :, :] = Orien2FZ(maxMat[0, :, :], self.sample.symtype)[0]
         self.voxelHitRatio[voxelIdx] = afHitRatioH[maxHitratioIdx[0]]
         del afVoxelPosD
 
@@ -1956,7 +1956,7 @@ class Reconstructor_GPU():
         secs = start.time_till(end) * 1e-3
         print("SourceModule time {0} seconds.".format(secs))
         # save roconstruction result
-        self.micData[:, 6:9] = RotRep.Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180
+        self.micData[:, 6:9] = Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180
         self.micData[:, 9] = self.voxelHitRatio
         self.save_mic('test_recon_one_grain_gpu_random_out.txt')
     #def free_GPU_memory(self):
@@ -2092,7 +2092,7 @@ class Reconstructor_GPU():
         if mask is None:
             mask = np.ones([NX, NY])
         eulers = self.squareMicData[:, :, 3:6]
-        mats = RotRep.EulerZXZ2MatVectorized(eulers.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
+        mats = EulerZXZ2MatVectorized(eulers.reshape([-1, 3]) / 180.0 * np.pi).reshape([NX, NY, 3, 3])
         confs = self.squareMicData[:, :, 6]
         visited = np.zeros([NX, NY])
         visited[self.squareMicData[:,:,6] < 0.3 ] = 1  # exclude low confidence area
@@ -2111,7 +2111,7 @@ class Reconstructor_GPU():
                 for x in [max(0,xCenter-1), xCenter, min(NX-1, xCenter+1)]:
                     for y in [max(0,yCenter-1), yCenter, min(NX-1, yCenter+1)]:
                         if not visited[x, y]:
-                            _, misOrien = RotRep.Misorien2FZ1(mats[xOld, yOld,:,:], mats[x, y, :, :], symtype=self.sample.symtype)
+                            _, misOrien = Misorien2FZ1(mats[xOld, yOld,:,:], mats[x, y, :, :], symtype=self.sample.symtype)
                             if misOrien < threshold:
                                 q.append([x, y])
                                 visited[x, y] = 1
@@ -2158,7 +2158,7 @@ class Reconstructor_GPU():
         :param axis: 0 for x direction, 1 for y direction.
         :return:
         '''
-        symMat = RotRep.GetSymRotMat(symType)
+        symMat = GetSymRotMat(symType)
         if m0.ndim != 3:
             raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
         NVoxelX = m0.shape[0]
@@ -2181,7 +2181,7 @@ class Reconstructor_GPU():
         misorientation map from euler angles:
         euler in angle!!!!!
         '''
-        m0 = RotRep.EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
+        m0 = EulerZXZ2MatVectorized(euler.reshape([-1,3])/180.0*np.pi).reshape([euler.shape[0],euler.shape[1],9])
         misOrienMap = self.misorien_map(m0,symType=symType)
         return misOrienMap
     
