@@ -1,19 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="BookmarkManager">
-    <bookmark url="file://$PROJECT_DIR$/simulation.py" line="313" />
-  </component>
   <component name="ChangeListManager">
     <list default="true" id="b7dc8160-7b5b-4026-b52e-3e85738b990a" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/FZfile.py" afterPath="$PROJECT_DIR$/FZfile.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/RandomCuda.py" afterPath="$PROJECT_DIR$/RandomCuda.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/RotRep.py" afterPath="$PROJECT_DIR$/RotRep.py" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/simulation.py" afterPath="$PROJECT_DIR$/simulation.py" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hexomap/orientation.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/orientation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reconstruction.py" beforeDir="false" afterPath="$PROJECT_DIR$/reconstruction.py" afterDir="false" />
     </list>
     <ignored path="pycuda.iws" />
     <ignored path=".idea/workspace.xml" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
-    <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -22,72 +19,38 @@
   <component name="CreatePatchCommitExecutor">
     <option name="PATCH_PATH" value="" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="default_target" />
   <component name="FavoritesManager">
     <favorites_list name="pycuda" />
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="FZfile.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/FZfile.py">
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/reconstruction.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="141">
-              <caret line="94" column="21" lean-forward="true" selection-start-line="94" selection-start-column="21" selection-end-line="94" selection-end-column="21" />
+            <state relative-caret-position="495">
+              <caret line="33" column="13" selection-start-line="33" selection-start-column="13" selection-end-line="33" selection-end-column="13" />
               <folding>
-                <element signature="e#118#136#0" expanded="true" />
-                <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-                <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
+                <element signature="e#298#343#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="simulation.py" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/simulation.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="7890">
-              <caret line="1209" column="44" lean-forward="true" selection-start-line="1209" selection-start-column="44" selection-end-line="1209" selection-end-column="44" />
-              <folding>
-                <element signature="e#16547#18825#0" expanded="false" />
-                <element signature="e#18881#21075#0" expanded="false" />
-                <element signature="e#21322#22458#0" expanded="false" />
-                <element signature="e#22501#25748#0" expanded="false" />
-                <element signature="e#25783#29666#0" expanded="false" />
-                <element signature="e#30571#30661#0" expanded="false" />
-                <element signature="e#32941#37664#0" expanded="false" />
-                <element signature="e#37701#45049#0" expanded="false" />
-                <element signature="e#45091#45442#0" expanded="false" />
-                <element signature="e#45477#48479#0" expanded="false" />
-                <element signature="e#48615#51065#0" expanded="false" />
-                <element signature="e#51107#51509#0" expanded="false" />
-                <element signature="e#52448#53019#0" expanded="false" />
-                <element signature="e#53074#54210#0" expanded="false" />
-                <element signature="e#54253#57500#0" expanded="false" />
-                <element signature="e#57538#57947#0" expanded="false" />
-                <element signature="e#57993#57997#0" expanded="false" />
-                <element signature="e#58029#60789#0" expanded="false" />
-                <element signature="e#58456#58546#0" expanded="false" />
-                <element signature="e#76754#83324#0" expanded="false" />
-              </folding>
-            </state>
-          </provider>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/hexomap/cuorientations.py">
+          <provider selected="true" editor-type-id="text-editor" />
         </entry>
       </file>
-      <file leaf-file-name="sim_utilities.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="423">
-              <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-              <folding />
-            </state>
-          </provider>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/ConfigExample.yml">
+          <provider selected="true" editor-type-id="text-editor" />
         </entry>
       </file>
-      <file leaf-file-name="IntBin.py" pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/IntBin.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1530">
-              <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
+            <state relative-caret-position="1500">
+              <caret line="103" column="54" selection-start-line="103" selection-start-column="54" selection-end-line="103" selection-end-column="54" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
               </folding>
@@ -95,12 +58,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="RotRep.py" pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/RotRep.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-3047">
-              <caret line="153" column="64" lean-forward="false" selection-start-line="153" selection-start-column="64" selection-end-line="153" selection-end-column="64" />
-              <folding />
+            <state relative-caret-position="2280">
+              <caret line="153" column="18" selection-start-line="153" selection-start-column="18" selection-end-line="153" selection-end-column="18" />
             </state>
           </provider>
         </entry>
@@ -117,6 +79,7 @@
   <component name="FindInProjectRecents">
     <findStrings>
       <find>Vectorize</find>
+      <find>FZfile</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -135,129 +98,63 @@
         <option value="$PROJECT_DIR$/simulation.py" />
         <option value="$PROJECT_DIR$/RotRep.py" />
         <option value="$PROJECT_DIR$/FZfile.py" />
+        <option value="$PROJECT_DIR$/hexomap/orientation.py" />
+        <option value="$PROJECT_DIR$/config.py" />
+        <option value="$PROJECT_DIR$/reconstruction.py" />
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds">
+  <component name="ProjectFrameBounds" extendedState="6">
     <option name="y" value="23" />
     <option name="width" value="1440" />
     <option name="height" value="873" />
   </component>
   <component name="ProjectView">
-    <navigator currentView="ProjectPane" proportions="" version="1">
-      <flattenPackages />
-      <showMembers />
-      <showModules />
-      <showLibraryContents />
-      <hideEmptyPackages />
-      <abbreviatePackageNames />
-      <autoscrollToSource />
-      <autoscrollFromSource />
-      <sortByType />
-      <manualOrder />
+    <navigator proportions="" version="1">
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
-      <pane id="Scratches" />
       <pane id="ProjectPane">
         <subPane>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="pycuda" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="pycuda" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
-          <PATH>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="pycuda" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="pycuda" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-            <PATH_ELEMENT>
-              <option name="myItemId" value="ICENINE_GPU" />
-              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
-            </PATH_ELEMENT>
-          </PATH>
+          <expand>
+            <path>
+              <item name="HEXOMAP" type="b2602c69:ProjectViewProjectNode" />
+              <item name="HEXOMAP" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="HEXOMAP" type="b2602c69:ProjectViewProjectNode" />
+              <item name="HEXOMAP" type="462c0819:PsiDirectoryNode" />
+              <item name="data" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="HEXOMAP" type="b2602c69:ProjectViewProjectNode" />
+              <item name="HEXOMAP" type="462c0819:PsiDirectoryNode" />
+              <item name="examples" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
     <property name="last_opened_file_path" value="$USER_HOME$/Documents/temp.py" />
     <property name="SearchEverywhereHistoryKey" value="&#9;FILE&#9;file:///Users/liuhe/Dropbox/pycuda/RotRep.py" />
   </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
   <component name="RunManager" selected="Python.FZfile">
-    <configuration default="false" name="simulation" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/simulation.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <method />
-    </configuration>
-    <configuration default="false" name="FZfile" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/FZfile.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <method />
-    </configuration>
-    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <method />
-    </configuration>
-    <configuration default="true" type="Tox" factoryName="Tox">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <method />
-    </configuration>
     <configuration default="true" type="tests" factoryName="Attests">
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -277,105 +174,58 @@
       <option name="USE_PATTERN" value="false" />
       <method />
     </configuration>
-    <configuration default="true" type="tests" factoryName="Doctests">
+    <configuration name="FZfile" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="pycuda" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
-      <envs />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
       <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="CLASS_NAME" value="" />
-      <option name="METHOD_NAME" value="" />
-      <option name="FOLDER_NAME" value="" />
-      <option name="TEST_TYPE" value="TEST_SCRIPT" />
-      <option name="PATTERN" value="" />
-      <option name="USE_PATTERN" value="false" />
-      <method />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/FZfile.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
     </configuration>
-    <configuration default="true" type="tests" factoryName="Nosetests">
+    <configuration name="simulation" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="pycuda" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
-      <envs />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
       <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="CLASS_NAME" value="" />
-      <option name="METHOD_NAME" value="" />
-      <option name="FOLDER_NAME" value="" />
-      <option name="TEST_TYPE" value="TEST_SCRIPT" />
-      <option name="PATTERN" value="" />
-      <option name="USE_PATTERN" value="false" />
-      <option name="PARAMS" value="" />
-      <option name="USE_PARAM" value="false" />
-      <method />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/simulation.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
     </configuration>
-    <configuration default="true" type="tests" factoryName="Unittests">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="CLASS_NAME" value="" />
-      <option name="METHOD_NAME" value="" />
-      <option name="FOLDER_NAME" value="" />
-      <option name="TEST_TYPE" value="TEST_SCRIPT" />
-      <option name="PATTERN" value="" />
-      <option name="USE_PATTERN" value="false" />
-      <option name="PUREUNITTEST" value="true" />
-      <option name="PARAMS" value="" />
-      <option name="USE_PARAM" value="false" />
-      <method />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="py.test">
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="pycuda" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="CLASS_NAME" value="" />
-      <option name="METHOD_NAME" value="" />
-      <option name="FOLDER_NAME" value="" />
-      <option name="TEST_TYPE" value="TEST_SCRIPT" />
-      <option name="PATTERN" value="" />
-      <option name="USE_PATTERN" value="false" />
-      <option name="testToRun" value="" />
-      <option name="keywords" value="" />
-      <option name="params" value="" />
-      <option name="USE_PARAM" value="false" />
-      <option name="USE_KEYWORD" value="false" />
-      <method />
-    </configuration>
-    <list size="2">
-      <item index="0" class="java.lang.String" itemvalue="Python.simulation" />
-      <item index="1" class="java.lang.String" itemvalue="Python.FZfile" />
+    <list>
+      <item itemvalue="Python.simulation" />
+      <item itemvalue="Python.FZfile" />
     </list>
     <recent_temporary>
-      <list size="2">
-        <item index="0" class="java.lang.String" itemvalue="Python.FZfile" />
-        <item index="1" class="java.lang.String" itemvalue="Python.simulation" />
+      <list>
+        <item itemvalue="Python.FZfile" />
+        <item itemvalue="Python.simulation" />
       </list>
     </recent_temporary>
-  </component>
-  <component name="ShelveChangesManager" show_recycled="false">
-    <option name="remove_strategy" value="false" />
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -400,45 +250,45 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="23" width="1440" height="873" extended-state="6" />
+    <frame x="-4" y="0" width="1858" height="1084" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17406625" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
-      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32777777" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
-      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32985386" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32522407" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.3841229" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
-      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
-      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="true" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32776618" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
-      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32832617" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.26819924" />
+      <window_info id="Structure" order="1" weight="0.25" />
+      <window_info id="Favorites" order="2" side_tool="true" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.32832617" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.32776618" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.32777777" />
+      <window_info anchor="bottom" id="Version Control" order="7" weight="0.32985386" />
+      <window_info anchor="bottom" id="Terminal" order="8" visible="true" weight="0.29947644" />
+      <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
+      <window_info anchor="bottom" id="Python Console" order="10" weight="0.32522407" />
+      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
     </layout>
     <layout-to-restore>
-      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32777777" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
-      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
-      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
-      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32985386" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
-      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32522407" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="true" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32776618" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3841229" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17406625" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
-      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
-      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32832617" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="true" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.17406625" />
+      <window_info id="Structure" order="1" weight="0.25" />
+      <window_info id="Favorites" order="2" side_tool="true" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.32832617" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.32776618" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.32777777" />
+      <window_info anchor="bottom" id="Event Log" order="7" side_tool="true" />
+      <window_info anchor="bottom" id="Version Control" order="8" weight="0.32985386" />
+      <window_info anchor="bottom" id="Python Console" order="9" visible="true" weight="0.32522407" />
+      <window_info anchor="bottom" id="Terminal" order="10" weight="0.3841229" />
+      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
     </layout-to-restore>
   </component>
   <component name="Vcs.Log.UiProperties">
@@ -449,569 +299,90 @@
       <collection />
     </option>
   </component>
-  <component name="VcsContentAnnotationSettings">
-    <option name="myLimit" value="2678400000" />
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <option name="time" value="2" />
-    </breakpoint-manager>
-    <watches-manager />
-  </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RandomCuda.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="15">
-          <caret line="1" column="8" lean-forward="false" selection-start-line="1" selection-start-column="8" selection-end-line="1" selection-end-column="8" />
-          <folding>
-            <element signature="e#64#82#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/numpy/__init__.py" />
-    <entry file="file://$PROJECT_DIR$/ICENINE_GPU/backup_notworking_20180123.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8655">
-          <caret line="907" column="25" lean-forward="false" selection-start-line="907" selection-start-column="25" selection-end-line="907" selection-end-column="25" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/FZfile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="795">
-          <caret line="54" column="5" lean-forward="false" selection-start-line="54" selection-start-column="5" selection-end-line="54" selection-end-column="5" />
-          <folding>
-            <element signature="e#118#136#0" expanded="true" />
-            <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-            <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/matplotlib/pyplot.py" />
-    <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1065">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/IntBin.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1530">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5040">
-          <caret line="338" column="6" lean-forward="false" selection-start-line="338" selection-start-column="6" selection-end-line="338" selection-end-column="6" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/ICENINE_GPU/backup_notworking_20180123.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8655">
-          <caret line="907" column="25" lean-forward="false" selection-start-line="907" selection-start-column="25" selection-end-line="907" selection-end-column="25" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/FZfile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="930">
-          <caret line="63" column="49" lean-forward="false" selection-start-line="63" selection-start-column="49" selection-end-line="63" selection-end-column="49" />
-          <folding>
-            <element signature="e#118#136#0" expanded="true" />
-            <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-            <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/matplotlib/pyplot.py" />
-    <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1065">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/IntBin.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1530">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="7185">
-          <caret line="481" column="25" lean-forward="false" selection-start-line="481" selection-start-column="25" selection-end-line="481" selection-end-column="25" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/FZfile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="765">
-          <caret line="51" column="49" lean-forward="false" selection-start-line="51" selection-start-column="49" selection-end-line="51" selection-end-column="49" />
-          <folding>
-            <element signature="e#118#136#0" expanded="true" />
-            <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-            <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1065">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/IntBin.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1545">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="7185">
-          <caret line="481" column="25" lean-forward="false" selection-start-line="481" selection-start-column="25" selection-end-line="481" selection-end-column="25" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8865">
-          <caret line="974" column="112" lean-forward="false" selection-start-line="974" selection-start-column="76" selection-end-line="974" selection-end-column="112" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/FZfile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="375">
-          <caret line="25" column="8" lean-forward="false" selection-start-line="25" selection-start-column="8" selection-end-line="25" selection-end-column="8" />
-          <folding>
-            <element signature="e#118#136#0" expanded="true" />
-            <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-            <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1065">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/IntBin.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1545">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1755">
-          <caret line="119" column="19" lean-forward="false" selection-start-line="119" selection-start-column="4" selection-end-line="119" selection-end-column="19" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8865">
-          <caret line="974" column="112" lean-forward="false" selection-start-line="974" selection-start-column="76" selection-end-line="974" selection-end-column="112" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/FZfile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#118#136#0" expanded="true" />
-            <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-            <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1065">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/IntBin.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1545">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1755">
-          <caret line="119" column="19" lean-forward="false" selection-start-line="119" selection-start-column="4" selection-end-line="119" selection-end-column="19" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/sim_utilities.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1065">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/IntBin.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1530">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5475">
-          <caret line="365" column="32" lean-forward="false" selection-start-line="365" selection-start-column="32" selection-end-line="365" selection-end-column="32" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-          <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/main" />
     <entry file="file://$PROJECT_DIR$/gpustruct.py" />
-    <entry file="file://$PROJECT_DIR$/test.py">
+    <entry file="file://$PROJECT_DIR$/test.py" />
+    <entry file="file://$PROJECT_DIR$/FZ_MAT.txt" />
+    <entry file="file://$USER_HOME$/Documents/temp.py" />
+    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/matplotlib/pyplot.py" />
+    <entry file="file://$PROJECT_DIR$/ICENINE_GPU/backup_notworking_20180123.py" />
+    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/numpy/__init__.py" />
+    <entry file="file://$PROJECT_DIR$/RandomCuda.py" />
+    <entry file="file://$PROJECT_DIR$/backup_20180123_single_voxel_recon.py" />
+    <entry file="file://$PROJECT_DIR$/FZfile.py" />
+    <entry file="file://$PROJECT_DIR$/simulation.py" />
+    <entry file="file://$PROJECT_DIR$/RotRep.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="30">
-          <caret line="2" column="0" lean-forward="false" selection-start-line="2" selection-start-column="0" selection-end-line="2" selection-end-column="0" />
+        <state relative-caret-position="2280">
+          <caret line="153" column="18" selection-start-line="153" selection-start-column="18" selection-end-line="153" selection-end-column="18" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/FZ_MAT.txt">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-        </state>
-      </provider>
+    <entry file="file://$PROJECT_DIR$/data/johnson_aug18_demo/demo_gold_twiddle_3.h5">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/ConfigExample.yml">
+      <provider selected="true" editor-type-id="text-editor" />
     </entry>
     <entry file="file://$PROJECT_DIR$/IntBin.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1530">
-          <caret line="103" column="70" lean-forward="false" selection-start-line="103" selection-start-column="70" selection-end-line="103" selection-end-column="70" />
+        <state relative-caret-position="1500">
+          <caret line="103" column="54" selection-start-line="103" selection-start-column="54" selection-end-line="103" selection-end-column="54" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/Documents/temp.py" />
-    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/matplotlib/pyplot.py" />
-    <entry file="file://$PROJECT_DIR$/ICENINE_GPU/backup_notworking_20180123.py">
+    <entry file="file://$PROJECT_DIR$/hexomap/cuorientations.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/hexomap/config.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="697">
-          <caret line="907" column="25" lean-forward="false" selection-start-line="907" selection-start-column="25" selection-end-line="907" selection-end-column="25" />
+        <state relative-caret-position="-1092" />
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/hexomap/utility.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="495">
+          <caret line="38" column="29" lean-forward="true" selection-start-line="38" selection-start-column="29" selection-end-line="38" selection-end-column="29" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/anaconda2/envs/pycuda/lib/python2.7/site-packages/numpy/__init__.py" />
-    <entry file="file://$PROJECT_DIR$/RandomCuda.py">
+    <entry file="file://$PROJECT_DIR$/hexomap/orientation.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="255">
-          <caret line="17" column="29" lean-forward="true" selection-start-line="17" selection-start-column="29" selection-end-line="17" selection-end-column="29" />
+        <state relative-caret-position="-5896">
+          <caret line="33" selection-start-line="33" selection-end-line="33" />
           <folding>
-            <element signature="e#64#82#0" expanded="true" />
+            <element signature="e#648#679#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/sim_utilities.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="423">
-          <caret line="74" column="22" lean-forward="false" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="29" />
-          <folding />
+        <state relative-caret-position="376">
+          <caret line="74" column="22" selection-start-line="74" selection-start-column="22" selection-end-line="74" selection-end-column="24" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/RotRep.py">
+    <entry file="file://$PROJECT_DIR$/config.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-3047">
-          <caret line="153" column="64" lean-forward="false" selection-start-line="153" selection-start-column="64" selection-end-line="153" selection-end-column="64" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/backup_20180123_single_voxel_recon.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="231">
-          <caret line="1097" column="20" lean-forward="true" selection-start-line="1097" selection-start-column="20" selection-end-line="1097" selection-end-column="20" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/FZfile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="141">
-          <caret line="94" column="21" lean-forward="true" selection-start-line="94" selection-start-column="21" selection-end-line="94" selection-end-column="21" />
+        <state relative-caret-position="348">
+          <caret line="55" column="15" selection-start-line="55" selection-start-column="15" selection-end-line="55" selection-end-column="15" />
           <folding>
-            <element signature="e#118#136#0" expanded="true" />
-            <marker date="1516848337000" expanded="true" signature="188:378" ph="..." />
-            <marker date="1516848337000" expanded="true" signature="3022:3023" ph="..." />
+            <element signature="e#0#18#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/simulation.py">
+    <entry file="file://$PROJECT_DIR$/reconstruction.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="7890">
-          <caret line="1209" column="44" lean-forward="true" selection-start-line="1209" selection-start-column="44" selection-end-line="1209" selection-end-column="44" />
+        <state relative-caret-position="495">
+          <caret line="33" column="13" selection-start-line="33" selection-start-column="13" selection-end-line="33" selection-end-column="13" />
           <folding>
-            <element signature="e#16547#18825#0" expanded="false" />
-            <element signature="e#18881#21075#0" expanded="false" />
-            <element signature="e#21322#22458#0" expanded="false" />
-            <element signature="e#22501#25748#0" expanded="false" />
-            <element signature="e#25783#29666#0" expanded="false" />
-            <element signature="e#30571#30661#0" expanded="false" />
-            <element signature="e#32941#37664#0" expanded="false" />
-            <element signature="e#37701#45049#0" expanded="false" />
-            <element signature="e#45091#45442#0" expanded="false" />
-            <element signature="e#45477#48479#0" expanded="false" />
-            <element signature="e#48615#51065#0" expanded="false" />
-            <element signature="e#51107#51509#0" expanded="false" />
-            <element signature="e#52448#53019#0" expanded="false" />
-            <element signature="e#53074#54210#0" expanded="false" />
-            <element signature="e#54253#57500#0" expanded="false" />
-            <element signature="e#57538#57947#0" expanded="false" />
-            <element signature="e#57993#57997#0" expanded="false" />
-            <element signature="e#58029#60789#0" expanded="false" />
-            <element signature="e#58456#58546#0" expanded="false" />
-            <element signature="e#76754#83324#0" expanded="false" />
+            <element signature="e#298#343#0" expanded="true" />
           </folding>
         </state>
       </provider>

@@ -31,6 +31,7 @@ import os.path
 import sys
 import scipy.misc
 import importlib
+import FZfile
 #global ctx
 #ctx = None
 #cuda.init()
@@ -2202,10 +2203,10 @@ if __name__ == "__main__":
     import reconstruction
     import MicFileTool
 
-    c = config.Config().load('data/johnson_aug18_demo/demo_gold_twiddle_3.h5')
+    c = config.Config().load('examples/johnson_aug18_demo/demo_gold_twiddle_3.h5')
     c.display()
     c.fileFZ = 'data/FZ_files/CubicFZ.dat'
-    c.fileBin= 'data/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    c.fileBin= 'examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
     c.micVoxelSize = 0.005
     c.micsize = [15,15]
 

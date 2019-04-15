@@ -131,8 +131,8 @@ class Config():
 
         else:
             raise IOError("Configure file type need to be yaml or hdf5.")
-        
-        
+
+    # why use classmethod here, no class needed to be returned.
     @classmethod
     def _recursively_load_dict_contents_from_group(cls, h5file, path):
         """
