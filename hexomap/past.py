@@ -30,7 +30,8 @@ Mat2EulerZXZVectorized = Eulers.matrices_to_eulers
 #   the original function use COLUMN (axis=1) stacked quaternions,
 #   the new function use ROW (axis=0) stacked to be consistent with 
 #   the other methods in the same module.
-rod_from_quaternion = lambda qs: Rodrigues.rodrigues_from_quaternions(qs.T).T
+quaternion_from_matrix = lambda m: Quaternion.from_matrix(m).as_array.ravel()
+rod_from_quaternion = lambda qs: Rodrigues.rodrigues_from_quaternions(qs.T).T.ravel()
 # -- Misorien2FZ1
 def Misorien2FZ1(m1, m2, symtype='Cubic'):
     _f = Frame()
