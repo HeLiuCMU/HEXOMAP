@@ -18,7 +18,7 @@ import pycuda.driver as cuda
 import numpy as np
 from pycuda.compiler import SourceModule
 from pycuda.curandom import MRG32k3aRandomNumberGenerator
-import sim_utilities
+from hexomap import sim_utilities
 from hexomap.past import *
 from hexomap import IntBin
 from hexomap.past import generate_random_rot_mat
