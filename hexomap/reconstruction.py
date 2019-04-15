@@ -564,8 +564,8 @@ class Reconstructor_GPU():
         dp = np.array(dp) * np.array(factor)
         # Calculate the error
         best_err, centerRot = self.twiddle_loss(idxVoxel, centerL, centerJ, centerK, centerRot)###
-        print(dp)
-        print(dp/np.array(factor))
+        #print(dp)
+        #print(dp/np.array(factor))
         threshold = 0.002
         improve = True
         while sum(dp) > threshold and dp[0]>0.0005:
@@ -582,8 +582,8 @@ class Reconstructor_GPU():
                     centerRot = rotTmp
                     dp[i] *= 1.1
                     improve = True
-                    print(dp)
-                    print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
+                    #print(dp)
+                    print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
                 else:  # There was no improvement
                     p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
                     err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
@@ -593,8 +593,8 @@ class Reconstructor_GPU():
                         centerRot = rotTmp
                         dp[i] *= 1.1 # was 1.1
                         improve = True
-                        print(dp)
-                        print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
+                        #print(dp)
+                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
                     else:  # There was no improvement
                         p[i] += dp[i]/factor[i]
                         improve = False
@@ -602,7 +602,7 @@ class Reconstructor_GPU():
                         # direction, the step size might simply be too big.
                         dp[i] *= 0.9  # was 0.95
             #sys.stdout.flush()
-        print(p)
+        #print(p)
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
 
     def get_neighbour_orien(self,lIdxVoxel, accMat, size=3):
@@ -779,7 +779,8 @@ class Reconstructor_GPU():
             relativeJ *= factor
             relativeK *= factor
             #print(rangeL, rangeJ, rangeK)
-            print(' \r new parameters: {0}, {1}, {2},\n max hitratio:{3}, rangeL:{4}, rangeJ:{5}, rangeK:{6}'.format(J,K,L,maxHitRatio,rangeL,rangeJ,rangeK))
+            sys.stdout.flush()
+            print(' \r new parameters: J: {0}, K: {1}, L: {2}                            \n max hitratio: {3:06f}, rangeL: {4:04f}, rangeJ: {5:02f}, rangeK: {6:02f}'.format(J,K,L,maxHitRatio,rangeL,rangeJ,rangeK))
             dL = np.linspace(-rangeL, rangeL, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
             dJ = np.linspace(-rangeJ, rangeJ, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
             dK = np.linspace(-rangeK, rangeK, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
@@ -1298,7 +1299,7 @@ class Reconstructor_GPU():
                 self.voxelIdxStage0.remove(voxelIdx)
             except ValueError:
                 pass
-        print('number of flood fills: {0}'.format(self.NFloodFill))
+        print('\r number of flood fills: {0}'.format(self.NFloodFill))
         if enablePostProcess:
             self.post_process()
         print('===========end of reconstruction========== \n')
@@ -1431,7 +1432,7 @@ class Reconstructor_GPU():
             accMat = accMatNew.copy()
             sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
             sys.stdout.flush()
-        print('number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
+        print('\r number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
         end = time.time()
         print(' post process takes is {0} seconds'.format(end-start))
         # self.squareMicData[:,:,3:6] = (Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])

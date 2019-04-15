@@ -1,3 +1,9 @@
+'''
+This is a file for testing purpose
+Usage:
+    cd to module root directory
+    run: python -m hexomap
+'''
 from hexomap import config
 import numpy as np
 from hexomap import reconstruction

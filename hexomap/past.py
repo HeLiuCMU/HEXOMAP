@@ -59,6 +59,35 @@ def  generate_random_rot_mat(n, method='new'):
             matTmp = EulerZXZ2Mat(np.array([alpha[i],beta[i],gamma[i]]))
             result[i,:,:] = matTmp
         return result
+
+
+def generarte_random_eulerZXZ(eulerIn, range, NAngle=10):
+    '''
+    generate random euler angles, for detector geometry optimization
+
+    :param eulerIn: in degree!!!, in shape[:,3]
+    :param range:
+    :return:
+        np.array,[NAngle,3], the first one is the same as input
+    '''
+    eulerIn = eulerIn.reshape([-1, 3])
+    shape = eulerIn.shape
+    eulerIn = eulerIn * np.pi / 180.0
+    eulerOut = np.repeat(eulerIn, NAngle, axis=0)
+    range = range * np.pi / 180.0
+    # randomAngle = np.random.rand(eulerOut.shape[0], eulerOut.shape[1])
+    randomAngle = np.random.normal(0.5, 0.2, eulerOut.shape).reshape(eulerOut.shape)
+    # print(randomAngle)
+    eulerOut[:, 0] = eulerOut[:, 0] + range * (randomAngle[:, 0] * 2 - 1)
+    eulerOut[:, 2] = eulerOut[:, 2] + range * (randomAngle[:, 2] * 2 - 1)
+    z = np.cos(eulerOut[:, 1]) + range * (randomAngle[:, 1] * 2 - 1) * np.sin(eulerOut[:, 1])
+    z[z > 1] = 1
+    z[z < -1] = -1
+    eulerOut[:, 1] = np.arccos(z)
+    eulerOut[0, :] = eulerIn[0, :]
+    eulerOut = eulerOut * 180.0 / np.pi
+    return eulerOut
+
 def Orien2FZ(m, symtype='Cubic'):
     """
     Reduce orientation to fundamental zone, input and output are both active matrices

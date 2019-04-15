@@ -2,10 +2,16 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="b7dc8160-7b5b-4026-b52e-3e85738b990a" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/RotRep.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/FZ_files/CubicFZ.dat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/FZ_files/HexFZ.dat" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/demo_gold__q9_rot180_z0_15x15_0.005_shift_0.0_0.0_0.0.npy" beforeDir="false" afterPath="$PROJECT_DIR$/demo_gold__q9_rot180_z0_15x15_0.005_shift_0.0_0.0_0.0.npy" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hexomap/MicFileTool.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/MicFileTool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/demo_notebooks/Demo_Johnson_Aug18.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/demo_notebooks/Demo_Johnson_Aug18.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_blind_search_0.h5" beforeDir="false" afterPath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_blind_search_0.h5" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_twiddle_0.h5" beforeDir="false" afterPath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_twiddle_0.h5" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hexomap/__main__.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/__main__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/hexomap/past.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/past.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hexomap/reconstruction.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/reconstruction.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/multi_diff_det_test.ipynb" beforeDir="false" />
     </list>
     <ignored path="pycuda.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -24,77 +30,21 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/hexomap/orientation.py">
+        <entry file="file://$PROJECT_DIR$/hexomap/__main__.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="510">
-              <caret line="301" column="22" selection-start-line="301" selection-start-column="8" selection-end-line="301" selection-end-column="22" />
-              <folding>
-                <element signature="e#648#679#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/hexomap/cuorientations.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="163">
-              <caret line="11" column="28" selection-start-line="11" selection-start-column="28" selection-end-line="11" selection-end-column="28" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/hexomap/reconstruction.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="274">
-              <caret line="21" selection-start-line="21" selection-end-line="21" selection-end-column="26" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/NPY2H5.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state>
-              <folding>
-                <element signature="e#0#18#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/reduction.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="420">
-              <caret line="28" column="35" lean-forward="true" selection-start-line="28" selection-start-column="35" selection-end-line="28" selection-end-column="35" />
-              <folding>
-                <element signature="e#0#31#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/hexomap/MicFileTool.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="369">
-              <caret line="135" column="49" lean-forward="true" selection-start-line="135" selection-start-column="49" selection-end-line="135" selection-end-column="49" />
-              <folding>
-                <element signature="e#118#136#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="135">
+              <caret line="9" column="31" selection-start-line="9" selection-start-column="31" selection-end-line="9" selection-end-column="31" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/hexomap/past.py">
+        <entry file="file://$PROJECT_DIR$/hexomap/reconstruction.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="300">
-              <caret line="20" column="35" lean-forward="true" selection-start-line="20" selection-start-column="35" selection-end-line="20" selection-end-column="35" />
+            <state relative-caret-position="439">
+              <caret line="596" column="184" lean-forward="true" selection-start-line="596" selection-start-column="184" selection-end-line="596" selection-end-column="184" />
               <folding>
-                <element signature="e#242#260#0" expanded="true" />
+                <element signature="e#298#343#0" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -122,12 +72,15 @@
       <find>mod</find>
       <find>Rot</find>
       <find>EulerZXZ2Mat</find>
-      <find>past</find>
       <find>RotRep</find>
-      <find>RotRep.</find>
-      <find>quaternion_from_matrix</find>
       <find>quaternions</find>
+      <find>quaternion_from_matrix</find>
+      <find>RotRep.</find>
+      <find>past</find>
       <find>Quaternion</find>
+      <find>new parameters</find>
+      <find>Niter</find>
+      <find>print(</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -150,11 +103,11 @@
         <option value="$PROJECT_DIR$/config.py" />
         <option value="$PROJECT_DIR$/reconstruction.py" />
         <option value="$PROJECT_DIR$/hexomap/__init__.py" />
-        <option value="$PROJECT_DIR$/hexomap/__main__.py" />
-        <option value="$PROJECT_DIR$/hexomap/reconstruction.py" />
         <option value="$PROJECT_DIR$/hexomap/kernel_cuda/device_code.cu" />
         <option value="$PROJECT_DIR$/hexomap/MicFileTool.py" />
+        <option value="$PROJECT_DIR$/hexomap/__main__.py" />
         <option value="$PROJECT_DIR$/hexomap/past.py" />
+        <option value="$PROJECT_DIR$/hexomap/reconstruction.py" />
       </list>
     </option>
   </component>
@@ -178,12 +131,7 @@
             <path>
               <item name="HEXOMAP" type="b2602c69:ProjectViewProjectNode" />
               <item name="HEXOMAP" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="HEXOMAP" type="b2602c69:ProjectViewProjectNode" />
-              <item name="HEXOMAP" type="462c0819:PsiDirectoryNode" />
-              <item name="examples" type="462c0819:PsiDirectoryNode" />
+              <item name="demo_notebooks" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="HEXOMAP" type="b2602c69:ProjectViewProjectNode" />
@@ -427,16 +375,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/hexomap/__main__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="375">
-          <caret line="25" column="51" lean-forward="true" selection-start-line="25" selection-start-column="51" selection-end-line="25" selection-end-column="51" />
-          <folding>
-            <element signature="e#0#26#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/RotRep.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="105">
@@ -475,13 +413,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/hexomap/cuorientations.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="163">
-          <caret line="11" column="28" selection-start-line="11" selection-start-column="28" selection-end-line="11" selection-end-column="28" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/hexomap/kernel_cuda/device_code.cu">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="180">
@@ -489,11 +420,12 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/NPY2H5.py">
+    <entry file="file://$PROJECT_DIR$/hexomap/MicFileTool.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state>
+        <state relative-caret-position="369">
+          <caret line="135" column="49" lean-forward="true" selection-start-line="135" selection-start-column="49" selection-end-line="135" selection-end-column="49" />
           <folding>
-            <element signature="e#0#18#0" expanded="true" />
+            <element signature="e#118#136#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -508,20 +440,19 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/hexomap/reconstruction.py">
+    <entry file="file://$PROJECT_DIR$/NPY2H5.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="274">
-          <caret line="21" selection-start-line="21" selection-end-line="21" selection-end-column="26" />
+        <state>
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/hexomap/MicFileTool.py">
+    <entry file="file://$PROJECT_DIR$/hexomap/cuorientations.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="369">
-          <caret line="135" column="49" lean-forward="true" selection-start-line="135" selection-start-column="49" selection-end-line="135" selection-end-column="49" />
-          <folding>
-            <element signature="e#118#136#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="163">
+          <caret line="11" column="28" selection-start-line="11" selection-start-column="28" selection-end-line="11" selection-end-column="28" />
         </state>
       </provider>
     </entry>
@@ -537,10 +468,37 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/hexomap/past.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="300">
-          <caret line="20" column="35" lean-forward="true" selection-start-line="20" selection-start-column="35" selection-end-line="20" selection-end-column="35" />
+        <state relative-caret-position="270">
+          <caret line="51" column="23" lean-forward="true" selection-start-line="51" selection-start-column="23" selection-end-line="51" selection-end-column="23" />
           <folding>
             <element signature="e#242#260#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/hexomap/RotRep.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="225">
+          <caret line="39" selection-start-line="39" selection-end-line="64" selection-end-column="19" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/hexomap/__main__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="135">
+          <caret line="9" column="31" selection-start-line="9" selection-start-column="31" selection-end-line="9" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/hexomap/reconstruction.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="439">
+          <caret line="596" column="184" lean-forward="true" selection-start-line="596" selection-start-column="184" selection-end-line="596" selection-end-column="184" />
+          <folding>
+            <element signature="e#298#343#0" expanded="true" />
           </folding>
         </state>
       </provider>
