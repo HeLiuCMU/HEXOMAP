@@ -22,8 +22,8 @@ from hexomap import sim_utilities
 from hexomap.past import *
 from hexomap import IntBin
 from hexomap.past import generate_random_rot_mat
-
-
+from   hexomap.utility import load_kernel_code
+import hexomap
 import time
 import random
 import scipy.ndimage as ndi
@@ -177,9 +177,12 @@ class Reconstructor_GPU():
         `__init__()`.
         """
         self.ctx.push()
-        import device_code
-        importlib.reload(device_code)
-        mod = device_code.mod
+        # load&compile GPU code
+        _kernel_code = os.path.join(os.path.dirname(hexomap.__file__),
+                                    "kernel_cuda/device_code.cu",
+                                    )
+        mod = SourceModule(load_kernel_code(_kernel_code))
+
         self.misoren_gpu = mod.get_function("misorien")
         self.sim_func = mod.get_function("simulation")
         self.hitratio_func = mod.get_function("hitratio_multi_detector")
