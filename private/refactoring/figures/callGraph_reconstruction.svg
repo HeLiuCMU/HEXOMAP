@@ -521,7 +521,7 @@
 <g id="node43" class="node">
 <title>reconstruction__Reconstructor_GPU__geo_opt_phase_0</title>
 <ellipse fill="#ffffff" fill-opacity="0.698039" stroke="#000000" cx="973" cy="-322" rx="71.9963" ry="18"/>
-<text text-anchor="middle" x="973" y="-317.8" font-family="Times,serif" font-size="14.00" fill="#000000">geo_opt_phase_0</text>
+<text text-anchor="middle" x="973" y="-317.8" font-family="Times,serif" font-size="14.00" fill="#000000">blind_search_parameter</text>
 </g>
 <!-- reconstruction__Reconstructor_GPU&#45;&gt;reconstruction__Reconstructor_GPU__geo_opt_phase_0 -->
 <g id="edge33" class="edge">

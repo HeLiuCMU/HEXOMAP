@@ -2,16 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="b7dc8160-7b5b-4026-b52e-3e85738b990a" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/data/FZ_files/CubicFZ.dat" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/FZ_files/HexFZ.dat" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/demo_gold__q9_rot180_z0_15x15_0.005_shift_0.0_0.0_0.0.npy" beforeDir="false" afterPath="$PROJECT_DIR$/demo_gold__q9_rot180_z0_15x15_0.005_shift_0.0_0.0_0.0.npy" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/demo_notebooks/Demo_Johnson_Aug18.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/demo_notebooks/Demo_Johnson_Aug18.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_blind_search_0.h5" beforeDir="false" afterPath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_blind_search_0.h5" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_twiddle_0.h5" beforeDir="false" afterPath="$PROJECT_DIR$/examples/johnson_aug18_demo/demo_gold_twiddle_0.h5" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hexomap/__main__.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/__main__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hexomap/past.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/past.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hexomap/reconstruction.py" beforeDir="false" afterPath="$PROJECT_DIR$/hexomap/reconstruction.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/multi_diff_det_test.ipynb" beforeDir="false" />
     </list>
     <ignored path="pycuda.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -41,8 +32,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/hexomap/reconstruction.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="439">
-              <caret line="596" column="184" lean-forward="true" selection-start-line="596" selection-start-column="184" selection-end-line="596" selection-end-column="184" />
+            <state relative-caret-position="289">
+              <caret line="377" column="77" lean-forward="true" selection-start-line="377" selection-start-column="77" selection-end-line="377" selection-end-column="77" />
               <folding>
                 <element signature="e#298#343#0" expanded="true" />
               </folding>
@@ -259,13 +250,12 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="-4" y="0" width="1858" height="1084" extended-state="6" />
-    <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.26819924" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.26819924" />
       <window_info id="Structure" order="1" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
-      <window_info anchor="bottom" id="Find" order="1" weight="0.32832617" />
+      <window_info active="true" anchor="bottom" id="Find" order="1" visible="true" weight="0.32760474" />
       <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.32776618" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
@@ -495,8 +485,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/hexomap/reconstruction.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="439">
-          <caret line="596" column="184" lean-forward="true" selection-start-line="596" selection-start-column="184" selection-end-line="596" selection-end-column="184" />
+        <state relative-caret-position="289">
+          <caret line="377" column="77" lean-forward="true" selection-start-line="377" selection-start-column="77" selection-end-line="377" selection-end-column="77" />
           <folding>
             <element signature="e#298#343#0" expanded="true" />
           </folding>

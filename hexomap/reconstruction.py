@@ -367,19 +367,19 @@ class Reconstructor_GPU():
         :return:
         '''
 
-        centerL, centerJ, centerK, centerRot = self.geo_opt_phase_0(mask)
+        centerL, centerJ, centerK, centerRot = self.blind_search_parameter(mask)
 
         idxVoxel = self.geo_opt_phase_1(centerL, centerJ, centerK, centerRot)
 
         centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK
 
-    def geo_opt_phase_0(self, mask=None,centerL=None, centerJ=None, centerK=None, centerRot=None,
-                        rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
-                       relativeL=0.05,relativeJ=15, relativeK=5,
-                           rate=1,update_threshold=0.1,NIteration=30,factor=0.85, NStep=11, geoSearchNVoxel=1,
-                           lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
-                           NOrienIteration=10, BoundStart=0.5,rotOptimization=False):
+    def blind_search_parameter(self, mask=None, centerL=None, centerJ=None, centerK=None, centerRot=None,
+                               rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
+                               relativeL=0.05, relativeJ=15, relativeK=5,
+                               rate=1, update_threshold=0.1, NIteration=30, factor=0.85, NStep=11, geoSearchNVoxel=1,
+                               lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
+                               NOrienIteration=10, BoundStart=0.5, rotOptimization=False):
         '''
         phase 0: line search through each parameter
         :param mask:
