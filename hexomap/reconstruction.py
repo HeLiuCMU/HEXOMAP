@@ -367,19 +367,19 @@ class Reconstructor_GPU():
         :return:
         '''
 
-        centerL, centerJ, centerK, centerRot = self.geo_opt_phase_0(mask)
+        centerL, centerJ, centerK, centerRot = self.blind_search_parameter(mask)
 
-        idxVoxel = self.geo_opt_phase_1(centerL, centerJ, centerK, centerRot)
+        idxVoxel = self.select_grain_boundary_voxel(centerL, centerJ, centerK, centerRot)
 
         centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK
 
-    def geo_opt_phase_0(self, mask=None,centerL=None, centerJ=None, centerK=None, centerRot=None,
-                        rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
-                       relativeL=0.05,relativeJ=15, relativeK=5,
-                           rate=1,update_threshold=0.1,NIteration=30,factor=0.85, NStep=11, geoSearchNVoxel=1,
-                           lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
-                           NOrienIteration=10, BoundStart=0.5,rotOptimization=False):
+    def blind_search_parameter(self, mask=None, centerL=None, centerJ=None, centerK=None, centerRot=None,
+                               rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
+                               relativeL=0.05, relativeJ=15, relativeK=5,
+                               rate=1, update_threshold=0.1, NIteration=30, factor=0.85, NStep=11, geoSearchNVoxel=1,
+                               lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
+                               NOrienIteration=10, BoundStart=0.5, rotOptimization=False):
         '''
         phase 0: line search through each parameter
         :param mask:
@@ -431,7 +431,7 @@ class Reconstructor_GPU():
         print(centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK, centerRot
 
-    def geo_opt_phase_1(self, centerL, centerJ, centerK, centerRot, mask=None,expandSize=1):
+    def select_grain_boundary_voxel(self, centerL, centerJ, centerK, centerRot, mask=None, expandSize=1):
         '''
         with an acceptable parameter, reconstruct an area and select grain boundaries for further refinement
         :param: expandSize: expand the size of grain boundaries so more voxel can be included.
@@ -515,7 +515,7 @@ class Reconstructor_GPU():
         :return:
         '''
         ########  generate search orientation
-        rotMatSeed = self.get_neighbour_orien(idxVoxel, self.accMat, size=2).astype(np.float32)
+        rotMatSeed = self.__get_neighbour_orien(idxVoxel, self.accMat, size=2).astype(np.float32)
         lSearchMatD = []
         for i in range(len(idxVoxel)):
             rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
@@ -564,8 +564,8 @@ class Reconstructor_GPU():
         dp = np.array(dp) * np.array(factor)
         # Calculate the error
         best_err, centerRot = self.twiddle_loss(idxVoxel, centerL, centerJ, centerK, centerRot)###
-        print(dp)
-        print(dp/np.array(factor))
+        #print(dp)
+        #print(dp/np.array(factor))
         threshold = 0.002
         improve = True
         while sum(dp) > threshold and dp[0]>0.0005:
@@ -582,8 +582,8 @@ class Reconstructor_GPU():
                     centerRot = rotTmp
                     dp[i] *= 1.1
                     improve = True
-                    print(dp)
-                    print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
+                    #print(dp)
+                    print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
                 else:  # There was no improvement
                     p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
                     err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
@@ -593,8 +593,8 @@ class Reconstructor_GPU():
                         centerRot = rotTmp
                         dp[i] *= 1.1 # was 1.1
                         improve = True
-                        print(dp)
-                        print('\r loss: {0}, sumdp: {4}, centerL: {1}, centerJ: {2},centerK: {3}.'.format(best_err,p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]),sum(dp)))
+                        #print(dp)
+                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
                     else:  # There was no improvement
                         p[i] += dp[i]/factor[i]
                         improve = False
@@ -602,10 +602,10 @@ class Reconstructor_GPU():
                         # direction, the step size might simply be too big.
                         dp[i] *= 0.9  # was 0.95
             #sys.stdout.flush()
-        print(p)
+        #print(p)
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
 
-    def get_neighbour_orien(self,lIdxVoxel, accMat, size=3):
+    def __get_neighbour_orien(self, lIdxVoxel, accMat, size=3):
         '''
         get the orientations of the neighbours of a voxel
         :param idxVoxel: list of voxel indices
@@ -697,7 +697,7 @@ class Reconstructor_GPU():
             lVoxelIdx = np.random.choice(lVoxel, geoSearchNVoxel)
             # use neighbour rotation, speedup reconstruction
             if useNeighbour:
-                rotMatSeed = self.get_neighbour_orien(lVoxelIdx, self.accMat, size=5).astype(np.float32)
+                rotMatSeed = self.__get_neighbour_orien(lVoxelIdx, self.accMat, size=5).astype(np.float32)
                 #print(rotMatSeed.shape)
                 lSearchMatD = []
                 for i in range(geoSearchNVoxel):
@@ -779,7 +779,8 @@ class Reconstructor_GPU():
             relativeJ *= factor
             relativeK *= factor
             #print(rangeL, rangeJ, rangeK)
-            print(' \r new parameters: {0}, {1}, {2},\n max hitratio:{3}, rangeL:{4}, rangeJ:{5}, rangeK:{6}'.format(J,K,L,maxHitRatio,rangeL,rangeJ,rangeK))
+            sys.stdout.flush()
+            print(' \r new parameters: J: {0}, K: {1}, L: {2}                            \n max hitratio: {3:06f}, rangeL: {4:04f}, rangeJ: {5:02f}, rangeK: {6:02f}'.format(J,K,L,maxHitRatio,rangeL,rangeJ,rangeK))
             dL = np.linspace(-rangeL, rangeL, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
             dJ = np.linspace(-rangeJ, rangeJ, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
             dK = np.linspace(-rangeK, rangeK, NStep).reshape([-1, 1]).repeat(self.NDet, axis=1)
@@ -1015,7 +1016,7 @@ class Reconstructor_GPU():
         #         [3, 3])
         return self.FZEuler
 
-    def load_exp_data_reverse(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
+    def __load_exp_data_reverse(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
         these data are NOT transfered to GPU yet.
@@ -1071,7 +1072,7 @@ class Reconstructor_GPU():
              np.concatenate(lK, axis=0)], axis=1)
         print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
 
-    def load_exp_data(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
+    def __load_exp_data(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
         '''
         load experimental binary data self.expData[detIdx,rotIdx,j,k]
         these data are NOT transfered to GPU yet.
@@ -1145,7 +1146,7 @@ class Reconstructor_GPU():
     # =================== reconstruction functions ===========================================
     # these are reconstruction procedures
 
-    def create_acExpDataCpuRam(self):
+    def __create_acExpDataCpuRam(self):
         # for testing cpu verison of hitratio
         # require have defiend self.NDet,self.NRot, and Detctor informations;
         #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
@@ -1193,7 +1194,7 @@ class Reconstructor_GPU():
 
         print('=============end of copy exp data to CPU ===========')
 
-    def cp_expdata_to_gpu(self):
+    def __cp_expdata_to_gpu(self):
         # try to use texture memory, assuming all detector have same size.
         # require have defiend self.NDet,self.NRot, and Detctor informations;
         # self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
@@ -1216,7 +1217,7 @@ class Reconstructor_GPU():
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
         # create texture memory
         print('start of create data on cpu ram')
-        self.create_acExpDataCpuRam()
+        self.__create_acExpDataCpuRam()
         print('start of creating texture memory')
         # self.texref = mod.get_texref("tcExpData")
         self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
@@ -1239,16 +1240,16 @@ class Reconstructor_GPU():
             self.append_fz(self.additionalFZ)
         if bReloadExpData:
             if reverseRot:
-                self.load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
+                self.__load_exp_data_reverse(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
             else:
-                self.load_exp_data(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
+                self.__load_exp_data(self.expDataInitial, self.expdataNDigit, self.intensity_threshold, lDetIdx=self.detIdx)
             self.expData[:, 2:4] = self.expData[:, 2:4] * self.detScale  # half the detctor size, to rescale real data
             #self.expData = np.array([[1,2,3,4]])
-            self.cp_expdata_to_gpu()
+            self.__cp_expdata_to_gpu()
             if clearCpuMemory:
                 self.expData=None
                 self.acExpDataCpuRam = None
-        #self.create_acExpDataCpuRam()
+        #self.__create_acExpDataCpuRam()
         # setup serial Reconstruction rotMatCandidate
         self.FZMatH = np.empty([self.searchBatchSize,3,3])
         if self.searchBatchSize > self.FZMat.shape[0]:
@@ -1298,7 +1299,7 @@ class Reconstructor_GPU():
                 self.voxelIdxStage0.remove(voxelIdx)
             except ValueError:
                 pass
-        print('number of flood fills: {0}'.format(self.NFloodFill))
+        print('\r number of flood fills: {0}'.format(self.NFloodFill))
         if enablePostProcess:
             self.post_process()
         print('===========end of reconstruction========== \n')
@@ -1387,9 +1388,9 @@ class Reconstructor_GPU():
         :return:
         '''
         ############# test section #####################
-        # self.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        # self.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
         # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
-        # self.cp_expdata_to_gpu()
+        # self.__cp_expdata_to_gpu()
         ############### test section edn ###################
 
         NVoxelX = self.squareMicData.shape[0]
@@ -1431,7 +1432,7 @@ class Reconstructor_GPU():
             accMat = accMatNew.copy()
             sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
             sys.stdout.flush()
-        print('number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
+        print('\r number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
         end = time.time()
         print(' post process takes is {0} seconds'.format(end-start))
         # self.squareMicData[:,:,3:6] = (Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
@@ -1903,7 +1904,7 @@ class Reconstructor_GPU():
                 R.searchBatchSize = 20000  # number of orientations to search per GPU call
                 R.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
                 R.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
-                R.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+                R.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
                 R.serial_recon_layer()
                 :return:
                 '''
@@ -1917,10 +1918,10 @@ class Reconstructor_GPU():
         # self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
         self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
 
-        #self.load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        #self.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
         #self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
         self.expData = np.array([[1,2,3,4]])
-        self.cp_expdata_to_gpu()
+        self.__cp_expdata_to_gpu()
 
         # setup serial Reconstruction rotMatCandidate
         self.FZMatH = np.empty([self.searchBatchSize, 3, 3])
