@@ -32,7 +32,6 @@ from hexomap.utility import iszero
 from hexomap.utility import isone
 from hexomap.utility import standarize_euler
 
-
 @dataclass
 class Eulers:
     """

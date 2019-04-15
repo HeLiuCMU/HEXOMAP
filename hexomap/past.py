@@ -58,6 +58,41 @@ def  generate_random_rot_mat(n, method='new'):
             matTmp = EulerZXZ2Mat(np.array([alpha[i],beta[i],gamma[i]]))
             result[i,:,:] = matTmp
         return result
+def Orien2FZ(m, symtype='Cubic'):
+    """
+    Reduce orientation to fundamental zone, input and output are both active matrices
+    Careful, it is m*op not op*m
+
+    Parameters
+    -----------
+    m:      ndarray
+            Matrix representation of orientation
+    symtype:string
+            The crystal symmetry
+
+    Returns
+    -----------
+    oRes:   ndarray
+            The rotation matrix after reduced. Note that this function doesn't actually
+            reduce the orientation to fundamental zone, only make sure the angle is the
+            smallest one, so there are multiple orientations have the same angle but
+            different directions. oRes is only one of them.
+    angle:  scalar
+            The reduced angle.
+    """
+    ops = GetSymRotMat(symtype)
+    angle = 6.3
+    for op in ops:
+        #print(op)
+        tmp = m.dot(op)
+        cosangle = 0.5 * (tmp.trace() - 1)
+        cosangle = min(0.9999999, cosangle)
+        cosangle = max(-0.9999999, cosangle)
+        newangle = np.arccos(cosangle)
+        if newangle < angle:
+            angle = newangle
+            oRes = tmp
+    return oRes, angle
 # --misorien
 # NOTE:
 #    The original misorien is implememnted in Cuda.  The equivalent one

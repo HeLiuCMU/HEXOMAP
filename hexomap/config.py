@@ -1,23 +1,7 @@
-#!/usr/bin/env python
-# -*- coding: UTF-8 no BOM -*-
-
-
-"""
-Configuration handler for NF-HEDM reconstruction.  By default, both YAML and 
-HDF5 archive are supported.
-"""
-
 import numpy as np
-
-from hexomap.utility import load_yaml
-from hexomap.utility import write_yaml
-from hexomap.utility import load_h5
-from hexomap.utility import write_h5
-
-
-class Config:
-    """Container class for reconstruction/simulation configuration parameters"""
-    
+import h5py
+import yaml
+class Config():
     def __init__(self, **config):
         """
         Description
@@ -27,8 +11,7 @@ class Config:
         Parameters
         ----------
         config: dict
-            All necessary configuration parameters are represented by 
-            hey-value pairs
+                All necessary configuration parameters are represented by hey-value pairs
 
         Returns
         -------
@@ -42,35 +25,58 @@ class Config:
 
     def __repr__(self):
         """Display Configuration values."""
-        return "\nConfigurations:\n" \
-             + "\n".join([f"{k:30} {v}" for k,v in self.__dict__.items()])
-    
-    @staticmethod
-    def load(fName: str='ConfigExample.yml') -> "Config":
+        res="\nConfigurations:\n"
+        for a in dir(self):
+            if not a.startswith("__") and not callable(getattr(self, a)):
+                res=res+"{:30} {}\n".format(a, getattr(self, a))
+        return res
+
+    def display(self):
+        """Display Configuration values."""
+        print("\nConfigurations:")
+        for a in dir(self):
+            if not a.startswith("__") and not callable(getattr(self, a)):
+                print("{:30} {}".format(a, getattr(self, a)))
+        print("\n")
+
+    @classmethod
+    def load(cls,fName='ConfigExample.yml',fType=None):
         """
         Description
         -----------
-        Generate a Config instance from yaml or hdf5 archive.
+        Generate a Config object from yaml or hdf5 file.
 
         Parameters
         ----------
         fName: str
                 Name of the configure file.
+        fType: str
+                'yml' ('yaml') or 'h5' ('hdf5')
 
         Returns
         -------
-        Config
-            Config instance based on given archive
+        Config object
         """
-        print(f"Loading configuration from {fName}")
-        try:
-            dataMap = load_yaml(fName) if fName.endswith(('.yml','.yaml')) else load_h5(fName)
-        except:
-            raise TypeError("Configure file type must be yaml or hdf5.")
-        
-        return Config(**dataMap)
+        print('\n Loading configuration from %s'%fName)
+        if fName.endswith(('.yml','.yaml')) or fType in ['yml','yaml']:
+            try:
+                with open(fName,'r') as f:
+                    dataMap=yaml.safe_load(f)
+                    return Config(**dataMap)
+            except IOError as e:
+                print("Couldn't open configuration file\n (%s)."%e)
+        elif fName.endswith(('.h5','.hdf5')) or fType in ['h5','hdf5']:
+            try:
+                with h5py.File(fName,'r') as f:
+                    dataMap=cls._recursively_load_dict_contents_from_group(f,'/')
+                    return Config(**dataMap)
+            except IOError as e:
+                print("Couldn't open configuration file\n (%s)."%e)
+        else:
+            raise IOError("Configure file type must be yaml or hdf5.")
 
-    def save(self, fName: str='ConfigureFile.yml') -> None:
+
+    def save(self,fName='ConfigureFile.yml',fType=None):
         """
         Description
         -----------
@@ -80,32 +86,76 @@ class Config:
         ----------
         fName: str
                 Name of the configure file.
+        fType: str
+                'yml' ('yaml') or 'h5' ('hdf5')
 
         Returns
         -------
         None
         """
-        _d = {}
-        for key, val in self.__dict__.items():
-            _d[key] = val.tolist() if isinstance(val, np.ndarray) else val
+        if fName.endswith(('.h5','.hdf5')) or fType in ('h5','hdf5'):
+            if not fName.endswith(('.h5','.hdf5')):
+                fName=fName+".h5"
+            print('\n Saving configuration to %s'%fName)
 
-        try:
-            write_yaml(fName, _d) if fName.endswith(('.yml','.yaml')) else write_h5(fName, self.__dict__)
-        except:
-            raise IOError(f"Cannout write {fName} to disk, need to be yml or h5")
+            d = {}
+            for a in dir(self):
+                if not a.startswith("__") and not callable(getattr(self, a)):
+                    d[a] = getattr(self, a)
+
+            try:
+                with h5py.File(fName,'w') as f:
+                    self._recursively_save_dict_contents_to_group(f,'/',d)
+            except IOError as e:
+                print("%s\n"%e)
+
+        elif fName.endswith(('.yml','.yaml')) or fType in ['yml','yaml']:
+            if not fName.endswith(('.yml','.yaml')):
+                fName=fName+".yml"
+            print('\n Saving configuration to %s'%fName)
+
+            d = {}
+            for a in dir(self):
+                if not a.startswith("__") and not callable(getattr(self, a)):
+                    item=getattr(self,a)
+                    if isinstance(item,np.ndarray):
+                        d[a]=item.tolist()
+                    else:
+                        d[a] =item
+
+            try:
+                with open(fName,'w') as f:
+                    yaml.dump(d, f, default_flow_style=False)
+            except IOError as e:
+                print("%s\n"%e)
+
+        else:
+            raise IOError("Configure file type need to be yaml or hdf5.")
+
+    # why use classmethod here, no class needed to be returned.
+    @classmethod
+    def _recursively_load_dict_contents_from_group(cls, h5file, path):
+        """
+        ....
+        """
+        ans = {}
+        for key, item in h5file[path].items():
+            if isinstance(item, h5py._hl.dataset.Dataset):
+                ans[key] = item.value
+            elif isinstance(item, h5py._hl.group.Group):
+                ans[key] = cls.recursively_load_dict_contents_from_group(h5file, path + key + '/')
+        return ans
 
 
-if __name__ == "__main__":
-    # testing loading yaml config file
-    import os
-    import hexomap
-    from pprint import pprint
-    exampleConfigFile = os.path.join(
-        os.path.dirname(hexomap.__file__),
-        "data/configs/ConfigExample.yml",
-    )
-    config = Config.load(exampleConfigFile)
-    print(config)
+    def _recursively_save_dict_contents_to_group(self, h5file, path, dic):
+        """
+        ....
+        """
+        for key, item in dic.items():
+            if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes,int,float,np.bool_)):
+                h5file[path + key] = item
+            elif isinstance(item, dict):
+                self.recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
+            else:
+                raise ValueError('Cannot save %s type'%type(item))
 
-    config.save('../tmp_test.yml')
-    config.save('../tmp_test.h5')
