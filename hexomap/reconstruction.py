@@ -369,7 +369,7 @@ class Reconstructor_GPU():
 
         centerL, centerJ, centerK, centerRot = self.blind_search_parameter(mask)
 
-        idxVoxel = self.geo_opt_phase_1(centerL, centerJ, centerK, centerRot)
+        idxVoxel = self.select_grain_boundary_voxel(centerL, centerJ, centerK, centerRot)
 
         centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK
@@ -431,7 +431,7 @@ class Reconstructor_GPU():
         print(centerL, centerJ, centerK, centerRot)
         return centerL, centerJ, centerK, centerRot
 
-    def geo_opt_phase_1(self, centerL, centerJ, centerK, centerRot, mask=None,expandSize=1):
+    def select_grain_boundary_voxel(self, centerL, centerJ, centerK, centerRot, mask=None, expandSize=1):
         '''
         with an acceptable parameter, reconstruct an area and select grain boundaries for further refinement
         :param: expandSize: expand the size of grain boundaries so more voxel can be included.
