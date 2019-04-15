@@ -31,7 +31,6 @@ import os.path
 import sys
 import scipy.misc
 import importlib
-import FZfile
 #global ctx
 #ctx = None
 #cuda.init()
@@ -1251,7 +1250,7 @@ class Reconstructor_GPU():
         self.FZMatH = np.empty([self.searchBatchSize,3,3])
         if self.searchBatchSize > self.FZMat.shape[0]:
             self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
-            self.FZMatH[self.FZMat.shape[0]:,:,:] = FZfile.generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
+            self.FZMatH[self.FZMat.shape[0]:,:,:] = generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
         else:
             raise ValueError(" search batch size less than FZ file size, please increase search batch size")
 
