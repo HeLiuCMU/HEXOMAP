@@ -2202,8 +2202,8 @@ if __name__ == "__main__":
     import reconstruction
     import MicFileTool
 
-    c = config.Config()
-    c.load('data/johnson_aug18_demo/demo_gold_twiddle_3.h5')
+    c = config.Config().load('data/johnson_aug18_demo/demo_gold_twiddle_3.h5')
+    c.display()
     c.fileFZ = 'data/FZ_files/CubicFZ.dat'
     c.fileBin= 'data/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
     c.micVoxelSize = 0.005
