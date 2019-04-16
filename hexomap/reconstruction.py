@@ -526,17 +526,14 @@ class Reconstructor_GPU():
 
         ######### generate detecter rotation
         aDetRot = generarte_random_eulerZXZ(centerRot, 0.3, 2).reshape([-1, self.NDet, 3])
-
-        #aDetRot = generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), 0.3, 10).reshape([-1, self.NDet, 3])
-
         ######### calculate cost, take the maximum hit ratio
         self.geometry_grid_search(centerL, centerJ, centerK, aDetRot, idxVoxel, lSearchMatD, NSearchOrien, NIteration=2, BoundStart=0.01)
         maxHitRatio = self.geoSearchHitRatio.max()
         rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :, :].reshape([1, self.NDet, 3])
         return 1.0 - maxHitRatio, rot
 
-    def twiddle_refine_backup(self,idxVoxel, centerL, centerJ, centerK, centerRot,
-                            rangeL=None, rangeJ=None, rangeK=None):
+    def twiddle_refine(self, idxVoxel, centerL, centerJ, centerK, centerRot,
+                       rangeL=None, rangeJ=None, rangeK=None):
         '''
         phase2: refine the geometry with voxels at grain boundaries., wribble search
         :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
