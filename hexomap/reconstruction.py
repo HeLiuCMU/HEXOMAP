@@ -119,7 +119,6 @@ class Reconstructor_GPU():
     '''
     def __init__(self,rank=0,ctx=None):
         # self.squareMicOutFile = 'DefaultReconOutPut.npy'
-        # # self.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
         # # self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
         # # self.expdataNDigit = 6
         # # # initialize voxel position information
@@ -838,7 +837,6 @@ class Reconstructor_GPU():
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
         self.set_Q(config.maxQ)
-        self.FZFile = config.fileFZ                  # fundamental zone file
         self.energy = config.energy
         self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
         self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
@@ -988,7 +986,7 @@ class Reconstructor_GPU():
         np.savetxt(fName, self.micData, fmt=['%.6f'] * 2 + ['%d'] * 4 + ['%.6f'] * (self.micData.shape[1] - 6),
                    delimiter='\t', header=str(self.micSideWidth), comments='')
 
-    def load_fz(self, fName):
+    def __load_fz(self, fName):
         # load FZ.dat file
         # self.FZEuler: n_Orientation*3 array
         # test passed
@@ -1235,7 +1233,10 @@ class Reconstructor_GPU():
         :return:
         '''
         # prepare nessasary parameters
-        self.load_fz(self.FZFile)
+        if self.sample.symtype=='Cubic':
+            self.__load_fz(os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat'))
+        elif self.sample.symtype=='Hexagonal':
+            self.__load_fz(os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/hexagonal.dat'))
         if self.additionalFZ is not None:
             self.append_fz(self.additionalFZ)
         if bReloadExpData:
@@ -1903,7 +1904,7 @@ class Reconstructor_GPU():
                 Not Implemented: Setup R experimental parameters
                 R.searchBatchSize = 20000  # number of orientations to search per GPU call
                 R.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
-                R.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
+                R.__load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
                 R.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
                 R.serial_recon_layer()
                 :return:
@@ -1916,7 +1917,7 @@ class Reconstructor_GPU():
         self.load_mic('test_recon_one_grain_20180124.txt')
         # self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
         # self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
-        self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
+        self.__load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
 
         #self.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
         #self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
