@@ -1,15 +1,45 @@
-# this file contains optimizer like twiddle and line search
+#!/usr/bin/env python
+# -*- coding: UTF-8 no BOM -*-
 
-def twiddle_optimize(func, p, dp, threshold):
+"""
+Customized optimization routines for NF-HEDM reconstruction
+    - twiddle search
+    - line search
+"""
+
+
+from typing import Callable
+
+
+def twiddle_optimize(func: Callable[..., float], 
+                     p: list, 
+                     dp: list, 
+                     threshold: float,
+        ) -> list:
     """
-    twiddle optimizer
-    :param func: the loss function, larger is worse, reach minimum at optimal value
-    :param p: list, initial value,
-    :param dp: list, initial range
-    :param threshold:, if sum(dp)<threshold, return p
-    :return: pOptimal: found optimal value
-    reference:
-    https://martin-thoma.com/twiddle/
+    Description
+    -----------
+        twiddle search optimizer
+
+    Parameters
+    ----------
+    func: Callable
+        the loss function, larger is worse, reach minimum at optimal value
+    p: list
+        initial parameter vector
+    dp: list
+        initial range for each parameter
+    threshold: float 
+        if sum(dp)<threshold, return p
+
+    Returns
+    -------
+    list: 
+        optimal value reported by twiddle search
+
+    Reference
+    ---------
+        https://martin-thoma.com/twiddle/
     """
     # Calculate the error
     best_err = func(p)
