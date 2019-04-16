@@ -1237,6 +1237,8 @@ class Reconstructor_GPU():
             self.__load_fz(os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat'))
         elif self.sample.symtype=='Hexagonal':
             self.__load_fz(os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/hexagonal.dat'))
+        else:
+            raise NotImplementedError('other symtype FZ not implemented')
         if self.additionalFZ is not None:
             self.append_fz(self.additionalFZ)
         if bReloadExpData:
