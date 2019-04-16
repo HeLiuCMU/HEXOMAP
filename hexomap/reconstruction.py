@@ -327,24 +327,6 @@ class Reconstructor_GPU():
     #======================== parameter optimization session =======================
     # optimize geometry of experiemental setup
 
-    def geometry_optimizer(self, mask=None):
-        '''
-        combine all the strategies together
-            0. fix 2mm relative detector distance, do not rotate detector
-            1. recon area and selecte boundary voxel
-            2. refinement with boundary voxels.
-            3. optimize detector rotation
-            4. ...
-        :return:
-        '''
-
-        centerL, centerJ, centerK, centerRot = self.blind_search_parameter(mask)
-
-        idxVoxel = self.select_grain_boundary_voxel(centerL, centerJ, centerK, centerRot)
-
-        centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
-        return centerL, centerJ, centerK
-
     def blind_search_parameter(self, mask=None, centerL=None, centerJ=None, centerK=None, centerRot=None,
                                rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
                                relativeL=0.05, relativeJ=15, relativeK=5,
@@ -434,46 +416,6 @@ class Reconstructor_GPU():
 
         aIdxVoxel = x * self.squareMicData.shape[1] + y
         return aIdxVoxel
-
-    def geo_opt_phase_2(self,idxVoxel, centerL, centerJ, centerK, centerRot,
-                        NIterationPhase2=10, rangeL=None, rangeJ=None, rangeK=None, factor0=0.7,
-                        rotOptimization=True):
-        '''
-        phase2: refine the geometry with voxels at grain boundaries.
-        :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
-        :param NIterationPhase2: number of iteratio
-        :param rangeL: mm
-        :param rangeJ: pixel
-        :param rangeK: pixel
-        :param factor0: search box shrick by factor0 during each search
-        :return:
-        '''
-        ii = 0
-        maxHitRatio = 0
-        if rangeL is None:
-            rangeL = 0.5 #mm
-        if rangeJ is None:
-            rangeJ = 20 * self.detScale #pixel
-        if rangeK is None:
-            rangeK = 10 * self.detScale #pixel
-        dL = np.linspace(-rangeL, rangeL, 10).reshape([-1, 1]).repeat(2, axis=1)
-        dJ = np.linspace(-rangeJ, rangeJ, 10).reshape([-1, 1]).repeat(2, axis=1)
-        dK = np.linspace(-rangeK, rangeK, 10).reshape([-1, 1]).repeat(2, axis=1)
-        while ii < NIterationPhase2:
-            dL = dL * factor0
-            dJ = dJ * factor0
-            dK = dK * factor0
-            aJ = centerJ.repeat(dJ.shape[0], axis=0) + dJ
-            aL = centerL.repeat(dL.shape[0], axis=0) + dL
-            aK = centerK.repeat(dK.shape[0], axis=0) + dK
-            aDetRot = centerRot
-            centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel,geoSearchNVoxel=5,
-                                                                                     rate=1,NIteration=15,useNeighbour=True, NOrienIteration=2,BoundStart=0.01,
-                                                                                               rotOptimization=rotOptimization)
-            #centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel)
-            ii +=1
-        print(centerL, centerJ, centerK)
-        return centerL, centerJ, centerK, centerRot
 
     def twiddle_loss(self, idxVoxel, centerL, centerJ, centerK, centerRot):
         '''
