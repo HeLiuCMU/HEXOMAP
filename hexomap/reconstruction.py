@@ -214,34 +214,6 @@ class Reconstructor_GPU():
 
     #========================== setting parameters ========================================
     # set parameters of reconstructor
-    def set_lattice_constant(self, value,symType='Cubic'):
-        if symType =='Cubic':
-            self.sample.PrimA = value * np.array([1, 0, 0])
-            self.sample.PrimB = value * np.array([0, 1, 0])
-            self.sample.PrimC = value * np.array([0, 0, 1])
-        else: 
-            raise ValueError('not implemented') #todo@hel1 not implemented error
-        self.sample.getRecipVec()
-        self.sample.getGs(self.maxQ)
-        self.NG = self.sample.Gs.shape[0]
-        #self.tfG = mod.get_texref("tfG")
-        self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
-        self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
-        
-    def search_lattice_constant(self, lConst,symType='Cubic'):
-        '''
-        search for constant
-        return: list of hitratio values
-        '''
-        lConf = []
-        for i,v in enumerate(lConst):
-            print(v)
-            self.set_lattice_constant(v,symType=symType)
-            self.voxelIdxStage0 = list(np.where(self.voxelMask==1)[0]) 
-            print(self.voxelIdxStage0)
-            self.serial_recon_multi_stage()
-            lConf.append(self.squareMicData[:,:,6].ravel().mean())
-        return lConf
 
     def set_sample(self,sampleStr):
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
