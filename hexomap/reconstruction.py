@@ -301,9 +301,9 @@ class Reconstructor_GPU():
         self.NPixelK = NK
         self.pixelJ = pixelJ
         self.pixelK = pixelK
-        self.set_det()
+        self.__set_det()
 
-    def set_det(self):
+    def __set_det(self):
         '''
         copy detector information to gpu
         :return:
@@ -445,7 +445,7 @@ class Reconstructor_GPU():
             self.centerJ[idxDet] = centerJ[0, idxDet]
             self.centerK[idxDet] = centerK[0, idxDet]
             self.detRot[idxDet] = centerRot[0, idxDet]
-        self.set_det()
+        self.__set_det()
         self.serial_recon_multi_stage()
         self.save_square_mic('geo_opt_test.npy')
         misOrienTmp = self.get_misorien_map(self.accMat)
@@ -816,7 +816,7 @@ class Reconstructor_GPU():
                             self.centerJ[idxDet] = aJ[idxJ,idxDet]
                             self.centerK[idxDet] = aK[idxK, idxDet]
                             self.detRot[idxDet] = aDetRot[idxRot, idxDet,:]
-                        self.set_det()
+                        self.__set_det()
                         for ii, voxelIdx in enumerate(lVoxelIdx):
                             self.single_voxel_recon(voxelIdx,lSearchMatD[ii], NSearchOrien,NIteration, BoundStart,twiddle=False)
                             self.geoSearchHitRatio[idxl,idxJ,idxK,idxRot] += self.voxelHitRatio[voxelIdx]
