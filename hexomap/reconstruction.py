@@ -119,7 +119,6 @@ class Reconstructor_GPU():
     '''
     def __init__(self,rank=0,ctx=None):
         # self.squareMicOutFile = 'DefaultReconOutPut.npy'
-        # # self.FZFile = '/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat'
         # # self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
         # # self.expdataNDigit = 6
         # # # initialize voxel position information
@@ -215,34 +214,6 @@ class Reconstructor_GPU():
 
     #========================== setting parameters ========================================
     # set parameters of reconstructor
-    def set_lattice_constant(self, value,symType='Cubic'):
-        if symType =='Cubic':
-            self.sample.PrimA = value * np.array([1, 0, 0])
-            self.sample.PrimB = value * np.array([0, 1, 0])
-            self.sample.PrimC = value * np.array([0, 0, 1])
-        else: 
-            raise ValueError('not implemented') #todo@hel1 not implemented error
-        self.sample.getRecipVec()
-        self.sample.getGs(self.maxQ)
-        self.NG = self.sample.Gs.shape[0]
-        #self.tfG = mod.get_texref("tfG")
-        self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
-        self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
-        
-    def search_lattice_constant(self, lConst,symType='Cubic'):
-        '''
-        search for constant
-        return: list of hitratio values
-        '''
-        lConf = []
-        for i,v in enumerate(lConst):
-            print(v)
-            self.set_lattice_constant(v,symType=symType)
-            self.voxelIdxStage0 = list(np.where(self.voxelMask==1)[0]) 
-            print(self.voxelIdxStage0)
-            self.serial_recon_multi_stage()
-            lConf.append(self.squareMicData[:,:,6].ravel().mean())
-        return lConf
 
     def set_sample(self,sampleStr):
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
@@ -302,9 +273,9 @@ class Reconstructor_GPU():
         self.NPixelK = NK
         self.pixelJ = pixelJ
         self.pixelK = pixelK
-        self.set_det()
+        self.__set_det()
 
-    def set_det(self):
+    def __set_det(self):
         '''
         copy detector information to gpu
         :return:
@@ -355,24 +326,6 @@ class Reconstructor_GPU():
 
     #======================== parameter optimization session =======================
     # optimize geometry of experiemental setup
-
-    def geometry_optimizer(self, mask=None):
-        '''
-        combine all the strategies together
-            0. fix 2mm relative detector distance, do not rotate detector
-            1. recon area and selecte boundary voxel
-            2. refinement with boundary voxels.
-            3. optimize detector rotation
-            4. ...
-        :return:
-        '''
-
-        centerL, centerJ, centerK, centerRot = self.blind_search_parameter(mask)
-
-        idxVoxel = self.select_grain_boundary_voxel(centerL, centerJ, centerK, centerRot)
-
-        centerL, centerJ, centerK, centerRot = self.geo_opt_phase_2(idxVoxel, centerL, centerJ, centerK, centerRot)
-        return centerL, centerJ, centerK
 
     def blind_search_parameter(self, mask=None, centerL=None, centerJ=None, centerK=None, centerRot=None,
                                rangeL=None, rangeJ=None, rangeK=None, rangeRot=None,
@@ -446,7 +399,7 @@ class Reconstructor_GPU():
             self.centerJ[idxDet] = centerJ[0, idxDet]
             self.centerK[idxDet] = centerK[0, idxDet]
             self.detRot[idxDet] = centerRot[0, idxDet]
-        self.set_det()
+        self.__set_det()
         self.serial_recon_multi_stage()
         self.save_square_mic('geo_opt_test.npy')
         misOrienTmp = self.get_misorien_map(self.accMat)
@@ -463,46 +416,6 @@ class Reconstructor_GPU():
 
         aIdxVoxel = x * self.squareMicData.shape[1] + y
         return aIdxVoxel
-
-    def geo_opt_phase_2(self,idxVoxel, centerL, centerJ, centerK, centerRot,
-                        NIterationPhase2=10, rangeL=None, rangeJ=None, rangeK=None, factor0=0.7,
-                        rotOptimization=True):
-        '''
-        phase2: refine the geometry with voxels at grain boundaries.
-        :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
-        :param NIterationPhase2: number of iteratio
-        :param rangeL: mm
-        :param rangeJ: pixel
-        :param rangeK: pixel
-        :param factor0: search box shrick by factor0 during each search
-        :return:
-        '''
-        ii = 0
-        maxHitRatio = 0
-        if rangeL is None:
-            rangeL = 0.5 #mm
-        if rangeJ is None:
-            rangeJ = 20 * self.detScale #pixel
-        if rangeK is None:
-            rangeK = 10 * self.detScale #pixel
-        dL = np.linspace(-rangeL, rangeL, 10).reshape([-1, 1]).repeat(2, axis=1)
-        dJ = np.linspace(-rangeJ, rangeJ, 10).reshape([-1, 1]).repeat(2, axis=1)
-        dK = np.linspace(-rangeK, rangeK, 10).reshape([-1, 1]).repeat(2, axis=1)
-        while ii < NIterationPhase2:
-            dL = dL * factor0
-            dJ = dJ * factor0
-            dK = dK * factor0
-            aJ = centerJ.repeat(dJ.shape[0], axis=0) + dJ
-            aL = centerL.repeat(dL.shape[0], axis=0) + dL
-            aK = centerK.repeat(dK.shape[0], axis=0) + dK
-            aDetRot = centerRot
-            centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel,geoSearchNVoxel=5,
-                                                                                     rate=1,NIteration=15,useNeighbour=True, NOrienIteration=2,BoundStart=0.01,
-                                                                                               rotOptimization=rotOptimization)
-            #centerL, centerJ, centerK, centerRot, maxHitRatio = self.geo_opt_coordinate_search(aL, aJ, aK, aDetRot,lVoxel=idxVoxel)
-            ii +=1
-        print(centerL, centerJ, centerK)
-        return centerL, centerJ, centerK, centerRot
 
     def twiddle_loss(self, idxVoxel, centerL, centerJ, centerK, centerRot):
         '''
@@ -527,17 +440,14 @@ class Reconstructor_GPU():
 
         ######### generate detecter rotation
         aDetRot = generarte_random_eulerZXZ(centerRot, 0.3, 2).reshape([-1, self.NDet, 3])
-
-        #aDetRot = generarte_random_eulerZXZ(np.array([[[90.0, 90.0, 0.0], [90.0, 90.0, 0.0]]]), 0.3, 10).reshape([-1, self.NDet, 3])
-
         ######### calculate cost, take the maximum hit ratio
         self.geometry_grid_search(centerL, centerJ, centerK, aDetRot, idxVoxel, lSearchMatD, NSearchOrien, NIteration=2, BoundStart=0.01)
         maxHitRatio = self.geoSearchHitRatio.max()
         rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :, :].reshape([1, self.NDet, 3])
         return 1.0 - maxHitRatio, rot
 
-    def twiddle_refine_backup(self,idxVoxel, centerL, centerJ, centerK, centerRot,
-                            rangeL=None, rangeJ=None, rangeK=None):
+    def twiddle_refine(self, idxVoxel, centerL, centerJ, centerK, centerRot,
+                       rangeL=None, rangeJ=None, rangeK=None):
         '''
         phase2: refine the geometry with voxels at grain boundaries., wribble search
         :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
@@ -820,7 +730,7 @@ class Reconstructor_GPU():
                             self.centerJ[idxDet] = aJ[idxJ,idxDet]
                             self.centerK[idxDet] = aK[idxK, idxDet]
                             self.detRot[idxDet] = aDetRot[idxRot, idxDet,:]
-                        self.set_det()
+                        self.__set_det()
                         for ii, voxelIdx in enumerate(lVoxelIdx):
                             self.single_voxel_recon(voxelIdx,lSearchMatD[ii], NSearchOrien,NIteration, BoundStart,twiddle=False)
                             self.geoSearchHitRatio[idxl,idxJ,idxK,idxRot] += self.voxelHitRatio[voxelIdx]
@@ -838,7 +748,6 @@ class Reconstructor_GPU():
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
         self.set_Q(config.maxQ)
-        self.FZFile = config.fileFZ                  # fundamental zone file
         self.energy = config.energy
         self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
         self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
@@ -988,7 +897,7 @@ class Reconstructor_GPU():
         np.savetxt(fName, self.micData, fmt=['%.6f'] * 2 + ['%d'] * 4 + ['%.6f'] * (self.micData.shape[1] - 6),
                    delimiter='\t', header=str(self.micSideWidth), comments='')
 
-    def load_fz(self, fName):
+    def __load_fz(self, fName):
         # load FZ.dat file
         # self.FZEuler: n_Orientation*3 array
         # test passed
@@ -1235,7 +1144,12 @@ class Reconstructor_GPU():
         :return:
         '''
         # prepare nessasary parameters
-        self.load_fz(self.FZFile)
+        if self.sample.symtype=='Cubic':
+            self.__load_fz(os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat'))
+        elif self.sample.symtype=='Hexagonal':
+            self.__load_fz(os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/hexagonal.dat'))
+        else:
+            raise NotImplementedError('other symtype FZ not implemented')
         if self.additionalFZ is not None:
             self.append_fz(self.additionalFZ)
         if bReloadExpData:
@@ -1890,81 +1804,6 @@ class Reconstructor_GPU():
         self.additionalFZ = eulers
         self.serial_recon_multi_stage()
 
-    def profile_recon_layer(self):
-        '''
-                ==================working version =========================
-                Todo:
-                    fix two reconstructed orientation:
-                        simulate the two different reconstructed oreintation and compare peaks
-                        compute their misoritentation
-                serial reconstruct orientation in a layer, loaded in mic file
-                example usage:
-                R = Reconstructor_GPU()
-                Not Implemented: Setup R experimental parameters
-                R.searchBatchSize = 20000  # number of orientations to search per GPU call
-                R.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
-                R.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
-                R.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
-                R.serial_recon_layer()
-                :return:
-                '''
-        ############## reform for easy reading #############
-        ############ added generate random in GPU #########3
-        ############# search parameters ######################
-        # try adding multiple stage search, first fz file, then generate random around max hitratio
-        # self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_Fit1_.mic.LBFS')
-        self.load_mic('test_recon_one_grain_20180124.txt')
-        # self.load_mic('/home/heliu/work/I9_test_data/FIT/DataFiles/Ti_SingleGrainFit1_.mic.LBFS')
-        # self.load_mic('/home/heliu/work/I9_test_data/FIT/test_recon.mic.LBFS')
-        self.load_fz('/home/heliu/work/I9_test_data/FIT/DataFiles/HexFZ.dat')
-
-        #self.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
-        #self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
-        self.expData = np.array([[1,2,3,4]])
-        self.__cp_expdata_to_gpu()
-
-        # setup serial Reconstruction rotMatCandidate
-        self.FZMatH = np.empty([self.searchBatchSize, 3, 3])
-        if self.searchBatchSize > self.FZMat.shape[0]:
-            self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
-            self.FZMatH[self.FZMat.shape[0]:, :, :] = generate_random_rot_mat(
-                self.searchBatchSize - self.FZMat.shape[0])
-        else:
-            raise ValueError(" search batch size less than FZ file size, please increase search batch size")
-
-        # initialize device parameters and outputs
-        self.afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
-        self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
-        afFZMatD = gpuarray.to_gpu(self.FZMatH.astype(np.float32))  # no need to modify during process
-
-        # timing tools:
-        start = cuda.Event()
-        end = cuda.Event()
-
-        print('==========start of reconstruction======== \n')
-        start.record()  # start timing
-        pr = cProfile.Profile()
-        pr.enable()
-        for voxelIdx in range(self.NVoxel):
-            self.single_voxel_recon(voxelIdx, afFZMatD,self.searchBatchSize, NIteration=10)
-        pr.disable()
-        s = StringIO.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
-        print('===========end of reconstruction========== \n')
-        end.record()  # end timing
-        end.synchronize()
-        secs = start.time_till(end) * 1e-3
-        print("SourceModule time {0} seconds.".format(secs))
-        # save roconstruction result
-        self.micData[:, 6:9] = Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180
-        self.micData[:, 9] = self.voxelHitRatio
-        self.save_mic('test_recon_one_grain_gpu_random_out.txt')
-    #def free_GPU_memory(self):
-    #    self.afGd.free()
-
     def get_misorien_map(self,m0):
         '''
         map the misorienation map
@@ -2011,62 +1850,6 @@ class Reconstructor_GPU():
         afRandD = self.randomGenerator.gen_uniform(NNeighbour * NMatIn * 3, np.float32)
         self.rand_mat_neighb_from_euler(eulerD, matOutD, afRandD, np.float32(bound), grid=(NNeighbour, 1), block=(NMatIn, 1, 1))
         return matOutD
-
-    def test_hitratio_vs_misorien(self, voxelIdx, EulerIn, NSearchOrien, NIteration=1, BoundStart=0.5, verbose=True):
-        '''
-        try to plot the relation between misorientation and hitratio.
-        '''
-        # reconstruction of single voxel
-        NBlock = 16    #Strange it may be, but this parameter will acturally affect reconstruction speed (25s to 31 seconds/100voxel)
-        NVoxel = 1
-        afVoxelPosD = gpuarray.to_gpu(self.voxelpos[voxelIdx, :].astype(np.float32))
-        aiJD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        aiKD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afOmegaD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.float32(0).nbytes)
-        abHitD = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.bool_(0).nbytes)
-        aiRotND = cuda.mem_alloc(NVoxel * NSearchOrien * self.NG * 2 * self.NDet * np.int32(0).nbytes)
-        afHitRatioD = cuda.mem_alloc(NVoxel * NSearchOrien * np.float32(0).nbytes)
-        aiPeakCntD = cuda.mem_alloc(NVoxel * NSearchOrien * np.int32(0).nbytes)
-        #afHitRatioH = np.random.randint(0,100,NVoxel * NSearchOrien)
-        #aiPeakCntH = np.random.randint(0,100,NVoxel * NSearchOrien)
-        afHitRatioH = np.empty(NVoxel * NSearchOrien, np.float32)
-        aiPeakCntH = np.empty(NVoxel * NSearchOrien, np.int32)
-        rotMatSearchD = self.gen_random_matrix(maxMatD, self.NSelect,
-                                                       NSearchOrien // self.NSelect + 1, BoundStart * (0.5 ** i))
-
-        #afHitRatioH, aiPeakCntH = self.unit_run_hitratio(afVoxelPosD, rotMatSearchD, 1, NSearchOrien)
-        # kernel calls
-        #start = time.time()
-        #print(NVoxel,NSearchOrien,self.NG)
-        self.sim_func(aiJD, aiKD, afOmegaD, abHitD, aiRotND, \
-                      np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG), np.int32(self.NDet),
-                      rotMatSearchD,
-                      afVoxelPosD, np.float32(self.energy), np.float32(self.etalimit), self.afDetInfoD,
-                      texrefs=[self.tfG], grid=(NVoxel, NSearchOrien), block=(self.NG, 1, 1))
-
-        # this is the most time cosuming part, 0.03s per iteration
-        self.hitratio_func(np.int32(NVoxel), np.int32(NSearchOrien), np.int32(self.NG),
-                           self.afDetInfoD, np.int32(self.NDet),
-                           np.int32(self.NRot),
-                           aiJD, aiKD, aiRotND, abHitD,
-                           afHitRatioD, aiPeakCntD,texrefs=[self.texref],
-                           block=(NBlock, 1, 1), grid=((NVoxel * NSearchOrien - 1) // NBlock + 1, 1))
-
-        # print('finish sim')
-        # memcpy_dtoh
-        #context.synchronize()
-        self.ctx.synchronize()
-        cuda.memcpy_dtoh(afHitRatioH, afHitRatioD)
-        cuda.memcpy_dtoh(aiPeakCntH, aiPeakCntD)
-        del rotMatSearchD
-        aiJD.free()
-        aiKD.free()
-        afOmegaD.free()
-        abHitD.free()
-        aiRotND.free()
-        afHitRatioD.free()
-        aiPeakCntD.free()
-        del afVoxelPosD
 
     def recon_boundary(self,lShape, lVoxelSize, shift=None,  mask=None):
         '''

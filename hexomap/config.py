@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 no BOM -*-
 
-
 """
 Configuration handler for NF-HEDM reconstruction.  By default, both YAML and 
 HDF5 archive are supported.
@@ -23,15 +22,12 @@ class Config:
         Description
         -----------
         Initialize the Config object
-
         Parameters
         ----------
         config: dict
             All necessary configuration parameters are represented by 
             hey-value pairs
-
         Returns
-        -------
         None
         """
         for key in config.keys():
@@ -56,7 +52,6 @@ class Config:
         ----------
         fName: str
                 Name of the configure file.
-
         Returns
         -------
         Config
@@ -75,12 +70,10 @@ class Config:
         Description
         -----------
         Save the configuration to yaml or hdf5 file.
-
         Parameters
         ----------
         fName: str
                 Name of the configure file.
-
         Returns
         -------
         None
@@ -90,22 +83,21 @@ class Config:
             _d[key] = val.tolist() if isinstance(val, np.ndarray) else val
 
         try:
-            write_yaml(fName, _d) if fName.endswith(('.yml','.yaml')) else write_h5(fName, self.__dict__)
+            write_yaml(fName, _d) if fName.endswith(('.yml', '.yaml')) else write_h5(fName, self.__dict__)
         except:
             raise IOError(f"Cannout write {fName} to disk, need to be yml or h5")
 
+    if __name__ == "__main__":
+        # testing loading yaml config file
+        import os
+        import hexomap
+        from pprint import pprint
+        exampleConfigFile = os.path.join(
+            os.path.dirname(hexomap.__file__),
+            "data/configs/ConfigExample.yml",
+        )
+        config = Config.load(exampleConfigFile)
+        print(config)
 
-if __name__ == "__main__":
-    # testing loading yaml config file
-    import os
-    import hexomap
-    from pprint import pprint
-    exampleConfigFile = os.path.join(
-        os.path.dirname(hexomap.__file__),
-        "data/configs/ConfigExample.yml",
-    )
-    config = Config.load(exampleConfigFile)
-    print(config)
-
-    config.save('../tmp_test.yml')
-    config.save('../tmp_test.h5')
+        config.save('../tmp_test.yml')
+        config.save('../tmp_test.h5')
