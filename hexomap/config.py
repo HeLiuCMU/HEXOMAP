@@ -24,7 +24,7 @@ class Config:
         ----------
         config: dict
             All necessary configuration parameters are represented by 
-            hey-value pairs
+            key-value pairs
                 All necessary configuration parameters are represented by hey-value pairs
         Returns
         None
@@ -67,7 +67,7 @@ class Config:
         try:
             dataMap = load_yaml(fName) if fName.endswith(('.yml','.yaml')) else load_h5(fName)
         except:
-            raise TypeError("Configure file type must be yaml or hdf5.")
+            raise TypeError("Configure file must exist and the type must be yaml or hdf5.")
 
         return Config(**dataMap)
 
