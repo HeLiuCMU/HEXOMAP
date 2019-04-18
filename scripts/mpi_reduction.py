@@ -1,15 +1,15 @@
 import sys
-sys.path.insert(0, '/home/heliu/work/dev/HEXOMAP/')
-import reduction
+sys.path.insert(0, '..')
+from hexomap import reduction
 import numpy as np
 from mpi4py import MPI
 import atexit
 import matplotlib.pyplot as plt
 import time
 from reduction import segmentation_numba
-import IntBin
+from hxomap import IntBin
 import time
-import mpi_log
+from hexomap import mpi_log
 import os
 
 atexit.register(MPI.Finalize)
@@ -38,7 +38,7 @@ identifier = 'dummy_2_rt_815_2_nf'
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
 binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
 logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
-generateBkg = False
+generateBkg = True
 generateBin = True
 baseline = 10
 minNPixel = 4
