@@ -20,6 +20,8 @@ rank = comm.Get_rank()
 ############################# EXample useage: #######################################
 '''
 mpirun -n 1 python mpi_reduction_Au2_NF_LineFocus.py
+To monitor progress
+    tail -f output_path/*.log
 '''
 ################################ Input Session #######################################
 startIdx = 198218
