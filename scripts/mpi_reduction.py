@@ -6,8 +6,8 @@ from mpi4py import MPI
 import atexit
 import matplotlib.pyplot as plt
 import time
-from reduction import segmentation_numba
-from hxomap import IntBin
+from hexomap.reduction import segmentation_numba
+from hexomap import IntBin
 import time
 from hexomap import mpi_log
 import os
@@ -25,7 +25,7 @@ mpirun -n 1 python mpi_reduction_Au2_NF_LineFocus.py
 startIdx = 198218
 NRot = 720
 NDet = 2
-NLayer = 26
+NLayer = 1
 idxLayer = np.arange(26)
 lIdxImg = None
 #lIdxImg  = [np.arange(x*1800,x*1800+NRot) for x in range(5)]
