@@ -13,7 +13,9 @@ fadelity and efficiency.
 > is scheduled around summer 2019).
 
 ## Installation
-
+>insall from environment file:
+>>	install anaconda
+>>	conda env create -f environment.yml
 ## Usage and Examples
 
 ## Roadmap
