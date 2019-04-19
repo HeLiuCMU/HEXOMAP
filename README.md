@@ -13,9 +13,21 @@ fadelity and efficiency.
 > is scheduled around summer 2019).
 
 ## Installation
->insall from environment file:
->>	install anaconda
->>	conda env create -f environment.yml
+
+1. install cuda-toolkit
+
+    *    reconmmend cuda9.1 but any version supported by pycuda is fine
+1. create python virtual environment
+
+    *   insall from environment file:
+
+        *	install anaconda
+
+        * conda env create -f environment.yml
+        
+1. check installation:
+    * under HEXOMAP/: run "python -m hexomap"
+
 ## Usage and Examples
 
 ## Roadmap
