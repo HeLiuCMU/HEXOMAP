@@ -1,15 +1,48 @@
-# this file contains optimizer like twiddle and line search
+#!/usr/bin/env python
+# -*- coding: UTF-8 no BOM -*-
 
-def twiddle_optimize(func, p, dp, threshold):
+"""
+Customized optimization routines for NF-HEDM reconstruction
+    - twiddle search
+    - line search
+"""
+
+
+from typing import Callable
+
+
+def twiddle_optimize(func: Callable[[], float], 
+                     p:  [float], 
+                     dp: [float], 
+                     threshold: float,
+        ) -> list:
     """
-    twiddle optimizer
-    :param func: the loss function, larger is worse, reach minimum at optimal value
-    :param p: list, initial value,
-    :param dp: list, initial range
-    :param threshold:, if sum(dp)<threshold, return p
-    :return: pOptimal: found optimal value
-    reference:
-    https://martin-thoma.com/twiddle/
+    Description
+    -----------
+        twiddle search optimizer
+
+    Parameters
+    ----------
+    func: Callable
+        the objective/loss function designed for a minimization optimization 
+        routine 
+        -- the lower of the returned value, the better the parameters --
+
+    p: list
+        initial parameter vector
+    dp: list
+        initial search step for each parameter
+    threshold: float 
+        if sum(dp)<threshold, return p
+
+    Returns
+    -------
+    list: 
+        optimal value reported by twiddle search
+
+    Reference
+    ---------
+        https://martin-thoma.com/twiddle/
     """
     # Calculate the error
     best_err = func(p)
@@ -36,3 +69,23 @@ def twiddle_optimize(func, p, dp, threshold):
                     dp[i] *= 0.9
     return p
 
+
+if __name__ == "__main__":
+    import numpy as np
+
+    # Twiddle search example
+    #   f(x,y) = sin(x)^2 - cos(y)^2
+    #   with initial guess of x=1, y=1:
+    #       f_min = f(x=0, y=0) = -1
+    #
+    # >> python optimizer.py
+    # [2.6463814045929285e-05, 2.6463814045929285e-05]
+    #
+    func = lambda p: np.sin(p[0])**2 - np.cos(p[1])**2
+    print(twiddle_optimize(
+                func,
+                [1, 1],
+                [0.1, 0.1],
+                1e-4,
+            )
+    )

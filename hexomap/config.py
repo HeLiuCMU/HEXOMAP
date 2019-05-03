@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 no BOM -*-
+
 """
-Configuration handler for NF-HEDM reconstruction.  By default, both YAML and
+Configuration handler for NF-HEDM reconstruction.  By default, both YAML and 
 HDF5 archive are supported.
 """
 
@@ -15,17 +16,19 @@ from hexomap.utility import write_h5
 
 class Config:
     """Container class for reconstruction/simulation configuration parameters"""
+    
     def __init__(self, **config):
         """
         Description
         -----------
         Initialize the Config object
+
         Parameters
         ----------
         config: dict
             All necessary configuration parameters are represented by 
             key-value pairs
-                All necessary configuration parameters are represented by hey-value pairs
+
         Returns
         None
         """
@@ -39,20 +42,14 @@ class Config:
         """Display Configuration values."""
         return "\nConfigurations:\n" \
              + "\n".join([f"{k:30} {v}" for k,v in self.__dict__.items()])
-
-    def display(self):
-        """Display Configuration values."""
-        print("\nConfigurations:")
-        for a in dir(self):
-            if not a.startswith("__") and not callable(getattr(self, a)):
-                print("{:30} {}".format(a, getattr(self, a)))
-        print("\n")
-
+    
     @staticmethod
     def load(fName: str='ConfigExample.yml') -> "Config":
         """
         Description
+        -----------
         Generate a Config instance from yaml or hdf5 archive.
+
         Parameters
         ----------
         fName: str
@@ -61,7 +58,6 @@ class Config:
         -------
         Config
             Config instance based on given archive
-        Config object
         """
         print(f"Loading configuration from {fName}")
         try:
@@ -80,8 +76,6 @@ class Config:
         ----------
         fName: str
                 Name of the configure file.
-        fType: str
-                'yml' ('yaml') or 'h5' ('hdf5')
         Returns
         -------
         None
