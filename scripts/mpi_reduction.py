@@ -24,19 +24,19 @@ To monitor progress
     tail -f output_path/*.log
 '''
 ################################ Input Session #######################################
-startIdx = 198218
+startIdx = 261659
 NRot = 720
 NDet = 2
-NLayer = 1
-idxLayer = np.arange(26)
+NLayer = 37
+idxLayer = np.arange(NLayer)
 lIdxImg = None
 #lIdxImg  = [np.arange(x*1800,x*1800+NRot) for x in range(5)]
 #lIdxImg = np.hstack(lIdxImg).astype(np.int32)
 extention = '.tif'
-initial = f'/media/heliu/feb2019/shahani_feb19/nf/dummy_2_rt_815_2_nf/dummy_2_rt_815_2_nf_'
+initial = f'/media/heliu/feb2019/shahani_feb19/nf/sample1_rt_900_furnace_nf/sample1_rt_900_furnace_nf_'
 digitLength = 6
-outputDirectory = '/home/heliu/work/shahani_feb19/reduction/dummy_2_rt_815_2_nf/'
-identifier = 'dummy_2_rt_815_2_nf'
+outputDirectory = '/home/heliu/work/shahani_feb19/reduction/sample1_rt_900_furnace_nf/'
+identifier = 'sample1_rt_900_furnace_nf'
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
 binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
 logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
@@ -108,9 +108,9 @@ if generateBin:
         binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
         snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel)
         IntBin.WritePeakBinaryFile(snp, binFileName) 
-    comm.Barrier()
+comm.Barrier()
 
 if rank==0:
     end = time.time()
     logfile.write(f'time taken generating binary: {end - start} seconds \n')
-logfile.close() 
+    logfile.close() 
