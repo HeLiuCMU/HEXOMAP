@@ -169,7 +169,7 @@ class Reconstructor_GPU():
 
     def _init_gpu(self):
         """
-        Initialize GPU device.
+        Initialize GPU device, call gpu functions, initialize texture memory.
         Notes
         -----
         Must be called from within the `run()` method, not from within
@@ -216,6 +216,11 @@ class Reconstructor_GPU():
     # set parameters of reconstructor
 
     def set_sample(self,sampleStr):
+        '''
+        set sample to reconstruct
+        :param sampleStr:
+            e.g. 'gold', 'copperBCC', ...
+        '''
         self.sample = sim_utilities.CrystalStr(sampleStr)  # one of the following options:
         self.symMat = GetSymRotMat(self.sample.symtype)
         #print(self.sample.Gs.astype(np.float32))
@@ -227,6 +232,13 @@ class Reconstructor_GPU():
             print(f'set Q automatically to {self.maxQ}')
 
     def set_Q(self,Q):
+        '''
+        set maximum Q vector to use
+        if Q is too large so that number of reciprical lattice vector is larger than 1024, GPU grid number will overflow, so it will automaticlly tune down Q if this happens.
+        :param Q:
+            this usually end up with 7-11
+        
+        '''
         self.maxQ = Q
         self.sample.getRecipVec()
         self.sample.getGs(self.maxQ)
@@ -247,9 +259,9 @@ class Reconstructor_GPU():
                       pixelJ=[0.00148,0.00148,0.00148],pixelK=[0.00148,0.00148,0.00148], detIdx=None):
         '''
         set geometry parameters,
-        :param L: array, [1,nDet]
-        :param J: array, [1,nDet]
-        :param K: array, [1,nDet]
+        :param L: array, [1,nDet], detector distance to rotation center
+        :param J: array, [1,nDet], rotation center projection on detector, horizental direction(left to right?)
+        :param K: array, [1,nDet], beam center projection on detector, vertical direction(up to down)
         :param rot: array, [1,nDet,], eulerangle, degree
         '''
         # check shape:
@@ -479,38 +491,38 @@ class Reconstructor_GPU():
         threshold = 0.002
         improve = True
         while sum(dp) > threshold and dp[0]>0.0005:
-            for i in range(len(p)):
-                if dp[i]<0.0005:
-                    dp[i] = 0.0005
-                # if nothing improved and already in small range, no need to compute anything. save some time.
-                if dp[i]==0.0005 and not improve:
-                    continue
-                p[i] += dp[i]/factor[i]
-                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
-                if err < best_err:  # There was some improvement
+            i = np.random.choice(range(len(p)))
+            if dp[i]<0.0005:
+                dp[i] = 0.0005
+            # if nothing improved and already in small range, no need to compute anything. save some time.
+            if dp[i]==0.0005 and not improve:
+                continue
+            p[i] += dp[i]/factor[i]
+            err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
+            if err < best_err:  # There was some improvement
+                best_err = err
+                centerRot = rotTmp
+                dp[i] *= 1.1
+                improve = True
+                #print(dp)
+                print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
+            else:  # There was no improvement
+                p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
+                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
+
+                if err < best_err:  # There was an improvement
                     best_err = err
                     centerRot = rotTmp
-                    dp[i] *= 1.1
+                    dp[i] *= 1.1 # was 1.1
                     improve = True
                     #print(dp)
                     print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
                 else:  # There was no improvement
-                    p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
-                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
-
-                    if err < best_err:  # There was an improvement
-                        best_err = err
-                        centerRot = rotTmp
-                        dp[i] *= 1.1 # was 1.1
-                        improve = True
-                        #print(dp)
-                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
-                    else:  # There was no improvement
-                        p[i] += dp[i]/factor[i]
-                        improve = False
-                        # As there was no improvement, the step size in either
-                        # direction, the step size might simply be too big.
-                        dp[i] *= 0.9  # was 0.95
+                    p[i] += dp[i]/factor[i]
+                    improve = False
+                    # As there was no improvement, the step size in either
+                    # direction, the step size might simply be too big.
+                    dp[i] *= 0.9  # was 0.95
             #sys.stdout.flush()
         #print(p)
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
