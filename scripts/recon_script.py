@@ -42,11 +42,6 @@ except NameError:
 S = reconstruction.Reconstructor_GPU(gpuID=gpu)
 S.load_config(c)
 S.serial_recon_multi_stage()
-for i in range(10):
-    print("strat another one")
-    S = reconstruction.Reconstructor_GPU(gpuID=gpu)
-    S.load_config(c)
-    S.serial_recon_multi_stage()
 
 
 ################# visualization #########################
