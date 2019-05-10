@@ -20,6 +20,8 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
     lBkg = []
     imgStack = np.empty([imgshape[0], imgshape[1], NRot],dtype=np.int32)
     start = time.time()
+    if len(layerIdx) != NLayer:
+        raise ValueError('layer index must be lenghth of NLayer')
     for layer in range(NLayer):
         print(f'layer: {layer}')
         if logfile is not None:
@@ -32,7 +34,7 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
                 fName = f'{initial}{idx:06d}{end}'
                 print(fName)
                 if logfile is not None:
-                    logfile.write(f'layer: {layer}, det: {det}, rot: {rot}, {fName} \n')
+                    logfile.write(f'layer: {layerIdx[layer]}, det: {det}, rot: {rot}, {fName} \n')
                 try:
                     imgStack[:,:,rot] = plt.imread(fName)
                     print('img loaded')
@@ -48,14 +50,14 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
             if logfile is not None:
                 logfile.write(f'complete median filter \n')
             try:
-                np.save(f'{outInitial}_z{layer}_det_{det}.npy', bkg)
+                np.save(f'{outInitial}_z{layerIdx[layer]}_det_{det}.npy', bkg)
                 print(f'saved bkg as {outInitial}_z{layer}_det_{det}.npy \n')
                 if logfile is not None:
-                    logfile.write(f'saved bkg as {outInitial}_z{layer}_det_{det}.npy \n')
+                    logfile.write(f'saved bkg as {outInitial}_z{layerIdx[layer]}_det_{det}.npy \n')
             except:
                 print(f'FAIL SAVING as {outInitial}_z{layer}_det_{det}.npy \n')
                 if logfile is not None:
-                    logfile.write(f'FAIL SAVING as {outInitial}_z{layer}_det_{det}.npy \n')
+                    logfile.write(f'FAIL SAVING as {outInitial}_z{layerIdx[layer]}_det_{det}.npy \n')
                     
             lBkg.append(bkg)
     end = time.time()
