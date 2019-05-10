@@ -1,4 +1,4 @@
-gpu = 3  # specify which gpu to use
+gpu = 0  # specify which gpu to use
 # load blind search zero and recon
 import sys
 sys.path.insert(0, '/home/heliu/work/dev/v0.2/HEXOMAP/')
@@ -7,11 +7,6 @@ from hexomap import reconstruction  # g-force caller
 from hexomap import MicFileTool     # io for reconstruction rst
 from hexomap import IntBin          # io for binary image (reduced data)
 from hexomap import config
-import pycuda.driver as cuda
-
-cuda.init()
-device = cuda.Device(gpu) # enter your gpu id here
-ctx = device.make_context()
 
 ################# configuration #########################
 Au_Config={
@@ -44,11 +39,15 @@ try:
     S.clean_up()
 except NameError:
     pass
-S = reconstruction.Reconstructor_GPU(ctx=ctx)
+S = reconstruction.Reconstructor_GPU(gpuID=gpu)
 S.load_config(c)
 S.serial_recon_multi_stage()
+for i in range(10):
+    print("strat another one")
+    S = reconstruction.Reconstructor_GPU(gpuID=gpu)
+    S.load_config(c)
+    S.serial_recon_multi_stage()
+
+
 ################# visualization #########################
 #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
-
-################# clean exit ###########################
-ctx.pop()
