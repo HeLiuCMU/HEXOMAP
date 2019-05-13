@@ -12,13 +12,13 @@ import os
 import hexomap
 
 c = config.Config().load('examples/johnson_aug18_demo/demo_gold_twiddle_3.h5')
-c.display()
+print(c)
 c.fileFZ = os.path.join(os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
 c.fileBin = 'examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
 c.micVoxelSize = 0.005
 c.micsize = [15, 15]
 
-c.display()
+print(c)
 
 try:
     S.clean_up()
