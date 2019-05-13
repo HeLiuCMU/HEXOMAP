@@ -31,6 +31,7 @@ import os.path
 import sys
 import scipy.misc
 import importlib
+from weakref import WeakValueDictionary
 #global ctx
 #ctx = None
 #cuda.init()
@@ -117,7 +118,9 @@ class Reconstructor_GPU():
         voxel at boundary need to compare different grains.
 
     '''
+    _instances = WeakValueDictionary()
     def __init__(self,rank=0,ctx=None, gpuID=None):
+        self._instances[id(self)] = self
         # self.squareMicOutFile = 'DefaultReconOutPut.npy'
         # # self.expDataInitial = '/home/heliu/work/I9_test_data/Integrated/S18_z1_'
         # # self.expdataNDigit = 6
@@ -172,7 +175,14 @@ class Reconstructor_GPU():
             self.ctx = ctx
         time.sleep(1)
         self._init_gpu()
-
+    def __del__(self):
+        try:
+            #self.ctx.push()
+            #self.ctx.pop()
+            self.ctx.detach()
+        except cuda.LogicError:
+            pass
+            
     def _init_gpu(self):
         """
         Initialize GPU device, call gpu functions, initialize texture memory.
@@ -215,9 +225,9 @@ class Reconstructor_GPU():
         #self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
         #self.ctx.pop()
         def _finish_up():
-            self.ctx.pop()
+            
+#             self.ctx.pop()
             self.ctx.detach()
-            self.ctx = None
             from pycuda.tools import clear_context_caches
             clear_context_caches()
             
@@ -769,6 +779,10 @@ class Reconstructor_GPU():
         load any configuration from config class
         config: Config(), defined in config.py
         '''
+        try:
+            getattr(config, 'micMask')         
+        except AttributeError:
+            config.micMask = None
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
         self.set_Q(config.maxQ)
@@ -783,6 +797,7 @@ class Reconstructor_GPU():
         self.create_square_mic(config.micsize,
                             voxelsize=config.micVoxelSize,
                             shift=config.micShift,
+                            mask=config.micMask,
                            )# resolution of reconstruction and voxel size
         self.squareMicOutFile = f'{config._initialString}_q{self.maxQ}_rot{self.NRot}_z{config.fileBinLayerIdx}_' \
                             + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \

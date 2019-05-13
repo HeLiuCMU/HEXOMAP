@@ -13,6 +13,7 @@ Au_Config={
     'micsize' : np.array([20, 20]),
     'micVoxelSize' : 0.001,
     'micShift' : np.array([0.0, 0.0, 0.0]),
+    #'micMask' : None,
     'expdataNDigit' : 6,
     'energy' : 65.351,      #55.587 # in kev
     'sample' : 'gold',
@@ -39,10 +40,9 @@ try:
     S.clean_up()
 except NameError:
     pass
-S = reconstruction.Reconstructor_GPU(gpuID=gpu)
-S.load_config(c)
-S.serial_recon_multi_stage()
-
-
+S = reconstruction.Reconstructor_GPU(gpuID=gpu)  # each run should contain just one reconstructor instance, other wise GPU memory may not be released correctly.
+for i in range(1):
+    S.load_config(c)
+    S.serial_recon_multi_stage()
 ################# visualization #########################
 #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
