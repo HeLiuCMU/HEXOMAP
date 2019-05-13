@@ -33,16 +33,32 @@ Au_Config={
     'fileBinDetIdx' : np.array([0, 1]),
     'fileBinLayerIdx' : 0,
     '_initialString' : 'demo_gold_single_GPU'}
+
+def main():
+    for arg in sys.argv[1:]:
+        print(arg)
     
-c = config.Config(**Au_Config)
-################# reconstruction #########################
-try:
-    S.clean_up()
-except NameError:
-    pass
-S = reconstruction.Reconstructor_GPU(gpuID=gpu)  # each run should contain just one reconstructor instance, other wise GPU memory may not be released correctly.
-for i in range(1):
-    S.load_config(c)
-    S.serial_recon_multi_stage()
-################# visualization #########################
-#MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
+    if len(sys.argv)>1 and sys.argv[1].endswith(('.yml','.yaml','h5','hdf5')):
+        c = config.Config().load(sys.argv[1])
+        print(c)
+        print(f'===== loaded external config file: {sys.argv[1]}  =====')
+    else:  
+        c = config.Config(**Au_Config)
+        print(c)
+        print('============  loaded internal config ===================')
+    c = config.Config(**Au_Config)
+    ################# reconstruction #########################
+    try:
+        S.clean_up()
+    except NameError:
+        pass
+    S = reconstruction.Reconstructor_GPU(gpuID=gpu)  # each run should contain just one reconstructor instance, other wise GPU memory may not be released correctly.
+    for i in range(1):
+        S.load_config(c)
+        S.serial_recon_multi_stage()
+    ################# visualization #########################
+    MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
+
+if __name__=="__main__":
+    main()
+    

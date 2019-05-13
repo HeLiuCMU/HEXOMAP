@@ -1,3 +1,14 @@
+###################### usage ###########################
+'''
+use external config file:
+    mpirun -n 2 python mpi_recon_demo_gold.py ConfigExample.yml
+use configuration in this file:
+    mpirun -n 2 python mpi_recon_demo_gold.py
+    
+please note that currently number of node can be either 2 or 4, other number not implemented
+'''
+########################################################
+
 import numpy as np
 from mpi4py import MPI
 import atexit
@@ -40,9 +51,6 @@ Au_Config={
     'fileBinLayerIdx' : 0,
     '_initialString' : 'demo_gold_'}
     
-c = config.Config(**Au_Config)
-initialString = c._initialString
-############################### reconstruction #################################################
 def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
     '''
     generate mask used for mpi
@@ -69,29 +77,47 @@ def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
             lMask.append(new_mask.astype(np.bool_))
     return lMask
 
-cuda.init()
-ctx = cuda.Device(rank).make_context()
-S = reconstruction.Reconstructor_GPU(ctx=ctx)
+def main():
+    ############################### reconstruction #################################################
+    for arg in sys.argv[1:]:
+        print(arg)
+    
+    if len(sys.argv)>1 and sys.argv[1].endswith(('.yml','.yaml','h5','hdf5')):
+        c = config.Config().load(sys.argv[1])
+        print(c)
+        print(f'===== loaded external config file: {sys.argv[1]}  =====')
+    else:  
+        c = config.Config(**Au_Config)
+        print(c)
+        print('============  loaded internal config ===================')
+    initialString = c._initialString
+    cuda.init()
+    ctx = cuda.Device(rank).make_context()
+    S = reconstruction.Reconstructor_GPU(ctx=ctx)
 
-mask = None  # overall mask
-lMask = gen_mpi_masks(c.micsize, size, mask=mask)
-c.micMask = lMask[rank]
-c._initialString = f'part_demo_gold{rank}'
-S.load_config(c)
-S.serial_recon_multi_stage(enablePostProcess=False)
-comm.Barrier()
-data = S.squareMicData
-data = comm.gather(data, root=0)
-comm.Barrier()
-################################ post process #########################################################
-if rank == 0:
-    mic = np.zeros(S.squareMicData.shape)
-    for i in range(size):
-        mic[np.repeat(lMask[i][:,:,np.newaxis], mic.shape[2], axis=2)] = data[i][np.repeat(lMask[i][:,:,np.newaxis],  mic.shape[2], axis=2)] 
-    c._initialString = initialString
-    c.micMask = mask
-    S.load_config(c, reloadData=False)
-    S.load_square_mic(mic)
-    S.voxelIdxStage0 = []
-    S.serial_recon_multi_stage(enablePostProcess=True)
-ctx.pop()
+    mask = None  # overall mask
+    lMask = gen_mpi_masks(c.micsize, size, mask=mask)
+    c.micMask = lMask[rank]
+    c._initialString = f'part_demo_gold{rank}'
+    S.load_config(c)
+    S.serial_recon_multi_stage(enablePostProcess=False)
+    comm.Barrier()
+    data = S.squareMicData
+    data = comm.gather(data, root=0)
+    comm.Barrier()
+    ################################ post process #########################################################
+    if rank == 0:
+        mic = np.zeros(S.squareMicData.shape)
+        for i in range(size):
+            mic[np.repeat(lMask[i][:,:,np.newaxis], mic.shape[2], axis=2)] = data[i][np.repeat(lMask[i][:,:,np.newaxis],  mic.shape[2], axis=2)] 
+        c._initialString = initialString
+        c.micMask = mask
+        S.load_config(c, reloadData=False)
+        S.load_square_mic(mic)
+        S.voxelIdxStage0 = []
+        S.serial_recon_multi_stage(enablePostProcess=True)
+        #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.6)
+    ctx.pop()
+
+if __name__=="__main__":
+    main()
