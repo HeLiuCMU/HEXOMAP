@@ -11,9 +11,9 @@ from hexomap import config
 ################# configuration #########################
 Au_Config={
     'micsize' : np.array([20, 20]),
-    'micVoxelSize' : 0.001,
+    'micVoxelSize' : 0.01,
     'micShift' : np.array([0.0, 0.0, 0.0]),
-    #'micMask' : None,
+    'micMask' : None,
     'expdataNDigit' : 6,
     'energy' : 65.351,      #55.587 # in kev
     'sample' : 'gold',
@@ -32,7 +32,7 @@ Au_Config={
     'fileBinDigit' : 6,
     'fileBinDetIdx' : np.array([0, 1]),
     'fileBinLayerIdx' : 0,
-    '_initialString' : 'demo_gold_'}
+    '_initialString' : 'demo_gold_single_GPU'}
     
 c = config.Config(**Au_Config)
 ################# reconstruction #########################
