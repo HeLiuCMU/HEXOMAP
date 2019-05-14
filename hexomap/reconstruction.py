@@ -33,7 +33,7 @@ import scipy.misc
 import importlib
 from weakref import WeakValueDictionary
 import h5py
-from utility import print_h5
+from hexomap.utility import print_h5
 #global ctx
 #ctx = None
 #cuda.init()
