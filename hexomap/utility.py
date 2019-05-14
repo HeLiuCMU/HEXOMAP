@@ -98,6 +98,25 @@ def load_h5(fname: str, path: str='/') -> dict:
 
     return dataMap
 
+def print_h5(fname: str) -> None:
+    """generic simple HDF5 archive structure printer"""
+    try:
+        with h5py.File(fname, 'r') as h:
+            print(fname)
+            recursively_print_structure(h, '  ')
+    except IOError as e:
+        print(f"Cannot open HDF5 file {fname}")
+        print(f"IOError: {e}")
+
+def recursively_print_structure(item, leading = ''):
+    """recusively print HDF5 archive structure"""
+    for key in item:
+        if isinstance(item[key], h5py.Dataset):
+            print(leading + key + ': ' + str(item[key].shape))
+        else:
+            print(leading + key)
+            recursively_print_structure(item[key], leading + '  ')
+
 
 def recursively_load_dict_contents_from_group(h5file: "h5py.File", 
                                               path: str,
