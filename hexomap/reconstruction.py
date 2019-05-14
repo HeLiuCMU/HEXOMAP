@@ -782,9 +782,10 @@ class Reconstructor_GPU():
         config: Config(), defined in config.py
         '''
         try:
-            getattr(config, 'micMask')         
+            getattr(config, 'micMask')        
+            micMask=config.micMask
         except AttributeError:
-            config.micMask = None
+            micMask = None
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
         self.set_Q(config.maxQ)
@@ -799,7 +800,7 @@ class Reconstructor_GPU():
         self.create_square_mic(config.micsize,
                             voxelsize=config.micVoxelSize,
                             shift=config.micShift,
-                            mask=config.micMask,
+                            mask=micMask,
                            )# resolution of reconstruction and voxel size
         self.squareMicOutFile = f'{config._initialString}_q{self.maxQ}_rot{self.NRot}_z{config.fileBinLayerIdx}_' \
                             + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
@@ -862,12 +863,14 @@ class Reconstructor_GPU():
             if not os.path.isfile(fName):
                 self.config.save(fName)
             else:
-                print("{} already exists, skip saving configuration")
+                print("{:} already exists, skip saving configuration".format(fName))
             print("Start saving layer {0:d} ...".format(layerIdx))
 
             with h5py.File(fName,'r+') as fout:
                 if not 'slices' in list(fout.keys()):
                     sls=fout.create_group('slices')
+                else:
+                    sls=fout['slices']
                 if 'z{:d}'.format(layerIdx) in list(fout['slices'].keys()):
                     print("Error: layer {0:d} already exists in {1:}".format(layerIdx,fName))
                 else:
