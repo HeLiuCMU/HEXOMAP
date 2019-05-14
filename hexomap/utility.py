@@ -102,7 +102,7 @@ def print_h5(fname: str) -> None:
     """generic simple HDF5 archive structure printer"""
     try:
         with h5py.File(fname, 'r') as h:
-            print(filename)
+            print(fname)
             recursively_print_structure(h, '  ')
     except IOError as e:
         print(f"Cannot open HDF5 file {fname}")
@@ -137,7 +137,7 @@ def recursively_save_dict_contents_to_group(h5file: "h5py.File",
         ) -> None:
     """recursively write data to HDF5 archive"""
     for key, item in dic.items():
-        if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes,int,float,np.bool_)):
+        if isinstance(item, (type(None),np.ndarray, np.int64, np.float64, str, bytes,int,float,np.bool_)):
             h5file[path + key] = item
         elif isinstance(item, dict):
             recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
