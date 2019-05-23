@@ -32,6 +32,8 @@ import sys
 import scipy.misc
 import importlib
 from weakref import WeakValueDictionary
+import h5py
+from hexomap.utility import print_h5
 #global ctx
 #ctx = None
 #cuda.init()
@@ -780,9 +782,10 @@ class Reconstructor_GPU():
         config: Config(), defined in config.py
         '''
         try:
-            getattr(config, 'micMask')         
+            getattr(config, 'micMask')        
+            micMask=config.micMask
         except AttributeError:
-            config.micMask = None
+            micMask = None
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
         self.set_Q(config.maxQ)
@@ -797,13 +800,14 @@ class Reconstructor_GPU():
         self.create_square_mic(config.micsize,
                             voxelsize=config.micVoxelSize,
                             shift=config.micShift,
-                            mask=config.micMask,
+                            mask=micMask,
                            )# resolution of reconstruction and voxel size
         self.squareMicOutFile = f'{config._initialString}_q{self.maxQ}_rot{self.NRot}_z{config.fileBinLayerIdx}_' \
                             + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
                             + f'_shift_{"_".join(map(str, config.micShift))}.npy' # output file name
         self.searchBatchSize = int(config.searchBatchSize)    # number of orientations search at each iteration, larger number will take longer time.
         self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
+        self.config=config
 
     def create_square_mic(self, shape=(100, 100), shift=[0, 0, 0], voxelsize=0.01, mask=None):
         '''
@@ -841,6 +845,51 @@ class Reconstructor_GPU():
             for jj in range(self.squareMicData.shape[1]):
                 self.squareMicData[ii, jj, 0:3] = (np.array([ii + 0.5, jj + 0.5, 0]) - midVoxel) * voxelsize + shift
         self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
+
+    def save_as_h5(self, layerIdx: int=0, fName: str='reconRes.hdf5') -> None:
+        """
+        Description
+        -----------
+        Save the reconstruction result with configurations to hdf5 file.
+        Parameters
+        ----------
+        fName: str
+                Name of the file.
+        Returns
+        -------
+        None
+        """
+        if fName.endswith(('.h5','.hdf5')):
+            if not os.path.isfile(fName):
+                self.config.save(fName)
+            else:
+                print("{:} already exists, skip saving configuration".format(fName))
+            print("Start saving layer {0:d} ...".format(layerIdx))
+
+            with h5py.File(fName,'r+') as fout:
+                if not 'slices' in list(fout.keys()):
+                    sls=fout.create_group('slices')
+                else:
+                    sls=fout['slices']
+                if 'z{:d}'.format(layerIdx) in list(fout['slices'].keys()):
+                    print("Error: layer {0:d} already exists in {1:}".format(layerIdx,fName))
+                else:
+                    a=self.squareMicData
+                    grp=sls.create_group('z{:d}'.format(layerIdx))
+                    ds=grp.create_dataset('x',data=a[:,:,0]*1000,dtype='float32')
+                    ds.attrs['info']='X coordinate (micron meter).'
+                    ds=grp.create_dataset('y',data=a[:,:,1]*1000,dtype='float32')
+                    ds.attrs['info']='Y coordinate (micron meter).'
+                    ds=grp.create_dataset('EulerAngles',data=a[:,:,3:6]*np.pi/180,dtype='float32')
+                    ds.attrs['info']='active ZXZ Euler angles (radian)'
+                    ds=grp.create_dataset('phase',data=a[:,:,7],dtype='uint16')
+                    ds.attrs['info']='material phases'
+                    ds=grp.create_dataset('Confidence',data=a[:,:,6],dtype='float32')
+                    ds.attrs['info']='hit ratio of simulated peaks and experimental peaks'
+            print('=== saved format:')
+            print_h5(fName)
+        else:
+            print("Result file name must end with 'h5' or 'hdf5'")
 
     def save_square_mic(self, fName, format='npy'):
         '''
@@ -2035,13 +2084,13 @@ if __name__ == "__main__":
     import os
     import hexomap
     c = config.Config().load('examples/johnson_aug18_demo/demo_gold_twiddle_3.h5')
-    c.display()
+    print(c)
     c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
     c.fileBin= 'examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
     c.micVoxelSize = 0.005
     c.micsize = [15,15]
 
-    c.display()
+    print(c)
 
     try:
         S.clean_up()
