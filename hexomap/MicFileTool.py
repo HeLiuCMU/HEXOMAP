@@ -265,7 +265,7 @@ def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,col
     return misorien
     
 def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
-    plt.imshow(squareMicData[:,:,6].T,origin='lower')
+    plt.imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     if colorbar:
         plt.colorbar()
     if saveName is not None:
@@ -359,8 +359,8 @@ def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     fig, axes = plt.subplots(1,2)
-    axes[0].imshow(img,origin='lower')
-    confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower')
+    axes[0].imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
+    confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     fig.colorbar(confMap, ax=axes[1],fraction=0.046, pad=0.04)
     if saveName is not None:
         plt.savefig(saveName)
@@ -389,7 +389,7 @@ def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     # make sure display correctly
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
-    plt.imshow(img,origin='lower')
+    plt.imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     if saveName is not None:
         plt.savefig(saveName)
     plt.show()
