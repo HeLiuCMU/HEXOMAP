@@ -34,6 +34,8 @@ import pickle
 # customized module
 import sys
 sys.path.insert(0, '..')
+import os
+import hexomap
 from hexomap import reconstruction, MicFileTool, IntBin, config   
 import argparse
 ################# configuration #########################
@@ -56,11 +58,11 @@ Au_Config={
     'detK' : np.array([[2015.95118521, 2014.30163539]]),
     'detRot' : np.array([[[89.48560133, 89.53313565, -0.50680978],
   [89.42516322, 89.22570012, -0.45511278]]]),
-    'fileBin' : '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z',
+    'fileBin' : os.path.abspath(os.path.join(hexomap.__file__ ,"../..")) + '/examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z',
     'fileBinDigit' : 6,
     'fileBinDetIdx' : np.array([0, 1]),
     'fileBinLayerIdx' : 0,
-    '_initialString' : 'demo_gold_'}
+    '_initialString' : 'demo_gold'}
     
 def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
     '''

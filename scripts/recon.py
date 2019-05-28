@@ -13,6 +13,8 @@ optional arguments:
 import sys
 sys.path.insert(0, '/home/heliu/work/dev/v0.2/HEXOMAP/')
 import numpy as np
+import os
+import hexomap
 from hexomap import reconstruction  # g-force caller
 from hexomap import MicFileTool     # io for reconstruction rst
 from hexomap import IntBin          # io for binary image (reduced data)
@@ -38,7 +40,7 @@ Au_Config={
     'detK' : np.array([[2015.95118521, 2014.30163539]]),
     'detRot' : np.array([[[89.48560133, 89.53313565, -0.50680978],
   [89.42516322, 89.22570012, -0.45511278]]]),
-    'fileBin' : '../examples/johnson_aug18_demo/Au_reduced_1degree//Au_int_1degree_suter_aug18_z',
+    'fileBin' : os.path.abspath(os.path.join(hexomap.__file__ ,"../..")) + '/examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z',
     'fileBinDigit' : 6,
     'fileBinDetIdx' : np.array([0, 1]),
     'fileBinLayerIdx' : 0,
