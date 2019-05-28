@@ -1,5 +1,15 @@
-gpu = 0  # specify which gpu to use
-# load blind search zero and recon
+#!python
+'''
+usage: recon.py [-h] [-c CONFIG] [-g GPU]
+
+single thread hedm reconstruction
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CONFIG, --config CONFIG
+                        config file, .yml ,.yaml, h5, hdf5
+  -g GPU, --gpu GPU     which gpu to use(0-4)
+'''
 import sys
 sys.path.insert(0, '/home/heliu/work/dev/v0.2/HEXOMAP/')
 import numpy as np
@@ -7,7 +17,7 @@ from hexomap import reconstruction  # g-force caller
 from hexomap import MicFileTool     # io for reconstruction rst
 from hexomap import IntBin          # io for binary image (reduced data)
 from hexomap import config
-
+import argparse
 ################# configuration #########################
 Au_Config={
     'micsize' : np.array([20, 20]),
@@ -35,18 +45,21 @@ Au_Config={
     '_initialString' : 'demo_gold_single_GPU'}
 
 def main():
-    for arg in sys.argv[1:]:
-        print(arg)
+    parser = argparse.ArgumentParser(description='single thread hedm reconstruction')
+    parser.add_argument('-c','--config', help='config file, .yml ,.yaml, h5, hdf5', default="no config")
+    parser.add_argument('-g','--gpu', help='which gpu to use(0-4)', default="0")
+    args = vars(parser.parse_args())
     
-    if len(sys.argv)>1 and sys.argv[1].endswith(('.yml','.yaml','h5','hdf5')):
-        c = config.Config().load(sys.argv[1])
+    gpu=args['gpu']
+    print(gpu, args['config'])
+    if args['config'].endswith(('.yml','.yaml','h5','hdf5')):
+        c = config.Config().load(args['config'])
         print(c)
         print(f'===== loaded external config file: {sys.argv[1]}  =====')
     else:  
         c = config.Config(**Au_Config)
         print(c)
         print('============  loaded internal config ===================')
-    c = config.Config(**Au_Config)
     ################# reconstruction #########################
     try:
         S.clean_up()
@@ -57,7 +70,7 @@ def main():
         S.load_config(c)
         S.serial_recon_multi_stage()
     ################# visualization #########################
-    MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
+    #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
 
 if __name__=="__main__":
     main()

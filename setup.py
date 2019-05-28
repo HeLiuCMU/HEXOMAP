@@ -4,4 +4,5 @@ setup(name='hexomap',
       package_dir={'': ''},
       packages=['hexomap'],
       package_data={'hexomap': ['data/fundamental_zone/*','data/materials/*','kernel_cuda/*']},
+      scripts=['scripts/recon_mpi.py','scripts/mpi_reduction.py','scripts/recon.py'],
       )
