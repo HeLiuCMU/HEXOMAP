@@ -11,6 +11,7 @@ from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.collections import PolyCollection
 from hexomap.past import *
+from hexomap import IntBin
 import sys
 #import bokeh
 
@@ -298,24 +299,25 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     
-def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0):
+def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
     '''
     visualize binary files, first column is single frame, second column is integrated frames
     '''
     figure, ax = plt.subplots(2, NDet)
+    figure.set_size_inches(10, 10)
+    idxRotSingleFrame = idxRot
     for idxDet in range(NDet):
         # single frame
-        idxRot = 0  # index of rotation (0~719)
-        idxLayer = 0
-        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRot),idxDet))
+        #idxRot = 0  # index of rotation (0~719)
+        #idxLayer = 0
+        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRotSingleFrame),idxDet))
         ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
         ax[0,idxDet].axis('scaled')
         ax[0,idxDet].set_xlim((0,2048))
         ax[0,idxDet].set_ylim((0,2048))
-        ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRot}')
+        ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRotSingleFrame}')
 
         # integrated frame:
-        idxLayer = 0
         lX = []
         lY = []
         for idxRot in range(NRot):
