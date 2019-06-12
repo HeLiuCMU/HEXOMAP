@@ -1,3 +1,4 @@
+#!python
 import sys
 sys.path.insert(0, '/home/heliu/work/dev/v0.2/HEXOMAP')
 from hexomap import reduction
@@ -17,34 +18,33 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-############################# EXample useage: #######################################
+############################# Example useage: #######################################
 '''
 mpirun -n 1 python mpi_reduction_Au2_NF_LineFocus.py
 To monitor progress
     tail -f output_path/*.log
 '''
 ################################ Input Session #######################################
-startIdx = 261659
-NRot = 720
-NDet = 2
-NLayer = 37
-idxLayer = np.arange(NLayer)
+startIdx = 0
+NRot = 360
+NDet = 5
+NLayer = 1
+idxLayer = [3] # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
 aIdxImg = None # must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
-#lIdxImg  = [np.arange(x*1800,x*1800+NRot) for x in range(5)]
-#lIdxImg = np.hstack(lIdxImg).astype(np.int32)
 extention = '.tif'
-initial = f'/media/heliu/feb2019/shahani_feb19/nf/sample1_rt_900_furnace_nf/sample1_rt_900_furnace_nf_'
+initial = f'/home/heliu/work/Au_calibrate/Raw/Integrated-fullRotation/Au_volume2_NSUM10_bsf_fullrotation_'
 digitLength = 6
-outputDirectory = '/home/heliu/work/shahani_feb19/reduction/sample1_rt_900_furnace_nf/'
-identifier = 'sample1_rt_900_furnace_nf'
-bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
-binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
-logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
-generateBkg = False
+outputDirectory = '/home/heliu/work/Au_calibrate/Reduction/reduced_z3_new/'
+identifier = 'Au_calibrate'
+generateBkg = True
 generateBin = True
 baseline = 10
 minNPixel = 4
 ####################################################################################
+bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
+binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
+logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
+
 if rank==0:
     if not os.path.exists(outputDirectory):
         os.makedirs(outputDirectory)
@@ -62,20 +62,18 @@ for layer in range(NLayer):
     else:
         assert aIdxImg.shape == (NLayer, NDet, NRot)
         lIdxImg = aIdxImg[layer,:,:].ravel()
-    startIdx += NTotal
+    
     lIdxLayer = np.array([layer]).repeat(NDet * NRot)
     lIdxDet = np.arange(NDet).repeat(NRot)
     lIdxRot = np.tile(np.arange(NRot), NDet)
     lBkgIdx = np.arange(NDet).repeat(NRot)
     NPerCore = int(np.ceil(float(NTotal)/size))
-    print(lIdxLayer, lIdxDet, lIdxRot, lBkgIdx,lIdxImg)
-
-
     lIdxImg = lIdxImg[rank::size]
     lIdxLayer = lIdxLayer[rank::size]
     lIdxDet = lIdxDet[rank::size]
     lIdxRot = lIdxRot[rank::size]
     lBkgIdx = lBkgIdx[rank::size]
+    print(lIdxLayer, lIdxDet, lIdxRot, lBkgIdx,lIdxImg)
     # generate background:
     if rank==0:
         logfile.write('start generating bkg \n')
@@ -111,4 +109,6 @@ for layer in range(NLayer):
     if rank==0:
         end = time.time()
         logfile.write(f'time taken generating binary: {end - start} seconds \n')
+    startIdx += NTotal
 logfile.close() 
+    

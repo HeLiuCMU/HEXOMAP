@@ -11,6 +11,7 @@ from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.collections import PolyCollection
 from hexomap.past import *
+from hexomap import IntBin
 import sys
 #import bokeh
 
@@ -265,7 +266,7 @@ def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,col
     return misorien
     
 def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
-    plt.imshow(squareMicData[:,:,6].T,origin='lower')
+    plt.imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     if colorbar:
         plt.colorbar()
     if saveName is not None:
@@ -298,24 +299,25 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     
-def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0):
+def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
     '''
     visualize binary files, first column is single frame, second column is integrated frames
     '''
     figure, ax = plt.subplots(2, NDet)
+    figure.set_size_inches(10, 10)
+    idxRotSingleFrame = idxRot
     for idxDet in range(NDet):
         # single frame
-        idxRot = 0  # index of rotation (0~719)
-        idxLayer = 0
-        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRot),idxDet))
+        #idxRot = 0  # index of rotation (0~719)
+        #idxLayer = 0
+        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRotSingleFrame),idxDet))
         ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
         ax[0,idxDet].axis('scaled')
         ax[0,idxDet].set_xlim((0,2048))
         ax[0,idxDet].set_ylim((0,2048))
-        ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRot}')
+        ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRotSingleFrame}')
 
         # integrated frame:
-        idxLayer = 0
         lX = []
         lY = []
         for idxRot in range(NRot):
@@ -359,8 +361,8 @@ def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     fig, axes = plt.subplots(1,2)
-    axes[0].imshow(img,origin='lower')
-    confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower')
+    axes[0].imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
+    confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     fig.colorbar(confMap, ax=axes[1],fraction=0.046, pad=0.04)
     if saveName is not None:
         plt.savefig(saveName)
@@ -389,7 +391,7 @@ def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     # make sure display correctly
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
-    plt.imshow(img,origin='lower')
+    plt.imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     if saveName is not None:
         plt.savefig(saveName)
     plt.show()

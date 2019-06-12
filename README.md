@@ -24,12 +24,17 @@ fadelity and efficiency.
         *	install anaconda
 
         * conda env create -f environment.yml
+        * under HEXOMAP/: python setup.py install
         
 1. check installation:
     * under HEXOMAP/: run "python -m hexomap"
 
 ## Usage and Examples
-
+1. reconstruction
+    *    recon.py --config config.yml
+    *    mpirun -n 4 recon_mpi.py --config config.yml
+1. reduction
+    *    mpirun -n 6 reduction.py
 ## Roadmap
 * Public release with stable API by the end of summer, 2019.
 * Add efficient foward NF/FF-HEDM simulation toolkit with dedicated GUI/Web frontend.
