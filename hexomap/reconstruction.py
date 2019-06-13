@@ -798,7 +798,7 @@ class Reconstructor_GPU():
         self.NRot = int(config.NRot)
         self.NDet = int(config.NDet)
         self.layerIdx = config.fileBinLayerIdx
-        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot)) # set parameter
+        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot),NJ=np.array(config.detNJ), NK=np.array(config.detNK), pixelJ=np.array(config.detPixelJ),pixelK=np.array(config.detPixelK)) # set parameter
         self.create_square_mic(config.micsize,
                             voxelsize=config.micVoxelSize,
                             shift=config.micShift,
