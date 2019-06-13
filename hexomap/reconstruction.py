@@ -784,6 +784,8 @@ class Reconstructor_GPU():
         try:
             getattr(config, 'micMask')        
             micMask=config.micMask
+            if micMask=='None':
+                micMask=None
         except AttributeError:
             micMask = None
         self.etalimit = config.etalimit
