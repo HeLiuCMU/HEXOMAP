@@ -310,7 +310,7 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
         # single frame
         #idxRot = 0  # index of rotation (0~719)
         #idxLayer = 0
-        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRotSingleFrame),idxDet))
+        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{idxDet}'.format(int(idxRotSingleFrame),idxDet))
         ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
         ax[0,idxDet].axis('scaled')
         ax[0,idxDet].set_xlim((0,2048))
