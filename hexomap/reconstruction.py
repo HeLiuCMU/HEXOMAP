@@ -784,7 +784,7 @@ class Reconstructor_GPU():
         try:
             getattr(config, 'micMask')        
             micMask=config.micMask
-            if micMask=='None':
+            if isinstance(micMask, str) and micMask=='None':
                 micMask=None
         except AttributeError:
             micMask = None
