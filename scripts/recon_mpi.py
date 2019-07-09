@@ -81,8 +81,11 @@ def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
     elif n_node==2:
         nx = 2
         ny = 1
+    elif n_node==3:
+        nx = 3
+        ny = 1
     else:
-        raise ValueError('not implemented, choose n_node is 2 or 4')
+        raise ValueError('not implemented, choose n_node is 2, 3,or 4')
     for i in range(nx):
         for j in range(ny):
             new_mask = np.zeros(imgsize)
