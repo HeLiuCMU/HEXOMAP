@@ -310,7 +310,7 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
         # single frame
         #idxRot = 0  # index of rotation (0~719)
         #idxLayer = 0
-        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRotSingleFrame),idxDet))
+        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{idxDet}'.format(int(idxRotSingleFrame),idxDet))
         ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
         ax[0,idxDet].axis('scaled')
         ax[0,idxDet].set_xlim((0,2048))
@@ -336,7 +336,7 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
         ax[1,idxDet].set_title(f'integrated frame layer:{idxLayer}, det:{idxDet}')
 
     plt.show()
-def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
+def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None,figSizeX=10,figSizeY=10):
     '''
     plot the square mic data
     image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
@@ -364,6 +364,7 @@ def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
     axes[0].imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     fig.colorbar(confMap, ax=axes[1],fraction=0.046, pad=0.04)
+    fig.set_size_inches(figSizeX, figSizeY)
     if saveName is not None:
         plt.savefig(saveName)
     plt.show()

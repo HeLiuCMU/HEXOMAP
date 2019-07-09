@@ -134,6 +134,48 @@ class CrystalStr:
             self.addAtom([0, 0.5, 0.5], 26)
             self.addAtom([0.5, 0, 0.5], 26)
             self.addAtom([0.5, 0.5, 0], 26)
+        elif material == 'SrTiO3':
+            self.symtype = 'Cubic'
+            self.PrimA = 3.9053 * np.array([1, 0, 0])
+            self.PrimB = 3.9053 * np.array([0, 1, 0])
+            self.PrimC = 3.9053 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 22)
+            self.addAtom([0.5, 0.5, 0.5], 38)
+            self.addAtom([0.5, 0, 0], 8)
+            self.addAtom([0, 0.5, 0], 8)
+            self.addAtom([0, 0, 0.5], 8)
+        elif material == 'SrTiO3_v1':
+            self.symtype = 'Cubic'
+            self.PrimA = 3.9053 * np.array([1, 0, 0])
+            self.PrimB = 3.9053 * np.array([0, 1, 0])
+            self.PrimC = 3.9053 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 38)
+            self.addAtom([0.5, 0.5, 0.5], 22)
+            self.addAtom([0.5, 0.5, 0], 8)
+            self.addAtom([0, 0.5, 0.5], 8)
+            self.addAtom([0.5, 0, 0.5], 8)
+        elif material == 'SrTiO3_v2':
+            self.symtype = 'Cubic'
+            self.PrimA = 3.9053 * np.array([1, 0, 0])
+            self.PrimB = 3.9053 * np.array([0, 1, 0])
+            self.PrimC = 3.9053 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 38)
+            #self.addAtom([0.5, 0.5, 0.5], 22)
+            self.addAtom([0.5, 0.5, 0], 8)
+            self.addAtom([0, 0.5, 0.5], 8)
+            self.addAtom([0.5, 0, 0.5], 8)
+        elif material == 'SrTiO3_v3':
+            self.symtype = 'Cubic'
+            self.PrimA = 3.9053 * np.array([1, 0, 0])
+            self.PrimB = 3.9053 * np.array([0, 1, 0])
+            self.PrimC = 3.9053 * np.array([0, 0, 1])
+            self.addAtom([0, 0, 0], 38)
+            #self.addAtom([0.5, 0.5, 0.5], 22)
+            self.addAtom([0.5, 0.5, 0], 38)
+            self.addAtom([0, 0.5, 0.5], 38)
+            self.addAtom([0.5, 0, 0.5], 38)
+
+        
         elif material == 'Ti7':
             self.symtype = 'Hexagonal'
             self.PrimA = 2.92539 * np.array([1, 0, 0])
