@@ -161,6 +161,7 @@ class Reconstructor_GPU():
         self.postNRandom = 50             # number of random angle generated in each orientation seed
         self.postOriSeedWindow = 5         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
         self.postNIteration = 2            # number of iteration to optimize in post process
+        self.postThreshold = 0.3           # voxel with confidence below this level won't conduct postprocess, avoid endless loop
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
         if ctx is None:
@@ -811,6 +812,34 @@ class Reconstructor_GPU():
         self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
         self.config=config
 
+    def load_reconstructor_config(self, c):
+        '''
+        load in config parameters for reconstructor
+        '''
+        self.detScale = c.detScale# scale down detector dimension to save memeory, usually don't change this other than 1
+        #self.dReconParam = {}
+        self.NIteration = c.NIteration           # number of orientation search iterations
+        self.BoundStart = c.BoundStart        # initial random orientation range
+        self.intensity_threshold = c.intensity_threshold # only keep peaks with intensity larger than this value
+        self.floodFillStartThreshold = c.floodFillStartThreshold# orientation with hit ratio larger than this value is used for flood fill.
+        self.floodFillSelectThreshold = c.floodFillSelectThreshold# voxels with hitratio less than this value will be reevaluated in flood fill process.
+        self.floodFillAccptThreshold = c.floodFillAccptThreshold  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
+        self.floodFillRandomRange = c.floodFillRandomRange   # voxel in fill process will generate random angles in this window, todo@he1
+        self.floodFillNumberAngle = c.floodFillNumberAngle # number of rangdom angles generated to voxel in voxelIdxStage1
+        self.floodFillNumberVoxel = c.floodFillNumberVoxel  # number of orientations for flood fill process each time, due to GPU memory size.
+        self.floodFillNIteration = c.floodFillNIteration       # number of iteration for flood fill angles
+        self.searchBatchSize = c.searchBatchSize      # number of orientations to search per GPU call, due to GPU memory size
+        self.NSelect = c.NSelect                # number of orientations selected with maximum hitratio from last iteration
+        self.postMisOrienThreshold = c.postMisOrienThreshold  # voxel with misorientation larger than this will be post processed seeds voxel
+        self.postWindow = c.postWindow             #voxels in the nxn window around the seeds voxels selected above will be processed
+        self.postRandomRange = c.postRandomRange      # decripted, the random angle range generated in post process
+        self.postConvergeMisOrien = c.postConvergeMisOrien  # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
+        self.postNRandom = c.postNRandom            # number of random angle generated in each orientation seed
+        self.postOriSeedWindow = c.postOriSeedWindow         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
+        self.postNIteration = c.postNIteration            # number of iteration to optimize in post process
+        self.postThreshold = c.postThreshold
+        self.expansionStopHitRatio = c.expansionStopHitRatio    # when continuous 2 voxel hitratio below this value, voxels outside this region will not 
+        
     def create_square_mic(self, shape=(100, 100), shift=[0, 0, 0], voxelsize=0.01, mask=None):
         '''
         initialize a square mic file
@@ -1416,7 +1445,7 @@ class Reconstructor_GPU():
         while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
             NIteration +=1
             self.NPostProcess += 1
-            hitratioMask = (self.voxelHitRatio>0.3).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
+            hitratioMask = (self.voxelHitRatio>self.postThreshold).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
             maxMisOrien = np.max(misOrienTmp)
             misOrienTmp = ndi.maximum_filter(misOrienTmp * hitratioMask, self.postWindow) # due to expansion mode
             x, y = np.where(np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1))
@@ -2085,10 +2114,10 @@ if __name__ == "__main__":
     import MicFileTool
     import os
     import hexomap
-    c = config.Config().load('examples/johnson_aug18_demo/demo_gold_twiddle_3.h5')
+    c = config.Config().load('../scripts/ConfigExample.yml')
     print(c)
-    c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
-    c.fileBin= 'examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    #c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
+    c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
     c.micVoxelSize = 0.005
     c.micsize = [15,15]
 
