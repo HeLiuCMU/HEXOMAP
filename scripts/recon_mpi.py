@@ -104,7 +104,7 @@ def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
         nx = 3
         ny = 1
         NVoxel = np.sum(mask.ravel())
-        NVoxelPerNode = np.ceil(NVoxel/n_node)
+        NVoxelPerNode = int(np.ceil(NVoxel/n_node))
         print(NVoxel,NVoxelPerNode)
         xLst = []
         x = 0
@@ -121,13 +121,13 @@ def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
         xLst.append(x)
         new_mask = np.zeros(imgsize)
         new_mask[0:xLst[0],:] = mask[0:xLst[0],:] 
-        lMask.append(new_mask)
+        lMask.append(new_mask.astype(np.bool_))
         new_mask = np.zeros(imgsize)
         new_mask[xLst[0]:xLst[1],:] = mask[xLst[0]:xLst[1],:] 
-        lMask.append(new_mask)
+        lMask.append(new_mask.astype(np.bool_))
         new_mask = np.zeros(imgsize)
         new_mask[xLst[1]:,:] = mask[xLst[1]:,:] 
-        lMask.append(new_mask)
+        lMask.append(new_mask.astype(np.bool_))
     else:
         raise ValueError('not implemented, choose n_node is 2, 3,or 4')
     return lMask
@@ -163,7 +163,7 @@ def main():
         getattr(c, 'micMask')        
         mask=c.micMask
         if isinstance(mask, str) and mask=='None':
-            mask=None
+            mask = None
     except AttributeError:
         mask = None
     #mask = None  # overall mask
