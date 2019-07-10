@@ -3,6 +3,7 @@
 import numpy as np
 from fractions import Fraction
 from math import floor
+from hexomap import utility
 # from matplotlib import path
 
 
@@ -226,6 +227,21 @@ class CrystalStr:
             self.PrimC = 5.147 * np.array([0, 0, 1])
             self.addAtom([1 / 3.0, 2 / 3.0, 1 / 4.0], 22)
             self.addAtom([2 / 3.0, 1 / 3.0, 3 / 4.0], 22)
+        elif material.endswith(('.yml', '.yaml')):
+            d = utility.load_yaml(material)
+            self.symtype = d['symtype']
+            if d['symtype'] == 'Hexagonal':
+                self.PrimA = d['PrimA'] * np.array([1, 0, 0])
+                self.PrimB = d['PrimB'] * np.array([np.cos(np.pi * 2 / 3), np.sin(np.pi * 2 / 3), 0])
+                self.PrimC = d['PrimC'] * np.array([0, 0, 1])
+            elif d['symtype'] == 'Cubic':
+                self.PrimA = d['PrimA'] * np.array([1, 0, 0])
+                self.PrimB = d['PrimB'] * np.array([0, 1, 0])
+                self.PrimC = d['PrimC'] * np.array([0, 0, 1]) 
+            else:
+                raise NotImplementedError('symType should be Cubic or Hexagonal')
+            for key, value in d['Atom'].items():
+                self.addAtom(value['pos'], value['atomNumber'])
         else:
             raise ValueError("Unknown mateiral type!")
 
@@ -336,56 +352,44 @@ def GetProjectedVertex(Det1, sample, orien, etalimit, grainpos, getPeaksInfo=Fal
         return Peaks, Gs, PeaksInfo
     return Peaks, Gs
 
+def main():
 
-# def digitize(xy):
-#     """
-#     xy: ndarray shape(4,2)
-#         J and K indices in float, four points. This digitize method is far from ideal
-#
-#     Returns
-#     -------------
-#     f: list
-#         list of integer tuples (J,K) that is hitted. (filled polygon)
-#
-#     """
-#     p = path.Path(xy)
-#
-#     def line(pixels, x0, y0, x1, y1):
-#         if x0 == x1 and y0 == y1:
-#             pixels.append((x0, y0))
-#             return
-#         brev = True
-#         if abs(y1 - y0) <= abs(x1 - x0):
-#             x0, y0, x1, y1 = y0, x0, y1, x1
-#             brev = False
-#         if x1 < x0:
-#             x0, y0, x1, y1 = x1, y1, x0, y0
-#         leny = abs(y1 - y0)
-#         for i in range(leny + 1):
-#             if brev:
-#                 pixels.append(
-#                     tuple((int(round(Fraction(i, leny) * (x1 - x0))) + x0, int(1 if y1 > y0 else -1) * i + y0)))
-#             else:
-#                 pixels.append(
-#                     tuple((int(1 if y1 > y0 else -1) * i + y0, int(round(Fraction(i, leny) * (x1 - x0))) + x0)))
-#
-#     bnd = p.get_extents().get_points().astype(int)
-#     ixy = xy.astype(int)
-#     pixels = []
-#     line(pixels, ixy[0, 0], ixy[0, 1], ixy[1, 0], ixy[1, 1])
-#     line(pixels, ixy[1, 0], ixy[1, 1], ixy[2, 0], ixy[2, 1])
-#     line(pixels, ixy[2, 0], ixy[2, 1], ixy[3, 0], ixy[3, 1])
-#     line(pixels, ixy[3, 0], ixy[3, 1], ixy[0, 0], ixy[0, 1])
-#     points = []
-#     for jj in range(bnd[0, 0], bnd[1, 0] + 1):
-#         for kk in range(bnd[0, 1], bnd[1, 1] + 1):
-#             points.append((jj, kk))
-#     points = np.asarray(points)
-#     mask = p.contains_points(points)
-#
-#     ipoints = points[mask]
-#
-#     f = list([tuple(ii) for ii in ipoints])
-#     f.extend(pixels)
-#
-#     return f
+    m0 = CrystalStr('../examples/material_example/hexagonal_Zr.yml')
+    m1 = CrystalStr('zr')
+    d0 = m0.__dict__
+    d1 = m1.__dict__
+    d0.pop('name')
+    d1.pop('name')
+    print("====================== hexagonal ====================")
+    print(d0)
+    print(d1)
+    m0 = CrystalStr('../examples/material_example/simpleCubic_UO2.yml')
+    m1 = CrystalStr('UO2')
+    d0 = m0.__dict__
+    d1 = m1.__dict__
+    d0.pop('name')
+    d1.pop('name')
+    print("====================== simpleCubic ====================")
+    print(d0)
+    print(d1)
+    m0 = CrystalStr('../examples/material_example/cubic_iron_bcc.yml')
+    m1 = CrystalStr('iron_bcc')
+    d0 = m0.__dict__
+    d1 = m1.__dict__
+    d0.pop('name')
+    d1.pop('name')
+    print("====================== bcc ====================")
+    print(d0)
+    print(d1)
+    m0 = CrystalStr('../examples/material_example/cubic_iron_fcc.yml')
+    m1 = CrystalStr('iron_fcc')
+    d0 = m0.__dict__
+    d1 = m1.__dict__
+    d0.pop('name')
+    d1.pop('name')
+    print("====================== fcc ====================")
+    print(d0)
+    print(d1)
+if __name__ == "__main__":
+    # execute only if run as a script
+    main()
