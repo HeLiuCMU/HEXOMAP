@@ -109,24 +109,24 @@ def gen_mpi_masks(imgsize, n_node, mask=None, mode='square'):
         xLst = []
         x = 0
         NVTmp = np.sum(mask[:x,:].ravel())
-        while NVTmp < 0.95*NVoxelPerNode:
+        while NVTmp < 1*NVoxelPerNode:
             x+=1
             NVTmp = np.sum(mask[:x,:].ravel())
         xLst.append(x)
         x = imgsize[0]
         NVTmp = np.sum(mask[x:,:].ravel())
-        while NVTmp < 1.0*NVoxelPerNode:
+        while NVTmp < 1*NVoxelPerNode:
             x-=1
             NVTmp = np.sum(mask[x:,:].ravel())
         xLst.append(x)
         new_mask = np.zeros(imgsize)
-        new_mask[0:xLst[0],:] = mask[0:xLst[0],:] 
+        new_mask[0:(xLst[0]+5),:] = mask[0:(xLst[0]+5),:] 
         lMask.append(new_mask.astype(np.bool_))
         new_mask = np.zeros(imgsize)
-        new_mask[xLst[0]:xLst[1],:] = mask[xLst[0]:xLst[1],:] 
+        new_mask[(xLst[0]-5):(xLst[1]+5),:] = mask[(xLst[0]-5):(xLst[1]+5),:]
         lMask.append(new_mask.astype(np.bool_))
         new_mask = np.zeros(imgsize)
-        new_mask[xLst[1]:,:] = mask[xLst[1]:,:] 
+        new_mask[(xLst[1]-5):,:] = mask[(xLst[1]-5):,:] 
         lMask.append(new_mask.astype(np.bool_))
     else:
         raise ValueError('not implemented, choose n_node is 2, 3,or 4')
@@ -171,7 +171,7 @@ def main():
     c.micMask = lMask[rank]
     c._initialString = f'part_{rank}'
     S.load_config(c)
-    S.serial_recon_multi_stage(enablePostProcess=False)
+    S.serial_recon_multi_stage(enablePostProcess=True)
     comm.Barrier()
     data = S.squareMicData
     data = comm.gather(data, root=0)
@@ -179,8 +179,11 @@ def main():
     ################################ post process #########################################################
     if rank == 0:
         mic = np.zeros(S.squareMicData.shape)
+        coord = S.squareMicData[:,:,0:3]
         for i in range(size):
+            lMask[i] = (data[i][:,:,6]>mic[:,:,6])
             mic[np.repeat(lMask[i][:,:,np.newaxis], mic.shape[2], axis=2)] = data[i][np.repeat(lMask[i][:,:,np.newaxis],  mic.shape[2], axis=2)] 
+        mic[:,:,0:3] = coord # keep coord at all pixel
         c._initialString = initialString
         c.micMask = mask
         S.load_config(c, reloadData=False)

@@ -158,10 +158,10 @@ class Reconstructor_GPU():
         self.postWindow = 3              #voxels in the nxn window around the seeds voxels selected above will be processed
         self.postRandomRange = 0.01       # decripted, the random angle range generated in post process
         self.postConvergeMisOrien = 0.001   # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
-        self.postNRandom = 50             # number of random angle generated in each orientation seed
+        self.postNRandom = 50             # number of random angle generated in each orientation seed # 10: 223s, 50: 
         self.postOriSeedWindow = 5         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
         self.postNIteration = 2            # number of iteration to optimize in post process
-        self.postThreshold = 0.3           # voxel with confidence below this level won't conduct postprocess, avoid endless loop
+        self.postThreshold = 0.15           # voxel with confidence below this level won't conduct postprocess, avoid endless loop
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
         if ctx is None:
@@ -941,6 +941,7 @@ class Reconstructor_GPU():
 
     def load_square_mic(self, mic):
         self.squareMicData = mic
+        self.squareMicData[:, :, 7] = self.squareMicData[:, :, 7].astype(np.bool_)
         self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
         self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
         self.voxelAcceptedMat = EulerZXZ2MatVectorized(
@@ -1415,6 +1416,83 @@ class Reconstructor_GPU():
         if self.squareMicData is None:
             raise ValueError('have not initiate square mic yet')
 
+            
+    def post_process_exp(self):
+        '''
+        In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
+        new candidate orientations are taken from the neighbours around this voxel, random orientations will be generated
+        based on these candidate orientations. this process repeats until no orientations of these grain boundary voxels
+        does not change anymore.
+        need load squareMicData
+        need self.voxelAccptMat
+        :return:
+        '''
+        ############# test section #####################
+        # self.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
+        # self.__cp_expdata_to_gpu()
+        ############### test section edn ###################
+        print('start of post processing, moving grain boundaries untile stable')
+        NVoxelX = self.squareMicData.shape[0]
+        NVoxelY = self.squareMicData.shape[1]
+        accMat = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
+        print('check0')
+        print(time.time())
+        misOrienTmp = self.get_misorien_map(accMat)
+        print('check1')
+        print(time.time())
+        self.NPostProcess = 0
+        self.NPostVoxelVisited = 0
+        start = time.time()
+        NIterationMax = 2000
+        NIteration = 0
+        print('check2')
+        print(time.time())
+        #self.extract_orientations()
+        while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
+            NIteration +=1
+            self.NPostProcess += 1
+            hitratioMask = (self.voxelHitRatio>self.postThreshold).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
+            maxMisOrien = np.max(misOrienTmp)
+            misOrienTmp = ndi.maximum_filter(misOrienTmp * hitratioMask, self.postWindow) # due to expansion mode
+            finalMask = np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1)
+            print('check3')
+            print(time.time())
+            eulers = self.extract_orientations(mask=finalMask)
+            print('check4')
+            print(time.time())
+            mat = EulerZXZ2MatVectorized(eulers / 180.0 * np.pi)
+            print('check5')
+            print(time.time())
+            if mat.shape[0]%self.NSelect!=0:
+                mat = np.concatenate(mat, np.zeros([self.NSelect-mat.shape[0]%self.NSelect,3,3]))
+            rotMatSearchD = gpuarray.to_gpu(mat.astype(np.float32))
+            x, y = np.where(finalMask)
+            xMin = np.minimum(np.maximum(0, x - (self.postOriSeedWindow-1)//2), NVoxelX - self.postOriSeedWindow)
+            yMin = np.minimum(np.maximum(0, y - (self.postOriSeedWindow-1)//2), NVoxelY - self.postOriSeedWindow)
+            aIdx = x * NVoxelY + y
+            previousHitRatio = np.copy(self.voxelHitRatio)
+            previousAccMat = np.copy(self.voxelAcceptedMat)
+            #self.extract_orientations()
+            print('check6')
+            for i, idx in enumerate(aIdx):
+                self.NPostVoxelVisited += 1
+                self.single_voxel_recon(idx,rotMatSearchD,mat.shape[0],
+                                        NIteration=self.postNIteration, BoundStart=maxMisOrien, verbose=False) # was BoundStart=maxMisOrien*5
+                if self.voxelHitRatio[idx] < previousHitRatio[idx]:
+                    self.voxelHitRatio[idx] = previousHitRatio[idx]
+                    self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
+            print('check7')
+            accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
+            misOrienTmpNew = self.misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
+            misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
+            accMat = accMatNew.copy()
+            sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
+            sys.stdout.flush()
+        print('\r number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
+        end = time.time()
+        print(' post process takes is {0} seconds'.format(end-start))
+        
     def post_process(self):
         '''
         In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
@@ -1430,7 +1508,8 @@ class Reconstructor_GPU():
         # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
         # self.__cp_expdata_to_gpu()
         ############### test section edn ###################
-
+        print('start of post processing, moving grain boundaries untile stable')
+        start = time.time()
         NVoxelX = self.squareMicData.shape[0]
         NVoxelY = self.squareMicData.shape[1]
         accMat = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
@@ -1441,7 +1520,6 @@ class Reconstructor_GPU():
         start = time.time()
         NIterationMax = 2000
         NIteration = 0
-        print('start of post processing, moving grain boundaries untile stable')
         while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
             NIteration +=1
             self.NPostProcess += 1
@@ -1454,13 +1532,16 @@ class Reconstructor_GPU():
             aIdx = x * NVoxelY + y
             previousHitRatio = np.copy(self.voxelHitRatio)
             previousAccMat = np.copy(self.voxelAcceptedMat)
+            NIdx = len(aIdx)
             for i, idx in enumerate(aIdx):
+                sys.stdout.write(f'\r postprocess voxel: {i} out of {NIdx} .....')
+                sys.stdout.flush()
                 self.NPostVoxelVisited += 1
                 rotMatSeed = accMat[xMin[i]:xMin[i]+self.postOriSeedWindow,yMin[i]:yMin[i]+self.postOriSeedWindow,:].astype(np.float32)
                 rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
-                rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom, maxMisOrien)
+                rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom, self.postRandomRange)
                 self.single_voxel_recon(idx,rotMatSearchD,self.postNRandom * self.postOriSeedWindow ** 2,
-                                        NIteration=self.postNIteration, BoundStart=maxMisOrien*5, verbose=False)
+                                        NIteration=self.postNIteration, BoundStart=self.postRandomRange, verbose=False,twiddle=False) #maxMisOrien*5
                 if self.voxelHitRatio[idx] < previousHitRatio[idx]:
                     self.voxelHitRatio[idx] = previousHitRatio[idx]
                     self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
@@ -2006,9 +2087,10 @@ class Reconstructor_GPU():
         confs = self.squareMicData[:, :, 6]
         visited = np.zeros([NX, NY])
         visited[self.squareMicData[:,:,6] < 0.3 ] = 1  # exclude low confidence area
-        visited[mask==0] = 1
+        visited[mask==0] = 1 # exclued unmasked region
         xs, ys  = np.nonzero(1 - visited)
         lEulerOut = []
+        lMatOut = []
         while xs.size>1:
             xOld = xs[0]
             yOld = ys[0]
@@ -2028,7 +2110,8 @@ class Reconstructor_GPU():
                                 lEulerOneGrain.append(eulers[x, y, :])
                                 lConfOneGrain.append(confs[x, y])
 
-            avgEuler = np.average(np.array(lEulerOneGrain),axis=0)
+            #avgEuler = np.average(np.array(lEulerOneGrain),axis=0)
+            avgEuler = np.median(np.array(lEulerOneGrain),axis=0)
             maxConfEuler = lEulerOneGrain[np.argmax(lConfOneGrain)]
             lEulerOut.append(avgEuler)
             lEulerOut.append(maxConfEuler)
@@ -2105,31 +2188,55 @@ class Reconstructor_GPU():
         #self.ctx.detach()
         self.texref.set_array(cuda.np_to_array(np.zeros([3,3,3]).astype(np.uint8), order='C'))
         
-
-
-if __name__ == "__main__":
-    import config
-    import numpy as np
-    import reconstruction
-    import MicFileTool
-    import os
-    import hexomap
-    c = config.Config().load('../scripts/ConfigExample.yml')
+def test_new_post_process():
+    from hexomap import MicFileTool     # io for reconstruction rst
+    from hexomap import IntBin          # io for binary image (reduced data)
+    from hexomap import config
+    # test for post process
+    #c = config.Config().load('../scripts/ConfigExample.yml')
+    #print(c)
+    #c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    #c.micVoxelSize = 0.005
+    #c.micsize = [15,15]
+    S = Reconstructor_GPU(gpuID=3)
+    #S.load_config(c)
+    #S.load_square_mic_file('demo_gold__q9_rot180_z0_15x15_0.005_shift_0_0_0.npy')
+    #S.load_config(config.Config().load('/home/heliu/work/krause_jul19/recon/layer0_config.yml'))
+    #S.load_square_mic_file('/home/heliu/work/krause_jul19/recon/part_1_q9_rot180_z0_500x500_0.002_shift_0.0_0.0_0.0.npy')
+    c = config.Config().load('/home/heliu/work/krause_jul19/recon/layer0_config.yml')
+    # c.micVoxelSize = 0.01
+    # c.micsize = [100,100]
+    # c.micMask = 'None'
     print(c)
-    #c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
-    c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
-    c.micVoxelSize = 0.005
-    c.micsize = [15,15]
-
-    print(c)
-
-    try:
-        S.clean_up()
-    except NameError:
-        pass
-
-    S = reconstruction.Reconstructor_GPU()
     S.load_config(c)
-    S.serial_recon_multi_stage()
+    S.load_square_mic_file('/home/heliu/work/krause_jul19/recon/s1400poly1_q9_rot180_z0_500x500_0.002_shift_0.0_0.0_0.0.npy')
+    #S.load_square_mic_file('/home/heliu/work/krause_jul19/recon/part_1_q9_rot180_z0_500x500_0.002_shift_0.0_0.0_0.0.npy') # 632seconds
+    #S.load_square_mic_file('/home/heliu/work/krause_jul19/s1400poly1_q9_rot180_z0_100x100_0.01_shift_0.0_0.0_0.0.npy')
+    S.post_process()
+if __name__ == "__main__":
+    test_new_post_process()
+#     import config
+#     import numpy as np
+#     import reconstruction
+#     import MicFileTool
+#     import os
+#     import hexomap
+#     c = config.Config().load('../scripts/ConfigExample.yml')
+#     print(c)
+#     #c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
+#     c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+#     c.micVoxelSize = 0.005
+#     c.micsize = [15,15]
 
-    MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
+#     print(c)
+
+#     try:
+#         S.clean_up()
+#     except NameError:
+#         pass
+
+#     S = reconstruction.Reconstructor_GPU(gpuID=3)
+#     S.load_config(c)
+#     S.serial_recon_multi_stage()
+
+    #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
