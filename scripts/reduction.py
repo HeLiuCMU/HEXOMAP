@@ -11,8 +11,9 @@ from hexomap.reduction import segmentation_numba
 from hexomap import IntBin
 import time
 from hexomap import mpi_log
+from hexomap import config
 import os
-
+import argparse
 atexit.register(MPI.Finalize)
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
@@ -25,22 +26,59 @@ To monitor progress
     tail -f output_path/*.log
 '''
 ################################ Input Session #######################################
-startIdx = 0
-NRot = 360
-NDet = 5
-NLayer = 1
-idxLayer = [3] # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
-aIdxImg = None # must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
-extention = '.tif'
-initial = f'/home/heliu/work/Au_calibrate/Raw/Integrated-fullRotation/Au_volume2_NSUM10_bsf_fullrotation_'
-digitLength = 6
-outputDirectory = '/home/heliu/work/Au_calibrate/Reduction/reduced_z3_new/'
-identifier = 'Au_calibrate'
-generateBkg = True
-generateBin = True
-baseline = 10
-minNPixel = 4
+Default_Config={
+    'startIdx': 0,
+    'NRot': 360,
+    'NDet': 5,
+    'NLayer': 1,
+    'idxLayer': [3] ,# binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+    'aIdxImg': None ,# must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
+    'extention': '.tif',
+    'initial': f'/home/heliu/work/Au_calibrate/Raw/Integrated-fullRotation/Au_volume2_NSUM10_bsf_fullrotation_',
+    'digitLength': 6,
+    'outputDirectory': '/home/heliu/work/Au_calibrate/Reduction/reduced_z3_new/',
+    'identifier': 'Au_calibrate',
+    'generateBkg': True,
+    'generateBin': True,
+    'baseline': 10,
+    'minNPixel': 4,
+}
+######################################################################################
+parser = argparse.ArgumentParser(description='hedm reduction')
+parser.add_argument('-c','--config', help='config file, .yml ,.yaml, h5, hdf5', default="no config")
+args = vars(parser.parse_args())
+print(args['config'])
+if args['config'].endswith(('.yml','.yaml','h5','hdf5')):
+    c = config.Config().load(args['config'])
+    print(c)
+    print(f'===== loaded external config file: {sys.argv[1]}  =====')
+else:  
+    c = config.Config(**Default_Config)
+    print(c)
+    print('============  loaded internal config ===================')
+
 ####################################################################################
+
+startIdx =c.startIdx
+NRot = c.NRot
+NDet = c.NDet
+NLayer = c.NLayer
+idxLayer  = c.idxLayer  # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+if c.aIdxImg =='None' or c.aIdxImg is None:
+    aIdxImg = None
+else:
+    aIdxImg = c.aIdxImg  # must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
+extention = c.extention 
+initial = c.initial 
+digitLength  = c.digitLength 
+outputDirectory = c.outputDirectory 
+identifier = c.identifier 
+generateBkg = c.generateBkg 
+generateBin = c.generateBin 
+baseline = c.baseline 
+minNPixel = c.minNPixel 
+
+
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
 binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
 logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
@@ -100,6 +138,8 @@ for layer in range(NLayer):
             bkg = lBkg[lBkgIdx[i]]
             fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
             logfile.write(f"generate binary: rank: {rank} : layer: {layer}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {layer}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            sys.stdout.flush()
             img = plt.imread(fName)
             binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel)
