@@ -34,7 +34,11 @@ Au_Config={
     'NRot' : 180,
     'NDet' : 2,
     'searchBatchSize' : 6000,
-    'reverseRot' : True,          # for aero, is True, for rams: False
+    'reverseRot' : True,          # for aero, is True, for rams: False    
+    'detNJ': np.array([2048, 2048]),
+    'detNK': np.array([2048, 2048]),
+    'detPixelJ': np.array([0.00148, 0.00148]),
+    'detPixelK': np.array([0.00148, 0.00148]),
     'detL' : np.array([[4.53571404, 6.53571404]]),
     'detJ' : np.array([[1010.79405782, 1027.43844558]]),
     'detK' : np.array([[2015.95118521, 2014.30163539]]),
