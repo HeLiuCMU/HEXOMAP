@@ -160,7 +160,7 @@ def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=2):
     lX, lY, lID, lIntensity = extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline)
     #end = time.time()
     #print(f'time taken:{end- start}')
-    return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lID).astype(np.int32), np.array(lIntensity).astype(np.int32)
+    return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lIntensity).astype(np.int32), np.array(lID).astype(np.int32)
 
 
 def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=2):
@@ -199,7 +199,7 @@ def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=2):
                     lID.append(label[xx,yy])
     end = time.time()
     print(f'time taken:{end- start}')
-    return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lID).astype(np.int32), np.array(lIntensity).astype(np.int32)
+    return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lIntensity).astype(np.int32), np.array(lID).astype(np.int32)
 
 def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer=1,idxLayer=[0],end='.tif', imgshape=[2048,2048],
                 baseline=10, minNPixel=4):
