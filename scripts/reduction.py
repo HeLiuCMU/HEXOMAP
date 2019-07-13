@@ -63,7 +63,11 @@ startIdx =c.startIdx
 NRot = c.NRot
 NDet = c.NDet
 NLayer = c.NLayer
-idxLayer  = c.idxLayer  # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+if c.idxLayer =='None' or c.idxLayer is None:
+    idxLayer = np.arange(NLayer)
+else:
+    idxLayer  = c.idxLayer 
+  # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
 if c.aIdxImg =='None' or c.aIdxImg is None:
     aIdxImg = None
 else:
@@ -137,10 +141,16 @@ for layer in range(NLayer):
         for i in range(NPerCore):
             bkg = lBkg[lBkgIdx[i]]
             fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
-            logfile.write(f"generate binary: rank: {rank} : layer: {layer}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
-            sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {layer}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            logfile.write(f"generate binary: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.flush()
-            img = plt.imread(fName)
+            try:
+                img = plt.imread(fName)
+            except FileNotFoundError:
+                print('file not found')
+                img = np.zeros([2048,2048])
+                logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
+            #img = plt.imread(fName)
             binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel)
             IntBin.WritePeakBinaryFile(snp, binFileName) 
