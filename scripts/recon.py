@@ -80,7 +80,8 @@ def main():
     except NameError:
         pass
     S = reconstruction.Reconstructor_GPU(gpuID=gpu)  # each run should contain just one reconstructor instance, other wise GPU memory may not be released correctly.
-    S.load_reconstructor_config(c_reconstructor)
+    if c_reconstructor is not None:
+        S.load_reconstructor_config(c_reconstructor)
     for i in range(1):
         S.load_config(c)
         S.serial_recon_multi_stage()
