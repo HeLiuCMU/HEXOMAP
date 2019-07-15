@@ -358,6 +358,116 @@ class GeImage():
         """ Reset cache - call on changing data """
         self.mean = self.stddev = self.maxval = self.minval = None
         self.roi = self.slice = self.area_sum = None
+        
+       
+    
+    def create_tiff_files(self, **kwargs):
+        '''
+        Create .tiff files from .ge data
+        
+        input_path :: string specifying location of desired .ge file
+        output_path :: string specifying where to place the .tiff files (in form of /folder1/folder2/)
+        sample_name :: string specifying the name of sample to be saved   
+        stack_images :: save a tiff file of the images stacked upon one another (optional)
+
+        places the frames in an individual folder
+        places the entire stacked image into output_path if chosen
+        all tiff images are the raw data
+        
+        returns output_path
+        '''
+        for key, item in kwargs.items():
+            if key == 'input_path':
+                input_path = item
+            elif key == 'output_path':
+                output_path = item
+            elif key == 'sample_name':
+                sample_name = item
+            elif key == 'vmin':
+                vmin = item
+            elif key == 'vmax':
+                vmax = item
+            elif key == 'stack_images':
+                stack_images = item
+            else:
+                print('incorrect key entered: \''+ key + '\'')
+
+        import numpy as np
+        from numpy import ma
+        from PIL import Image
+        import sys
+        import os
+
+
+        sys.path.insert(0,'/home/gfrazier/HEXOMAP/hexomap')
+        from hexomap.ge_file import GeImage
+
+
+       # ge = self #a temporary variable because Grayson too lazy to change the names
+        self.read(input_path)
+
+        #print("Mean =", ge.data.ravel().mean())
+        print("Total NFrames =", self.nframes)
+
+
+        #create a target directory for funsies
+        try:
+            os.mkdir(output_path)
+            print("Directory " , output_path ,  " created ") 
+        except FileExistsError:
+            print("Directory " , output_path ,  " already exists")
+
+
+        #============================
+        #= parsing over frames ======
+        #============================
+        frame_list = []
+        frame = 0
+
+        sys.stdout.write("=====================================\nTiff-Conversion Progress:\n")
+
+
+        for frame in range(self.nframes):
+            sys.stdout.write('frame %i out of %i \r' %(frame+1,self.nframes),)
+            sys.stdout.flush()
+            imarray = self.data
+            frame_list.append(imarray)
+
+
+            im = Image.fromarray(imarray)
+
+            im_copy = im
+
+            save_path = output_path +'/'+ sample_name + '_{:06d}.tiff'
+            im_copy.save(save_path.format(frame), 'TIFF')
+
+
+            self = self.next() #proceed to next frame
+            frame += 1
+            sys.stdout.flush()
+
+        if stack_images == True:
+            print('\nStacking Images...')
+            imgStack = np.dstack(frame_list) # stack image into 3d array
+            print('stack shape:', imgStack.shape)
+            imgMax = imgStack.max(axis=2) # maximum over frames
+
+
+            stacked_image = Image.fromarray(imgMax)
+
+            cwd = os.getcwd()
+            print("cwd:", cwd)
+
+            save_name = output_path +'/' + sample_name+'_stacked.tiff'#cwd + '/' + sample_name + '_combined.tiff'
+            print('saved stacked image as:', save_name)
+
+            stacked_image.save(save_name, 'TIFF')
+
+        print('completed tiff conversion.  buh-bahm!')
+
+
+        return output_path
+    
 
 def demo():
     import sys
