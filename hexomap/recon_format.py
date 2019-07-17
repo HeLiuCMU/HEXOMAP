@@ -40,7 +40,7 @@ def h5print(filename):
         print(filename)
         h5printR(h, '  ')
         
-def npy2h5(fName, h5Name, material,lLayerIdx, q=11):
+def npy2h5(lFName, h5Name, material,lLayerIdx, q=11):
     '''
     example usage:
         lFName = [f'dummy_2_single_crystal_furnace_nf_copperBCC_q11_rot720_z{layer}_150x150_0.007_shift_0.0_0.0_0.0.npy' for layer in range(3)]
@@ -192,6 +192,12 @@ def npy_2_ang(lNpyFile = ['/home/heliu/work/krause_jul19/recon/s1400poly1/s1400p
 
 if __name__ == '__main__':
     lNpyFile = []
-    for i in range(50):
+    for i in range(3):
         lNpyFile.append(f'/home/heliu/work/krause_jul19/recon/s1400poly1/s1400poly1_q9_rot180_z{i}_500x500_0.002_shift_0.0_0.0_0.0.npy')
     npy_2_ang(lNpyFile,'s1400poly1_ang/s1400poly1','SrTiO3')
+    h5Name = f'test_save.h5'
+    lLayerIdx = np.arange(len(lNpyFile))
+    npy2h5(lNpyFile, h5Name, 'SrTiO3', lLayerIdx,q=11)
+    stack_initial = 'test_tiffstack/test_stack_'
+    npy_2_tiffstack(lNpyFile,stack_initial,minHitRatio=0.001)
+
