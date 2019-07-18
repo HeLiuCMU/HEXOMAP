@@ -97,14 +97,11 @@ def npy_2_tiffstack(lNpyFile,stack_initial,minHitRatio=0.6):
     for ii,npy in enumerate(lNpyFile):
         print(f'processing layer {ii}: {npy}')
         squareMicData = np.load(npy)
-        mat = EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
-        quat = np.empty([mat.shape[0],4])
-        rod = np.empty([mat.shape[0],3])
-        for i in range(mat.shape[0]):
-            quat[i, :] = quaternion_from_matrix(mat[i, :, :])
-            rod[i, :] = rod_from_quaternion(quat[i, :])
+        eulers = squareMicData[:,:, 3:6].reshape([-1, 3]) / 180.0 * np.pi
+        quats = Quaternion.quaternions_from_eulers(eulers)
+        rods = Rodrigues.rodrigues_from_quaternions(quats)
         hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
-        img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask * 255
+        img = ((rods + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask * 255
         img = np.swapaxes(img,0,1).astype(np.int8)
         save_path = f'{stack_initial}_{ii}.TIFF'
         print(save_path)
