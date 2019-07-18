@@ -930,7 +930,7 @@ class Reconstructor_GPU():
         '''
         if format == 'npy':
             np.save(fName, self.squareMicData)
-            print('saved as npy format')
+            print(f'saved as npy format: {fName}')
         elif format == 'txt':
             print('not implemented')
             pass
@@ -1100,7 +1100,7 @@ class Reconstructor_GPU():
         self.expData = np.concatenate(
             [np.concatenate(lDet, axis=0), np.concatenate(lRot, axis=0), np.concatenate(lJ, axis=0),
              np.concatenate(lK, axis=0)], axis=1)
-        print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
+        print('\rexp data loaded, shape is: {0}.'.format(self.expData.shape))
 
     def __load_exp_data(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
         '''
@@ -1152,7 +1152,7 @@ class Reconstructor_GPU():
         self.expData = np.concatenate(
             [np.concatenate(lDet, axis=0), np.concatenate(lRot, axis=0), np.concatenate(lJ, axis=0),
              np.concatenate(lK, axis=0)], axis=1)
-        print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
+        print('\rexp data loaded, shape is: {0}.'.format(self.expData.shape))
 
     def save_sim_mic_binary(self, fNameInitial='sim_output/sim_result_'):
         '''
@@ -1186,7 +1186,7 @@ class Reconstructor_GPU():
         #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
         # acExpDataCpuRam: [NDet*NRot, max_NK, max_NJ]
-        print('=============start of copy exp data to CPU ===========')
+        print('start create exp data in cpu ram ...')
         if self.expData.shape[1]!=4:
             raise ValueError('expdata shape should be n_peaks*4')
         if np.max(self.expData[:,0])>self.NDet-1:
@@ -1215,7 +1215,7 @@ class Reconstructor_GPU():
             if self.detectors[i].NPixelJ >maxNJ:
                 maxNJ = self.detectors[i].NPixelJ
         self.acExpDataCpuRam = np.zeros([self.NDet*self.NRot,maxNK,maxNJ],dtype=np.uint8) # assuming all same detector!
-        print('assuming same type of detector in different distances')
+        #print('assuming same type of detector in different distances')
         self.iNPeak = np.int32(self.expData.shape[0])
         self.expData = self.expData.astype('int')
 
@@ -1226,14 +1226,14 @@ class Reconstructor_GPU():
                                 self.expData[i, 2]] = 1
 
 
-        print('=============end of copy exp data to CPU ===========')
+        #print('=============end of copy exp data to CPU ===========')
 
     def __cp_expdata_to_gpu(self):
         # try to use texture memory, assuming all detector have same size.
         # require have defiend self.NDet,self.NRot, and Detctor informations;
         # self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         # self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
-        print('=============start of copy exp data to gpu ===========')
+        print('copy exp data to gpu memory ...')
         #         if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
         #             raise ValueError(' This version requare all detector have same dimension')
         if self.expData.shape[1] != 4:
@@ -1250,16 +1250,16 @@ class Reconstructor_GPU():
             if i < (self.NDet - 1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
         # create texture memory
-        print('start of create data on cpu ram')
+        #print('start of create data on cpu ram')
         self.__create_acExpDataCpuRam()
-        print('start of creating texture memory')
+        #print('start of creating texture memory')
         # self.texref = mod.get_texref("tcExpData")
         self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
         self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
         # del self.acExpDetImages
-        print('end of creating texture memory')
+        #print('end of creating texture memory')
         # del self.acExpDetImages
-        print('=============end of copy exp data to gpu ===========')
+        #print('=============end of copy exp data to gpu ===========')
 
     def recon_prepare(self,reverseRot=False, bReloadExpData=True, clearCpuMemory=True):
         '''
@@ -1317,7 +1317,7 @@ class Reconstructor_GPU():
         #         self.ctx.push()
         start = cuda.Event()
         end = cuda.Event()
-        print('==========start of reconstruction======== \n')
+        print('start reconstruction ... \n')
         start.record()  # start timing
         self.NFloodFill = 0
         cnt = 0
@@ -1338,14 +1338,15 @@ class Reconstructor_GPU():
                 self.voxelIdxStage0.remove(voxelIdx)
             except ValueError:
                 pass
-        print('\r number of flood fills: {0}'.format(self.NFloodFill))
+        print('\n ')  
+        print('\rnumber of flood fills: {0}'.format(self.NFloodFill))
         if enablePostProcess:
             self.post_process()
-        print('===========end of reconstruction========== \n')
+        print('reconstruction finished \n')
         end.record()  # end timing
         end.synchronize()
         secs = start.time_till(end) * 1e-3
-        print("SourceModule time {0} seconds.".format(secs))
+        print("SourceModule time:  {0:.03f} seconds.".format(secs))
         # save roconstruction result
         self.squareMicData[:, :, 3:6] = (
                 Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
@@ -1508,7 +1509,7 @@ class Reconstructor_GPU():
         # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
         # self.__cp_expdata_to_gpu()
         ############### test section edn ###################
-        print('start of post processing, moving grain boundaries untile stable')
+        print('start post processing, moving grain boundaries untile stable ...')
         start = time.time()
         NVoxelX = self.squareMicData.shape[0]
         NVoxelY = self.squareMicData.shape[1]
@@ -1551,9 +1552,9 @@ class Reconstructor_GPU():
             accMat = accMatNew.copy()
             sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
             sys.stdout.flush()
-        print('\r number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
+        print('\rnumber of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
         end = time.time()
-        print(' post process takes is {0} seconds'.format(end-start))
+        print('post process takes is {0:.03f} seconds'.format(end-start))
         # self.squareMicData[:,:,3:6] = (Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
         # self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
         # self.save_square_mic('SquareMicTest2_postprocess.npy')
