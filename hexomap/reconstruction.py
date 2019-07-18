@@ -1667,7 +1667,7 @@ class Reconstructor_GPU():
                 1, self.floodFillNumberAngle, self.floodFillRandomRange)
             self.single_voxel_recon(idxTmp, rotMatSearchD, self.floodFillNumberAngle,
                                     NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange,
-                                    verbose=False)
+                                    verbose=False,twiddle=False)
             #             if self.voxelHitRatio[idxTmp]<=previousHitRatio[idxTmp]:
             #                 self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
             #                 self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
@@ -2214,29 +2214,29 @@ def test_new_post_process():
     #S.load_square_mic_file('/home/heliu/work/krause_jul19/s1400poly1_q9_rot180_z0_100x100_0.01_shift_0.0_0.0_0.0.npy')
     S.post_process()
 if __name__ == "__main__":
-    test_new_post_process()
-#     import config
-#     import numpy as np
-#     import reconstruction
-#     import MicFileTool
-#     import os
-#     import hexomap
-#     c = config.Config().load('../scripts/ConfigExample.yml')
-#     print(c)
-#     #c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
-#     c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
-#     c.micVoxelSize = 0.005
-#     c.micsize = [15,15]
+    #test_new_post_process()
+    import config
+    import numpy as np
+    import reconstruction
+    import MicFileTool
+    import os
+    import hexomap
+    c = config.Config().load('../scripts/ConfigExample.yml')
+    print(c)
+    #c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
+    c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    c.micVoxelSize = 0.005
+    c.micsize = [15,15]
 
-#     print(c)
+    print(c)
 
-#     try:
-#         S.clean_up()
-#     except NameError:
-#         pass
+    try:
+        S.clean_up()
+    except NameError:
+        pass
 
-#     S = reconstruction.Reconstructor_GPU(gpuID=3)
-#     S.load_config(c)
-#     S.serial_recon_multi_stage()
+    S = reconstruction.Reconstructor_GPU(gpuID=3)
+    S.load_config(c)
+    S.serial_recon_multi_stage()
 
     #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
