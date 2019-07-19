@@ -5,6 +5,10 @@ import glob
 import time
 from numba import jit
 import tifffile
+import os
+import sys
+
+
 def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048],logfile=None):
     '''
     take median over omega as background
@@ -235,7 +239,38 @@ def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer
                 print(binFileName)
                 snp = segmentation(img, bkg, baseline=baseline, minNPixel=minNPixel)
                 IntBin.WritePeakBinaryFile(snp, binFileName)
- 
+
+def integrate_tiff(tiffInitial, startIdx, digit, extention, NImage, NInt,outInitial, outStartIdx):
+    '''
+    startIdx = 333224
+    tiffInitial = '/media/heliu/Seagate Backup Plus Drive/krause_jul19/nf/s1350_100_1_nf/s1350_100_1_nf_'
+    digit = 6
+    extention = 'tif'
+    NInt = 4  # integrate 4 images into 1.
+    NImage = 1440*22 # number of images before integration
+    outInitial = '/media/heliu/Seagate Backup Plus Drive/krause_jul19/nf/s1350_100_1_nf/s1350_100_1_nf_int4_'
+    outStartIdx = 0 # starting index of output image
+    '''
+    for i in range(NImage):
+        fName = f'{tiffInitial}{(i+startIdx):0{digit}d}{extention}'
+        if not os.path.exists(fName):
+            raise FileExistsError(f'file not found: {fName}')
+    lTiff = []
+    for i in range(NImage):
+        fName = f'{tiffInitial}{(i+startIdx):0{digit}d}{extention}'
+        sys.stdout.write(f'\r {i}/{NImage}: {fName}')
+        sys.stdout.flush()
+        if i%NInt ==0:
+            lTiff = []
+            lTiff.append(tifffile.imread(fName))
+        else:
+            lTiff.append(tifffile.imread(fName))
+        if len(lTiff) == NInt:
+            outImg = np.sum(np.array(lTiff),axis=0).astype(np.int32)
+            #print(outImg.shape)
+            tifffile.imwrite(f'{outInitial}{(i//NInt):0{digit}d}{extention}', outImg)
+            sys.stdout.write(f'\r writing: {outInitial}{(i//NInt):0{digit}d}{extention}')
+            sys.stdout.flush()
 if  __name__ == '__main__':
     
     import sys
