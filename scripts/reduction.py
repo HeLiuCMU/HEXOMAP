@@ -1,6 +1,7 @@
 #!python
 import sys
-sys.path.insert(0, '/home/heliu/work/dev/v0.2/HEXOMAP')
+sys.path.insert(0, '..')
+import hexomap
 from hexomap import reduction
 import numpy as np
 from mpi4py import MPI
