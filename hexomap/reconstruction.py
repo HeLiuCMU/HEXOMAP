@@ -34,6 +34,7 @@ import importlib
 from weakref import WeakValueDictionary
 import h5py
 from hexomap.utility import print_h5
+from hexomap import MicFileTool
 #global ctx
 #ctx = None
 #cuda.init()
@@ -552,6 +553,83 @@ class Reconstructor_GPU():
         #print(p)
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
 
+    def auto_twiddle(self, finishThreshold,recon=False, fileInitial=None, initialCnt=0, maxIteration=10,NVoxel=100, visualize=True):
+        '''
+        automatic conduct twiddle refined, but may need human interupt to terminate and select the best one.
+        process terminates if maxhitratio> finishThreshold or iteration>maxIteration.
+        example usage: 
+            # recon first layer
+            c = config.Config().load('/home/heliu/work/krause_jul19/recon/s1350_100_1/s1350_100_1_conf.yml')
+            reconstroctor_c = config.Config().load('/home/heliu/work/krause_jul19/recon/reconstructor_config_krause_jul19.yml')
+            S.load_reconstructor_config(reconstroctor_c)
+            c.micsize = [20,20]
+            c.micVoxelSize = 0.002
+            for layer in [0]:
+                c.fileBinLayerIdx = layer
+                print(c)
+                S.load_config(c,reloadData=True)
+                S.serial_recon_multi_stage()
+                MicFileTool.plot_mic_and_conf(S.squareMicData, 0.2)
+            S.auto_twiddle(0.7)
+        : finishThreshold: 
+            if average of top NVoxel confidence above this value, search will terminate.
+        : recon:
+            if true, do recon at beginning, false: wound not do recon at beginning
+        : initialCnt:
+            start of file index
+        : maxIteration:
+            if iteration > maxIteration, process will also terminate.
+        : NVoxel:
+            number of voxel used, large number will reduce speed.
+        '''
+        c = self.config
+        if recon:
+            ############ reconstruct and see result ############
+            #self.load_config(c,reloadData=True)
+            self.serial_recon_multi_stage()
+
+            ################ visualize result ##################
+            if visualize:
+                MicFileTool.plot_mic_and_conf(self.squareMicData, 0.2)
+            print(c.detL, c.detJ, c.detK, c.detRot)
+        cnt = initialCnt
+        finish = False
+        while not finish:
+            squareMic = self.squareMicData
+            maskFinal = np.zeros(c.micsize)
+            threshold = 0.95
+            while np.sum(squareMic[:,:,6].ravel()>threshold) < NVoxel:
+                threshold -= 0.02
+            print(f'cnt: {cnt}, current threhold is {threshold}')
+            maskFinal[squareMic[:,:,6]>threshold] = 1
+            x,y = np.where(maskFinal==1)
+            aIdxVoxel = x * maskFinal.shape[0] + y
+
+            aIdxVoxel = np.random.choice(aIdxVoxel,NVoxel)
+            start = time.time()
+            c.detL, c.detJ, c.detK, c.detRot = self.twiddle_refine(aIdxVoxel,c.detL, c.detJ, c.detK, c.detRot)
+            end = time.time()
+            print(f'twiddle takes: {end- start} seconds')
+
+
+            ############ reconstruct and see result ############
+            self.load_config(c,reloadData=False)
+            self.serial_recon_multi_stage()
+
+            ################ visualize result ##################
+            if visualize:
+                MicFileTool.plot_mic_and_conf(self.squareMicData, threshold)
+            print(c.detL, c.detJ, c.detK, c.detRot)
+            if fileInitial is None:
+                fileInitial = c._initialString
+            costs = self.squareMicData[:,:,6].ravel()
+            maxAvg = costs[costs.argsort()[-NVoxel:]].mean()
+            fName = f'{fileInitial}_z{c.fileBinLayerIdx}_twiddle_{cnt}_{maxAvg:.03f}.yml'
+            c.save(fName)
+            print(fName)
+            cnt += 1
+            if maxAvg > finishThreshold:
+                finish = True
     def __get_neighbour_orien(self, lIdxVoxel, accMat, size=3):
         '''
         get the orientations of the neighbours of a voxel
