@@ -74,7 +74,7 @@ def npy2h5(lFName, h5Name, material,lLayerIdx, q=11):
     print('=== saved format:')
     h5print(h5Name)
 
-def npy_2_tiffstack(lNpyFile,stack_initial,minHitRatio=0.6):
+def npy_2_tiffstack(lNpyFile,stack_initial,minHitRatio=0.6, startIdx=0):
     '''
     npy into tiff format.
     example usage: 
@@ -103,7 +103,7 @@ def npy_2_tiffstack(lNpyFile,stack_initial,minHitRatio=0.6):
         hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
         img = ((rods + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask * 255
         img = np.swapaxes(img,0,1).astype(np.int8)
-        save_path = f'{stack_initial}_{ii}.TIFF'
+        save_path = f'{stack_initial}_{ii+startIdx}.TIFF'
         print(save_path)
         tifffile.imwrite(save_path, img)
 
@@ -111,7 +111,8 @@ def npy_2_ang(lNpyFile = ['/home/heliu/work/krause_jul19/recon/s1400poly1/s1400p
          '/home/heliu/work/krause_jul19/recon/s1400poly1/s1400poly1_q9_rot180_z1_500x500_0.002_shift_0.0_0.0_0.0.npy',
          '/home/heliu/work/krause_jul19/recon/s1400poly1/s1400poly1_q9_rot180_z2_500x500_0.002_shift_0.0_0.0_0.0.npy',],
             stack_initial = 'angstack/test',
-            sample='Sample'
+            sample='Sample',
+            startIdx=0
              ):
     '''
     npy into ang format.
@@ -123,6 +124,7 @@ def npy_2_ang(lNpyFile = ['/home/heliu/work/krause_jul19/recon/s1400poly1/s1400p
     :params: lNpyFile:
     :params: stack_initials:
     :params: sample: sample name, string.
+    :params: startIdx: output starting index.
     '''
     # check output folder:
     outputDirectory = os.path.dirname(stack_initial)
@@ -169,7 +171,7 @@ def npy_2_ang(lNpyFile = ['/home/heliu/work/krause_jul19/recon/s1400poly1/s1400p
     for ii in range(len(lNpyFile)):
         sys.stdout.write(f'\r processing: {ii}')
         sys.stdout.flush()
-        ANG=f'{stack_initial}_z{ii}.ang' #output
+        ANG=f'{stack_initial}_z{ii+startIdx}.ang' #output
 
         a=np.load(lNpyFile[ii])
         b=a.reshape((-1,10),order='C')
