@@ -268,8 +268,8 @@ def integrate_tiff(tiffInitial, startIdx, digit, extention, NImage, NInt,outInit
         if len(lTiff) == NInt:
             outImg = np.sum(np.array(lTiff),axis=0).astype(np.int32)
             #print(outImg.shape)
-            tifffile.imwrite(f'{outInitial}{(i//NInt):0{digit}d}{extention}', outImg)
-            sys.stdout.write(f'\r writing: {outInitial}{(i//NInt):0{digit}d}{extention}')
+            tifffile.imwrite(f'{outInitial}{(i//NInt+outStartIdx):0{digit}d}{extention}', outImg)
+            sys.stdout.write(f'\r writing: {outInitial}{(i//NInt+outStartIdx):0{digit}d}{extention}')
             sys.stdout.flush()
 if  __name__ == '__main__':
     
