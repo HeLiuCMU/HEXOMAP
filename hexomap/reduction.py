@@ -4,6 +4,7 @@ import scipy.ndimage as ndi
 import glob
 import time
 from numba import jit
+import tifffile
 def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048],logfile=None):
     '''
     take median over omega as background
@@ -36,7 +37,7 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
                 if logfile is not None:
                     logfile.write(f'layer: {layerIdx[layer]}, det: {det}, rot: {rot}, {fName} \n')
                 try:
-                    imgStack[:,:,rot] = plt.imread(fName)
+                    imgStack[:,:,rot] = tifffile.imread(fName)
                     print('img loaded')
                 except FileNotFoundError:
                     print(f'FILE NOT FOUND!!! {fName}')
@@ -143,9 +144,9 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
                 lIDOut.extend(lIDTmp)
     return lXOut, lYOut, lIDOut, lIntensityOut
 
-def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=2):
+def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=3):
     '''
-    
+    return x,y,intensity,id
     '''
     #start = time.time()
     imgSub = img- bkg
@@ -163,9 +164,9 @@ def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=2):
     return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lIntensity).astype(np.int32), np.array(lID).astype(np.int32)
 
 
-def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=2):
+def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=3):
     '''
-    
+    return x,y,intensity,id
     '''
     start = time.time()
     imgSub = img- bkg
@@ -229,7 +230,7 @@ def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer
             for rot in range(NRot):
                 idx = layer * NDet * NRot + det * NRot + rot + startIdx
                 fName = f'{initial}{str(idx).zfill(digitLength)}{end}'
-                img = plt.imread(fName)
+                img = tifffile.imread(fName)
                 binFileName = f'{binInitial}z{idxLayer[layer]}_{rot.zfill(digitLength)}.bin{det}'
                 print(binFileName)
                 snp = segmentation(img, bkg, baseline=baseline, minNPixel=minNPixel)
@@ -250,7 +251,7 @@ if  __name__ == '__main__':
     end = '.tif'
     initial = '/home/heliu/work/shahani_feb19_part/nf_part/dummy_2_rt_before_heat_nf/dummy_2_rt_before_heat_nf_'
     fName = f'{initial}{startIdx:06d}{end}'
-    img = plt.imread(fName)
+    img = tifffile.imread(fName)
     bkg = np.load('test_output_bkg_z0_det_0.npy')
     lX, lY, lIntensity, lID = segmentation(img, bkg)
     lX, lY, lIntensity, lID = segmentation_numba(img, bkg)

@@ -14,6 +14,7 @@ from hexomap import mpi_log
 from hexomap import config
 import os
 import argparse
+import tifffile
 atexit.register(MPI.Finalize)
 comm = MPI.COMM_WORLD
 size = comm.Get_size()
@@ -42,6 +43,7 @@ Default_Config={
     'generateBin': True,
     'baseline': 10,
     'minNPixel': 4,
+    'medianSize': 3,
 }
 ######################################################################################
 parser = argparse.ArgumentParser(description='hedm reduction')
@@ -81,6 +83,7 @@ generateBkg = c.generateBkg
 generateBin = c.generateBin 
 baseline = c.baseline 
 minNPixel = c.minNPixel 
+medianSize = c.medianSize
 
 
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
@@ -145,14 +148,14 @@ for layer in range(NLayer):
             sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.flush()
             try:
-                img = plt.imread(fName)
+                img = tifffile.imread(fName)
             except FileNotFoundError:
                 print('file not found')
                 img = np.zeros([2048,2048])
                 logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
-            #img = plt.imread(fName)
+            #img = tifffile.imread(fName)
             binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
-            snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel)
+            snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
             IntBin.WritePeakBinaryFile(snp, binFileName) 
     comm.Barrier()
 
