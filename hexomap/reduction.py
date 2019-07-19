@@ -56,13 +56,14 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
                 logfile.write(f'complete median filter \n')
             try:
                 np.save(f'{outInitial}_z{layerIdx[layer]}_det_{det}.npy', bkg)
-                print(f'saved bkg as {outInitial}_z{layer}_det_{det}.npy \n')
+                tifffile.imwrite(f'{outInitial}_z{layerIdx[layer]}_det_{det}.tiff', bkg.astype(np.int32))
+                print(f'saved bkg as {outInitial}_z{layer}_det_{det}.tiff/npy \n')
                 if logfile is not None:
-                    logfile.write(f'saved bkg as {outInitial}_z{layerIdx[layer]}_det_{det}.npy \n')
+                    logfile.write(f'saved bkg as {outInitial}_z{layerIdx[layer]}_det_{det}.tiff/npy \n')
             except:
-                print(f'FAIL SAVING as {outInitial}_z{layer}_det_{det}.npy \n')
+                print(f'FAIL SAVING as {outInitial}_z{layer}_det_{det}.tiff/npy \n')
                 if logfile is not None:
-                    logfile.write(f'FAIL SAVING as {outInitial}_z{layerIdx[layer]}_det_{det}.npy \n')
+                    logfile.write(f'FAIL SAVING as {outInitial}_z{layerIdx[layer]}_det_{det}.tiff/npy \n')
                     
             lBkg.append(bkg)
     end = time.time()
