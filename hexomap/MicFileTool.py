@@ -304,6 +304,20 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     
+def plot_binary_snp(snp):
+    '''
+    plot snp, ouput from segmenation_numba
+    : snp:
+        output from segmenation_numba, it is same as load from I9 binary file
+        tuple of 4, (x_array, y_array, intensity_array, id_array)
+    '''
+    b = snp
+    plt.plot(2047-b[0],2047-b[1],'b.')
+    plt.axis('scaled')
+    plt.xlim((0,2048))
+    plt.ylim((0,2048))
+    plt.show()
+
 def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
     '''
     visualize binary files, first column is single frame, second column is integrated frames
