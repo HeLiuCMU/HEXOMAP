@@ -81,7 +81,7 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
     '''
     lXOut = [0]
     lYOut = [0]
-    lIDOut = [-1] # make sure there will be output.
+    lIDOut = [0] # make sure there will be output.
     lIntensityOut = [0]
     lXTmp = []
     lYTmp = []
