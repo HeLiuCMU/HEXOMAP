@@ -7,7 +7,7 @@ from numba import jit
 import tifffile
 import os
 import sys
-
+import cv2
 
 def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048],logfile=None):
     '''
@@ -131,6 +131,7 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
         start = lIdxStart[2*i]
         end = lIdxStart[2*i + 1]
         vMax = np.max(np.array(lSubMedTmp[start:end]))
+        #print(vMax)
         if vMax > baseline:
             lXX = []
             lYY = []
@@ -159,8 +160,12 @@ def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=3):
     imgBase = imgSubMed - baseline
     imgBase[imgBase<0] = 0
     imgBaseMedian = ndi.median_filter(imgBase, size=medianSize)
-    log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
-    label,N = ndi.label(log<0)
+    imgBaseMedian = imgBaseMedian.astype(np.uint16)
+    gaussian = cv2.GaussianBlur(imgBaseMedian,ksize=(0,0),sigmaX=1.5,sigmaY=1.5,borderType=0)
+    log = cv2.Laplacian(gaussian,cv2.CV_64F)
+    #log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
+    fillHole = ndi.binary_fill_holes(log<0)
+    label,N = ndi.label(fillHole)
     label = ndi.grey_dilation(label,size=(3,3))
     #start = time.time()
     lX, lY, lID, lIntensity = extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline)
@@ -181,7 +186,7 @@ def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=3):
     imgBaseMedian = ndi.median_filter(imgBase, size=medianSize)
     log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
     label,N = ndi.label(log<0)
-    label = ndi.grey_dilation(label,size=(3,3))
+    label = ndi.grey_dilation(label,size=(9,9))
     lX = []
     lY = []
     lID = []
