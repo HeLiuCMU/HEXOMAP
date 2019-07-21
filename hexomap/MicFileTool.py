@@ -307,6 +307,23 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
 def plot_binary_snp(snp):
     '''
     plot snp, ouput from segmenation_numba
+    example usage:
+        import tifffile
+        import scipy.ndimage as ndi
+        from hexomap import reduction
+        plt.rcParams["figure.figsize"] = (10,10)
+
+        layer = 1
+        rot = 1
+        det = 0
+        idx = layer * 360 + det * 180 + rot
+
+        img = tifffile.imread(f'/media/heliu/Seagate Backup Plus Drive/krause_jul19/nf/s1350_110_1_nf/s1350_110_1_nf_int4_{idx:06d}.tif')
+        bkg = tifffile.imread(f'/home/heliu/work/krause_jul19/s1350_110_1/Reduced/s1350_110_1_from_int_tiff_baseline5_bkg_z{layer}_det_{det}.tiff')
+
+        snp = reduction.segmentation_numba(img, bkg)
+        print(snp)
+        MicFileTool.plot_binary_snp(snp)
     : snp:
         output from segmenation_numba, it is same as load from I9 binary file
         tuple of 4, (x_array, y_array, intensity_array, id_array)
