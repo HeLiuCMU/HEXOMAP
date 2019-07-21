@@ -342,12 +342,38 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
     plt.show()
 
 def plot_binary_with_tiff(fBin, img):
-    b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{idxDet}'.format(int(idxRotSingleFrame),idxDet))
-    ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
-    ax[0,idxDet].axis('scaled')
-    ax[0,idxDet].set_xlim((0,2048))
-    ax[0,idxDet].set_ylim((0,2048))
-    ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRotSingleFrame}')
+    '''
+    plot binary file together with raw image.
+    example usage:
+        # overlay binary and tiff
+        import tifffile
+        import matplotlib.pyplot as plt
+        from hexomap import MicFileTool
+        import os
+        plt.rcParams["figure.figsize"] = (10,10)
+        layer = 0
+        rot = 0
+        det = 0
+        idx = layer * 360 + det * 180 + rot
+
+        tiff = tifffile.imread(f'/media/heliu/Seagate Backup Plus Drive/krause_jul19/nf/s1350_110_1_nf/s1350_110_1_nf_int4_{idx:06d}.tif')
+        bkg = tifffile.imread(f'/home/heliu/work/krause_jul19/s1350_110_1/Reduced/s1350_110_1_from_int_tiff_baseline5_bkg_z{layer}_det_{det}.tiff')
+
+        sub = tiff-bkg
+        sub = ndi.median_filter(sub, size=3)
+
+        fBin = f'/home/heliu/work/krause_jul19/s1350_110_1_nf_reduced/s1350_110_1_nf_int4_z{layer}_{rot:06d}.bin{det}'
+        MicFileTool.plot_binary_with_tiff(fBin, sub>3)
+    '''
+    b=IntBin.ReadI9BinaryFiles(fBin)
+    plt.imshow(img[::-1,:]) #,origin='lower')
+    print(f'shape of b[0]: {b[0].shape}')
+    plt.scatter(2047-b[0],2047-b[1],s=0.1,alpha=0.5)
+    plt.axis('scaled')
+    plt.xlim((0,2048))
+    plt.ylim((0,2048))
+    plt.title(f'bin: {os.path.basename(fBin)}')
+    plt.show()
 def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None,figSizeX=10,figSizeY=10):
     '''
     plot the square mic data
