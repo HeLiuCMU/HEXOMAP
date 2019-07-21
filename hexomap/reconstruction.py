@@ -2088,15 +2088,26 @@ class Reconstructor_GPU():
         self.additionalFZ = eulers
         self.serial_recon_multi_stage()
 
-    def get_misorien_map(self,m0):
+    def get_misorien_map(self,m0=None):
         '''
         map the misorienation map
         e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
         but it will still return 100x100, filling 0 to the last row/column
         the misorientatino on that voxel is the max misorientation to its right or up side voxel
+        example usage:
+
+            help(S.get_misorien_map)
+            misOrienMap = S.get_misorien_map()
+            plt.imshow(misOrienMap*(S.squareMicData[:,:,6]>0.7), vmin=0,vmax=0.01)
+            plt.colorbar()
+            plt.show()
+            print(np.max(misOrienMap*(S.squareMicData[:,:,6]>0.7)).ravel())
+            
         :param m0: rotation matrix size=[nx,ny,9]
-        :return:
+        :return: misOrientation map in radian.
         '''
+        if m0 is None:
+            m0 = self.accMat
         if m0.ndim!=3:
             raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
         NVoxelX = m0.shape[0]
