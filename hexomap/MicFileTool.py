@@ -340,6 +340,14 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
         ax[1,idxDet].set_title(f'integrated frame layer:{idxLayer}, det:{idxDet}')
 
     plt.show()
+
+def plot_binary_with_tiff(fBin, img):
+    b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{idxDet}'.format(int(idxRotSingleFrame),idxDet))
+    ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
+    ax[0,idxDet].axis('scaled')
+    ax[0,idxDet].set_xlim((0,2048))
+    ax[0,idxDet].set_ylim((0,2048))
+    ax[0,idxDet].set_title(f'single frame layer:{idxLayer}, det:{idxDet}, rot:{idxRotSingleFrame}')
 def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None,figSizeX=10,figSizeY=10):
     '''
     plot the square mic data
