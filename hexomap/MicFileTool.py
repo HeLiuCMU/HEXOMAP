@@ -16,6 +16,7 @@ import sys
 from hexomap.orientation import Quaternion
 from hexomap.orientation import Eulers
 from hexomap.orientation import Rodrigues
+import os
 #import bokeh
 
 def dist_to_line(point,line):
@@ -341,16 +342,20 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
 
     plt.show()
 
-def plot_binary_with_tiff(fBin, img):
+def plot_binary_with_tiff(fBin, img,alpha=0.5):
     '''
     plot binary file together with raw image.
     example usage:
         # overlay binary and tiff
         import tifffile
         import matplotlib.pyplot as plt
+        import matplotlib
+        %matplotlib notebook
         from hexomap import MicFileTool
+        import scipy.ndimage as ndi
         import os
         plt.rcParams["figure.figsize"] = (10,10)
+
         layer = 0
         rot = 0
         det = 0
@@ -364,11 +369,13 @@ def plot_binary_with_tiff(fBin, img):
 
         fBin = f'/home/heliu/work/krause_jul19/s1350_110_1_nf_reduced/s1350_110_1_nf_int4_z{layer}_{rot:06d}.bin{det}'
         MicFileTool.plot_binary_with_tiff(fBin, sub>3)
+    : alpha:
+        transparency of binary, (0,1), 0: total transparent. 1: not transparent.
     '''
     b=IntBin.ReadI9BinaryFiles(fBin)
     plt.imshow(img[::-1,:]) #,origin='lower')
     print(f'shape of b[0]: {b[0].shape}')
-    plt.scatter(2047-b[0],2047-b[1],s=0.1,alpha=0.5)
+    plt.scatter(2047-b[0],2047-b[1],s=0.1,alpha=alpha)
     plt.axis('scaled')
     plt.xlim((0,2048))
     plt.ylim((0,2048))
