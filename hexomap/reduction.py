@@ -74,18 +74,21 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
 @jit(nopython=True,parallel=True)
 def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
     '''
+    extract peaks out,
+    : N:
+        N is not used anymore, since label will be dilated and N will change.
     0.0079seconds
     '''
-    lXOut = []
-    lYOut = []
-    lIDOut = []
-    lIntensityOut = []
+    lXOut = [0]
+    lYOut = [0]
+    lIDOut = [-1] # make sure there will be output.
+    lIntensityOut = [0]
     lXTmp = []
     lYTmp = []
     lIDTmp = []
     lSubMedTmp = []
     lSubTmp = []
-    lIdxStart = []
+    lIdxStart = [] # (begin,end,begin,end...), index of lists belongs to different label value.
     visited = label==0
     lXOut.append(1)
     lYOut.append(1)
@@ -96,6 +99,7 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
     idx = 0
     for x in range(label.shape[0]):
         for y in range(label.shape[1]):
+            # flood fill 
             if not visited[x,y]:
                 lXTmp.append(x)
                 lYTmp.append(y)
@@ -125,9 +129,9 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
                     queX.pop(0)
                     queY.pop(0)
                 lIdxStart.append(idx)
-    #print(len(lIdxStart), N)
+    #print(len(lIdxStart), N) # todo: why they can mismatch????
     
-    for i in range(N):
+    for i in range(int(len(lIdxStart)/2)):
         start = lIdxStart[2*i]
         end = lIdxStart[2*i + 1]
         vMax = np.max(np.array(lSubMedTmp[start:end]))
@@ -138,7 +142,7 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
             lVV = []
             lIDTmp = []
             for j in range(start, end):
-                if lSubTmp[j]>(max(vMax*0.1,1)):
+                if lSubTmp[j]>(max(vMax*0.1,1)): # if subtraction image above 10% of max intensity, take it as part of the peak.
                     lXX.append(lXTmp[j])
                     lYY.append(lYTmp[j])
                     lVV.append(lSubTmp[j])
@@ -148,6 +152,8 @@ def extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline):
                 lYOut.extend(lYY)
                 lIntensityOut.extend(lVV)
                 lIDOut.extend(lIDTmp)
+    #print('..')
+    #print(lXOut, lYOut, lIDOut, lIntensityOut)
     return lXOut, lYOut, lIDOut, lIntensityOut
 
 def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=3):
