@@ -71,7 +71,7 @@ if (isinstance(c.idxLayer, str) and c.idxLayer =='None') or c.idxLayer is None:
 else:
     idxLayer  = c.idxLayer 
   # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
-if (isinstanc(c.aIdxImg, str) and c.aIdxImg =='None') or c.aIdxImg is None:
+if (isinstance(c.aIdxImg, str) and c.aIdxImg =='None') or c.aIdxImg is None:
     aIdxImg = None
 else:
     aIdxImg = c.aIdxImg  # must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
