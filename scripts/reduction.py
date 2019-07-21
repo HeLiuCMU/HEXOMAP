@@ -66,12 +66,12 @@ startIdx =c.startIdx
 NRot = c.NRot
 NDet = c.NDet
 NLayer = c.NLayer
-if c.idxLayer =='None' or c.idxLayer is None:
+if (isinstance(c.idxLayer, str) and c.idxLayer =='None') or c.idxLayer is None:
     idxLayer = np.arange(NLayer)
 else:
     idxLayer  = c.idxLayer 
   # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
-if c.aIdxImg =='None' or c.aIdxImg is None:
+if (isinstanc(c.aIdxImg, str) and c.aIdxImg =='None') or c.aIdxImg is None:
     aIdxImg = None
 else:
     aIdxImg = c.aIdxImg  # must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
@@ -133,8 +133,10 @@ for layer in range(NLayer):
 
     else:
         lBkg = []
+        logfile.write(f'loading bkg, rank{rank}...')
         for det in range(NDet):
             lBkg.append(np.load(f'{bkgInitial}_z{layer}_det_{det}.npy'))
+        logfile.write(f'end loading bkg, rank{rank}')
     comm.Barrier()
     if rank==0:
         logfile.write('end generating bkg \n')
@@ -157,7 +159,8 @@ for layer in range(NLayer):
             #img = tifffile.imread(fName)
             binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
-            IntBin.WritePeakBinaryFile(snp, binFileName) 
+            IntBin.WritePeakBinaryFile(snp, binFileName)
+        logfile.write(f'rank {rank}: finish segmentation') 
     comm.Barrier()
 
     if rank==0:
