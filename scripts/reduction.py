@@ -109,7 +109,7 @@ for layer in range(NLayer):
         assert aIdxImg.shape == (NLayer, NDet, NRot)
         lIdxImg = aIdxImg[layer,:,:].ravel()
     
-    lIdxLayer = np.array([layer]).repeat(NDet * NRot)
+    lIdxLayer = np.array([idxLayer[layer]]).repeat(NDet * NRot)
     lIdxDet = np.arange(NDet).repeat(NRot)
     lIdxRot = np.tile(np.arange(NRot), NDet)
     lBkgIdx = np.arange(NDet).repeat(NRot)
@@ -126,7 +126,7 @@ for layer in range(NLayer):
         start =  time.time()
     if generateBkg:
         if rank==0:
-            lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[layer], end=extention,logfile=logfile)
+            lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[idxLayer[layer]], end=extention,logfile=logfile)
         else:
             lBkg = None
         lBkg = comm.bcast(lBkg, root=0)
@@ -135,7 +135,7 @@ for layer in range(NLayer):
         lBkg = []
         logfile.write(f'loading bkg, rank{rank}...')
         for det in range(NDet):
-            lBkg.append(np.load(f'{bkgInitial}_z{layer}_det_{det}.npy'))
+            lBkg.append(np.load(f'{bkgInitial}_z{idxLayer[layer]}_det_{det}.npy'))
         logfile.write(f'end loading bkg, rank{rank}')
     comm.Barrier()
     if rank==0:
@@ -147,17 +147,17 @@ for layer in range(NLayer):
         for i in range(NPerCore):
             bkg = lBkg[lBkgIdx[i]]
             fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
-            logfile.write(f"generate binary: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
-            sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            logfile.write(f"generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.flush()
             try:
                 img = tifffile.imread(fName)
             except FileNotFoundError:
                 print('file not found')
                 img = np.zeros([2048,2048])
-                logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {idxLayer[layer]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
+                logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
             #img = tifffile.imread(fName)
-            binFileName = f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+            binFileName = f'{binInitial}z{lIdxLayer[i]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
             IntBin.WritePeakBinaryFile(snp, binFileName)
         logfile.write(f'rank {rank}: finish segmentation') 
