@@ -33,7 +33,7 @@ Default_Config={
     'NRot': 360,
     'NDet': 5,
     'NLayer': 1,
-    'idxLayer': [3] ,# binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+    'idxLayer': 3,# if is int, serve as start index. //binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
     'aIdxImg': None ,# must be 3d array [i][j][k] is the ith layer, jth detector, kth rotation
     'extention': '.tif',
     'initial': f'/home/heliu/work/Au_calibrate/Raw/Integrated-fullRotation/Au_volume2_NSUM10_bsf_fullrotation_',
@@ -66,11 +66,18 @@ startIdx =c.startIdx
 NRot = c.NRot
 NDet = c.NDet
 NLayer = c.NLayer
+#print(type(c.idxLayer))
 if (isinstance(c.idxLayer, str) and c.idxLayer =='None') or c.idxLayer is None:
     idxLayer = np.arange(NLayer)
-else:
+elif isinstance(c.idxLayer, np.ndarray):
     idxLayer  = c.idxLayer 
+elif isinstance(c.idxLayer, int):
+    #print('loading as inteter')
+    idxLayer = c.idxLayer + np.arange(NLayer)
   # binary name is f'{binInitial}z{idxLayer[lIdxLayer[i]]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+else:
+    raise ValueError(f'unknown input type of c.idxLayer {c.idxLayer}')
+print(f'idxLayer: {idxLayer}')
 if (isinstance(c.aIdxImg, str) and c.aIdxImg =='None') or c.aIdxImg is None:
     aIdxImg = None
 else:
@@ -161,6 +168,7 @@ for layer in range(NLayer):
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
             IntBin.WritePeakBinaryFile(snp, binFileName)
         logfile.write(f'rank {rank}: finish segmentation') 
+    del lBkg
     comm.Barrier()
 
     if rank==0:
