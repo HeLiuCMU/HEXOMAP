@@ -172,6 +172,11 @@ class Reconstructor_GPU():
                 self.gpuID = int(gpuID) 
             else:
                 self.gpuID = int(0)
+            NGPU = cuda.Device.count()
+            if self.gpuID>=NGPU:
+                print(f'Warning:: gpuID is {self.gpuID}, but you only have {NGPU} GPUs!!!!')
+                print(f'Reasign to gpu 0!!!')
+                self.gpuID = int(0)
             self.cudadevice = cuda.Device(self.gpuID)
             self.ctx = self.cudadevice.make_context()
             #self.ctx.push()
@@ -485,14 +490,17 @@ class Reconstructor_GPU():
         return 1.0 - maxHitRatio, rot
 
     def twiddle_refine(self, idxVoxel, centerL, centerJ, centerK, centerRot,
-                       rangeL=None, rangeJ=None, rangeK=None):
+                       rangeL=None, rangeJ=None, rangeK=None,optimizeDL=False,rangeDL=None):
         '''
         phase2: refine the geometry with voxels at grain boundaries., wribble search
+        currenly because optimize dL is added later, so code could be a little hard to read.
         :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
         :param NIterationPhase2: number of iteratio
         :param rangeL: mm
         :param rangeJ: pixel
         :param rangeK: pixel
+        :param optimizeDL: bool, if true, relative L position will also be optimized.
+        :param rangeDL: range of relative L, d(L1-L0)
         :param factor0: search box shrick by factor0 during each search
         :return:
         todo@hel1 clean up backup
@@ -505,55 +513,95 @@ class Reconstructor_GPU():
             rangeJ = 5 * self.detScale #pixel
         if rangeK is None:
             rangeK = 2 * self.detScale #pixel
+        if rangeDL is None:
+            rangeDL = 1  #mm
+        if not optimizeDL:
+            rangeDL = 0  # avoid calculade sum_dp is wrong
         p = [centerL, centerJ[0,0].reshape([1,1]), centerJ[0,1].reshape([1,1]), 
                       centerK[0,0].reshape([1,1]), centerK[0,1].reshape([1,1])]
-        dp = [rangeL, rangeJ, rangeJ, rangeK, rangeK]
-        factor = [1.0, self.pixelJ[0], self.pixelJ[1],self.pixelK[0], self.pixelK[1]]
+        dp = [rangeL, rangeJ, rangeJ, rangeK, rangeK,rangeDL] # one extra term compared to p is dL.
+        # factor will covert pixel value into mm, to make sure each dimension has the same metric.
+        factor = [1.0, self.pixelJ[0], self.pixelJ[1],self.pixelK[0], self.pixelK[1], 1.0] 
         dp = np.array(dp) * np.array(factor)
         # Calculate the error
         best_err, centerRot = self.twiddle_loss(idxVoxel, centerL, centerJ, centerK, centerRot)###
-        #print(dp)
-        #print(dp/np.array(factor))
-        threshold = 0.002
+        threshold = 0.0026
         improve = True
+        #print(f'p[0].shape is {p[0].shape}')
         while sum(dp) > threshold and dp[0]>0.0005:
-            i = np.random.choice(range(len(p)))
+            #print(dp)
+            i = np.random.choice(range(len(p)+1))  # randomly choose a parameter to optimize.
+            # lower limit of change is 0.5um, should be the sensitivity of parameter.
             if dp[i]<0.0005:
                 dp[i] = 0.0005
             # if nothing improved and already in small range, no need to compute anything. save some time.
             if dp[i]==0.0005 and not improve:
                 continue
-            p[i] += dp[i]/factor[i]
-            err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
-            if err < best_err:  # There was some improvement
-                best_err = err
-                centerRot = rotTmp
-                dp[i] *= 1.1
-                improve = True
-                #print(dp)
-                print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
-            else:  # There was no improvement
-                p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
-                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
+            # optimize relative L:
+            if i==len(p):    # optimize relative L
+                if not optimizeDL:
+                    continue
+                else:
+                    p[0][0, 1] += dp[i]  
+                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
+                    if err < best_err:  # There was some improvement
+                        best_err = err
+                        centerRot = rotTmp
+                        dp[i] *= 1.1
+                        improve = True
+                        #print(dp)
+                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
+                    else:  # There was no improvement
+                        p[0][0, 1] -= 2 * dp[i]/factor[i]  # Go into the other direction
+                        err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
 
-                if err < best_err:  # There was an improvement
+                        if err < best_err:  # There was an improvement
+                            best_err = err
+                            centerRot = rotTmp
+                            dp[i] *= 1.1 # was 1.1
+                            improve = True
+                            #print(dp)
+                            print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
+                        else:  # There was no improvement
+                            p[0][0, 1] += dp[i]/factor[i]
+                            improve = False
+                            # As there was no improvement, the step size in either
+                            # direction, the step size might simply be too big.
+                            dp[i] *= 0.9  # was 0.95
+            # optimize everything else:
+            else:                             # optimize everything else.
+                p[i] += dp[i]/factor[i]
+                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
+                if err < best_err:  # There was some improvement
                     best_err = err
                     centerRot = rotTmp
-                    dp[i] *= 1.1 # was 1.1
+                    dp[i] *= 1.1
                     improve = True
                     #print(dp)
-                    print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
+                    print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
                 else:  # There was no improvement
-                    p[i] += dp[i]/factor[i]
-                    improve = False
-                    # As there was no improvement, the step size in either
-                    # direction, the step size might simply be too big.
-                    dp[i] *= 0.9  # was 0.95
-            #sys.stdout.flush()
+                    p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
+                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
+
+                    if err < best_err:  # There was an improvement
+                        best_err = err
+                        centerRot = rotTmp
+                        dp[i] *= 1.1 # was 1.1
+                        improve = True
+                        #print(dp)
+                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
+                    else:  # There was no improvement
+                        p[i] += dp[i]/factor[i]
+                        improve = False
+                        # As there was no improvement, the step size in either
+                        # direction, the step size might simply be too big.
+                        dp[i] *= 0.9  # was 0.95
+                #sys.stdout.flush()
         #print(p)
+        print(f'\r dp: {dp}')
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
 
-    def auto_twiddle(self, finishThreshold,recon=False, fileInitial=None, initialCnt=0, maxIteration=10,NVoxel=100, visualize=True):
+    def auto_twiddle(self, finishThreshold,recon=False, fileInitial=None, initialCnt=0, maxIteration=10,NVoxel=100, visualize=True,optimizeDL=False):
         '''
         automatic conduct twiddle refined, but may need human interupt to terminate and select the best one.
         process terminates if maxhitratio> finishThreshold or iteration>maxIteration.
@@ -607,7 +655,7 @@ class Reconstructor_GPU():
 
             aIdxVoxel = np.random.choice(aIdxVoxel,NVoxel)
             start = time.time()
-            c.detL, c.detJ, c.detK, c.detRot = self.twiddle_refine(aIdxVoxel,c.detL, c.detJ, c.detK, c.detRot)
+            c.detL, c.detJ, c.detK, c.detRot = self.twiddle_refine(aIdxVoxel,c.detL, c.detJ, c.detK, c.detRot,optimizeDL=optimizeDL)
             end = time.time()
             print(f'twiddle takes: {end- start} seconds')
 
@@ -1708,6 +1756,8 @@ class Reconstructor_GPU():
         '''
         # print('====================== entering flood fill ===================================')
         # select voxels for filling
+        sys.stdout.write('\r flood filling ...')
+        sys.stdout.flush()
         lFloodFillIdx = list(
             np.where(np.logical_and(self.voxelHitRatio < self.floodFillSelectThreshold, self.voxelMask == 1))[0])
         if not lFloodFillIdx:
@@ -2102,7 +2152,7 @@ class Reconstructor_GPU():
             plt.colorbar()
             plt.show()
             print(np.max(misOrienMap*(S.squareMicData[:,:,6]>0.7)).ravel())
-            
+
         :param m0: rotation matrix size=[nx,ny,9]
         :return: misOrientation map in radian.
         '''
