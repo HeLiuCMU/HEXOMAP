@@ -364,7 +364,14 @@ class GeImage():
     def create_tiff_files(self, **kwargs):
         '''
         Create .tiff files from .ge data
-        
+        example usage:
+
+            ge = ge_file.GeImage()
+            ge.create_tiff_files(input_path='/media/heliu/suter_feb19/suter_feb19/ge5/Au2_ff_linescan_000085.ge5',
+                                 output_path='Au2_ff_linescan_000085_tiff_stack/',
+                                 sample_name='Au2_ff_linescan_000085',
+                                 stack_images=False)
+
         input_path :: string specifying location of desired .ge file
         output_path :: string specifying where to place the .tiff files (in form of /folder1/folder2/)
         sample_name :: string specifying the name of sample to be saved   

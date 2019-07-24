@@ -18,19 +18,22 @@ ImagePar={'nDetectors':2,
         }
 
 
-def IntegrateBinFiles(oPar,outputprefix):
+def IntegrateBinFiles(oPar,outputprefix,verbose=0):
     """
     Note: only can integrate to one degree
     """
     nDegrees=oPar['fOmegaStop']-oPar['fOmegaStart']
     for k in range(oPar['nDetectors']):
         indx=oPar['nBinFileIndexStart']
-        remap_indx=indx
+        remap_indx = 0
         for i in range(nDegrees):
             integ=[[],[],[],[]]
             for j in range(oPar['nReductionNSUM']):
-                sys.stdout.write('\r Reading:'+oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
-                sys.stdout.flush()
+                if verbose==1:
+                    print('\r Reading:'+oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
+                elif verbose==0:
+                    sys.stdout.write('\r Reading:'+oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
+                    sys.stdout.flush()
                 try:
                     bi=ReadI9BinaryFiles(oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
                 except:
@@ -38,8 +41,11 @@ def IntegrateBinFiles(oPar,outputprefix):
                 for ii in range(4):
                     integ[ii].extend(bi[ii])
                 indx=indx+1
-            sys.stdout.write('\r Writing:'+outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
-            sys.stdout.flush()
+            if verbose==1:
+                print('\r Writing:'+outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
+            elif verbose==0:
+                sys.stdout.write('\r Writing:'+outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
+                sys.stdout.flush() 
             filename=outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k)
             try:
                 WritePeakBinaryFile(integ,filename)
