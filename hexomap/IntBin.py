@@ -1,6 +1,6 @@
 import numpy as np
 import struct
-
+import sys
 """
 Note:
 1. Can only integrate to one degree
@@ -18,31 +18,39 @@ ImagePar={'nDetectors':2,
         }
 
 
-def IntegrateBinFiles(oPar,outputprefix):
+def IntegrateBinFiles(oPar,outputprefix,verbose=0):
     """
     Note: only can integrate to one degree
     """
     nDegrees=oPar['fOmegaStop']-oPar['fOmegaStart']
     for k in range(oPar['nDetectors']):
         indx=oPar['nBinFileIndexStart']
-        remap_indx=indx
+        remap_indx = 0
         for i in range(nDegrees):
             integ=[[],[],[],[]]
             for j in range(oPar['nReductionNSUM']):
-                print('Reading:',oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
+                if verbose==1:
+                    print('\r Reading:'+oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
+                elif verbose==0:
+                    sys.stdout.write('\r Reading:'+oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
+                    sys.stdout.flush()
                 try:
                     bi=ReadI9BinaryFiles(oPar['sBinFilePrefix']+"{0:06d}".format(indx)+'.bin'+str(k))
                 except:
-                    print('Reading failed')
+                    print(f".. \n Reading failed: {oPar['sBinFilePrefix']}{indx:06d}.bin{k} \n ")
                 for ii in range(4):
                     integ[ii].extend(bi[ii])
                 indx=indx+1
-            print('Writing:',outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
+            if verbose==1:
+                print('\r Writing:'+outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
+            elif verbose==0:
+                sys.stdout.write('\r Writing:'+outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k))
+                sys.stdout.flush() 
             filename=outputprefix+'{0:06d}'.format(remap_indx)+'.bin'+str(k)
             try:
                 WritePeakBinaryFile(integ,filename)
             except:
-                print('Writing failed')
+                print(f'.. \n Writing failed: {filename}\n ')
             remap_indx=remap_indx+1
 
 def ReadI9BinaryFiles(filename):

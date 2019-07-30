@@ -496,7 +496,34 @@ class Quaternion:
             -sPhi*np.sin(ee[0]-ee[2]),
             -cPhi*np.sin(ee[0]+ee[2]),
         )
+    @staticmethod
+    def quaternions_from_eulers(eulers: np.ndarray) -> np.ndarray:
+        """ Return a quaternion based on given Euler Angles """
+        # allow euler as an numpy array
+        # NOTE:
+        #   single dispatch based polymorphysm did not work for static method
+        #   therefore using try-catch block for a temp solution
+        # ensure shape is correct
+        try:
+            eulers = eulers.reshape((-1, 3))
+        except:
+            raise ValueError(f"Eulers angles much be ROW/horizontal stacked")
+        eulers = standarize_euler(eulers)
+        ee = 0.5*eulers
+        cPhi = np.cos(ee[:,1])
+        sPhi = np.sin(ee[:,1])
+        quats = np.empty([eulers.shape[0], 4])
+        #print(cPhi.shape,sPhi.shape,ee.shape)
+        quats[:,0] = +cPhi*np.cos(ee[:, 0] + ee[:, 2])
+        quats[:,1] = -sPhi*np.cos(ee[:, 0] - ee[:, 2])
+        quats[:,2] = -sPhi*np.sin(ee[:, 0] - ee[:, 2])
+        quats[:,3] = -cPhi*np.sin(ee[:, 0] + ee[:, 2])
 
+        _sgn = np.ones(quats.shape[0])
+        _sgn[quats[:,0] < 0] = - 1
+        _norm = np.linalg.norm(quats, axis=1) * _sgn
+        quats = quats / _norm[:,np.newaxis].repeat(4,axis=1)
+        return quats
     @staticmethod
     def from_rodrigues(ro: 'Rodrigues') -> 'Quaternion':
         """Construct an equivalent quaternion from given Rodrigues"""
@@ -965,3 +992,12 @@ if __name__ == "__main__":
     print("transformation matrix is:") 
     print(Frame.transformation_matrix(f1, f2))
     print()
+
+    # # test quaternions_from_eulers
+    # eulers = (np.random.random([5,3])-0.5) * 2 * np.pi
+    # #print(eulers)
+    # print(Quaternion.quaternions_from_eulers(eulers))
+    # for i in range(eulers.shape[0]):
+    #     e = Eulers(*(eulers[i,:]))
+    #     #print(e.as_array)
+    #     print(Quaternion.from_eulers(e).as_array)

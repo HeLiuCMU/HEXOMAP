@@ -13,6 +13,10 @@ from matplotlib.collections import PolyCollection
 from hexomap.past import *
 from hexomap import IntBin
 import sys
+from hexomap.orientation import Quaternion
+from hexomap.orientation import Eulers
+from hexomap.orientation import Rodrigues
+import os
 #import bokeh
 
 def dist_to_line(point,line):
@@ -266,6 +270,7 @@ def plot_misorien_square_mic(squareMicData, eulerIn,symType, angleRange=None,col
     return misorien
     
 def plot_conf_square_mic(squareMicData, colorbar=True,saveName=None):
+    
     plt.imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     if colorbar:
         plt.colorbar()
@@ -299,6 +304,37 @@ def plot_square_mic_bokeh(squareMicData,minHitRatio,saveName=None):
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
     
+def plot_binary_snp(snp):
+    '''
+    plot snp, ouput from segmenation_numba
+    example usage:
+        import tifffile
+        import scipy.ndimage as ndi
+        from hexomap import reduction
+        plt.rcParams["figure.figsize"] = (10,10)
+
+        layer = 1
+        rot = 1
+        det = 0
+        idx = layer * 360 + det * 180 + rot
+
+        img = tifffile.imread(f'/media/heliu/Seagate Backup Plus Drive/krause_jul19/nf/s1350_110_1_nf/s1350_110_1_nf_int4_{idx:06d}.tif')
+        bkg = tifffile.imread(f'/home/heliu/work/krause_jul19/s1350_110_1/Reduced/s1350_110_1_from_int_tiff_baseline5_bkg_z{layer}_det_{det}.tiff')
+
+        snp = reduction.segmentation_numba(img, bkg)
+        print(snp)
+        MicFileTool.plot_binary_snp(snp)
+    : snp:
+        output from segmenation_numba, it is same as load from I9 binary file
+        tuple of 4, (x_array, y_array, intensity_array, id_array)
+    '''
+    b = snp
+    plt.plot(2047-b[0],2047-b[1],'b.')
+    plt.axis('scaled')
+    plt.xlim((0,2048))
+    plt.ylim((0,2048))
+    plt.show()
+
 def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
     '''
     visualize binary files, first column is single frame, second column is integrated frames
@@ -310,7 +346,7 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
         # single frame
         #idxRot = 0  # index of rotation (0~719)
         #idxLayer = 0
-        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{1}'.format(int(idxRotSingleFrame),idxDet))
+        b=IntBin.ReadI9BinaryFiles(f'{rawInitial}{idxLayer}_{0:06d}.bin{idxDet}'.format(int(idxRotSingleFrame),idxDet))
         ax[0,idxDet].plot(2047-b[0],2047-b[1],'b.')
         ax[0,idxDet].axis('scaled')
         ax[0,idxDet].set_xlim((0,2048))
@@ -336,7 +372,47 @@ def plot_binary(rawInitial, NRot=180, NDet=2, idxRot=0,idxLayer=0):
         ax[1,idxDet].set_title(f'integrated frame layer:{idxLayer}, det:{idxDet}')
 
     plt.show()
-def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
+
+def plot_binary_with_tiff(fBin, img,alpha=0.5):
+    '''
+    plot binary file together with raw image.
+    example usage:
+        # overlay binary and tiff
+        import tifffile
+        import matplotlib.pyplot as plt
+        import matplotlib
+        %matplotlib notebook
+        from hexomap import MicFileTool
+        import scipy.ndimage as ndi
+        import os
+        plt.rcParams["figure.figsize"] = (10,10)
+
+        layer = 0
+        rot = 0
+        det = 0
+        idx = layer * 360 + det * 180 + rot
+
+        tiff = tifffile.imread(f'/media/heliu/Seagate Backup Plus Drive/krause_jul19/nf/s1350_110_1_nf/s1350_110_1_nf_int4_{idx:06d}.tif')
+        bkg = tifffile.imread(f'/home/heliu/work/krause_jul19/s1350_110_1/Reduced/s1350_110_1_from_int_tiff_baseline5_bkg_z{layer}_det_{det}.tiff')
+
+        sub = tiff-bkg
+        sub = ndi.median_filter(sub, size=3)
+
+        fBin = f'/home/heliu/work/krause_jul19/s1350_110_1_nf_reduced/s1350_110_1_nf_int4_z{layer}_{rot:06d}.bin{det}'
+        MicFileTool.plot_binary_with_tiff(fBin, sub>3)
+    : alpha:
+        transparency of binary, (0,1), 0: total transparent. 1: not transparent.
+    '''
+    b=IntBin.ReadI9BinaryFiles(fBin)
+    plt.imshow(img[::-1,:]) #,origin='lower')
+    print(f'shape of b[0]: {b[0].shape}')
+    plt.scatter(2047-b[0],2047-b[1],s=0.1,alpha=alpha)
+    plt.axis('scaled')
+    plt.xlim((0,2048))
+    plt.ylim((0,2048))
+    plt.title(f'bin: {os.path.basename(fBin)}')
+    plt.show()
+def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None,figSizeX=10,figSizeY=10):
     '''
     plot the square mic data
     image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
@@ -349,21 +425,17 @@ def plot_mic_and_conf(squareMicData,minHitRatio,saveName=None):
             9: additional information
     :return:
     '''
-    mat = EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
-    quat = np.empty([mat.shape[0],4])
-    rod = np.empty([mat.shape[0],3])
-    for i in range(mat.shape[0]):
-        quat[i, :] = quaternion_from_matrix(mat[i, :, :])
-        rod[i, :] = rod_from_quaternion(quat[i, :])
+    eulers = squareMicData[:,:, 3:6].reshape([-1, 3]) / 180.0 * np.pi
+    quats = Quaternion.quaternions_from_eulers(eulers)
+    rods = Rodrigues.rodrigues_from_quaternions(quats)
     hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
-    img = ((rod + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
-    # make sure display correctly
-    #img[:,:,:] = img[::-1,:,:]
+    img = ((rods + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
     img = np.swapaxes(img,0,1)
     fig, axes = plt.subplots(1,2)
     axes[0].imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     confMap = axes[1].imshow(squareMicData[:,:,6].T,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
     fig.colorbar(confMap, ax=axes[1],fraction=0.046, pad=0.04)
+    fig.set_size_inches(figSizeX, figSizeY)
     if saveName is not None:
         plt.savefig(saveName)
     plt.show()
@@ -380,6 +452,31 @@ def plot_square_mic(squareMicData,minHitRatio,saveName=None):
             9: additional information
     :return:
     '''
+    eulers = squareMicData[:,:, 3:6].reshape([-1, 3]) / 180.0 * np.pi
+    quats = Quaternion.quaternions_from_eulers(eulers)
+    rods = Rodrigues.rodrigues_from_quaternions(quats)
+    hitRatioMask = (squareMicData[:,:,6]>minHitRatio)[:,:,np.newaxis].repeat(3,axis=2)
+    img = ((rods + np.array([1, 1, 1])) / 2).reshape([squareMicData.shape[0],squareMicData.shape[1],3]) * hitRatioMask
+    img = np.swapaxes(img,0,1)
+    plt.imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
+    if saveName is not None:
+        plt.savefig(saveName)
+    plt.show()
+
+
+def plot_square_mic_backup(squareMicData,minHitRatio,saveName=None):
+    '''
+    plot the square mic data
+    image already inverted, x-horizontal, y-vertical, x dow to up, y: left to right
+    :param squareMicData: [NVoxelX,NVoxelY,10], each Voxel conatains 10 columns:
+            0-2: voxelpos [x,y,z]
+            3-5: euler angle
+            6: hitratio
+            7: maskvalue. 0: no need for recon, 1: active recon region
+            8: voxelsize
+            9: additional information
+    :return:
+    '''
     mat = EulerZXZ2MatVectorized(squareMicData[:,:,3:6].reshape([-1,3])/180.0 *np.pi )
     quat = np.empty([mat.shape[0],4])
     rod = np.empty([mat.shape[0],3])
@@ -391,11 +488,10 @@ def plot_square_mic(squareMicData,minHitRatio,saveName=None):
     # make sure display correctly
     #img[:,:,:] = img[::-1,:,:]
     img = np.swapaxes(img,0,1)
-    plt.imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
-    if saveName is not None:
-        plt.savefig(saveName)
-    plt.show()
-
+    # plt.imshow(img,origin='lower',extent=[squareMicData[0,0,0],squareMicData[-1,0,0],squareMicData[0,0,1],squareMicData[0,-1,1]])
+    # if saveName is not None:
+    #     plt.savefig(saveName)
+    # plt.show()
 class MicFile():
     def __init__(self,fname):
         self.sw, self.snp=self.read_mic_file(fname)
@@ -524,7 +620,7 @@ def combine_mic():
     save_mic_file('eulerangles',snp[:,6:9],1)
 
 def test_plot_square_mic():
-    sMic = np.load('SquareMicTest1.npy')
+    sMic = np.load('/home/heliu/work/krause_jul19/recon/s1400_100_1/s1400_100_1_q9_rot180_z1_500x500_0.002_shift_0.0_0.0_0.0.npy')
     plot_square_mic(sMic, 0.5)
 if __name__ == '__main__':
     test_plot_square_mic()

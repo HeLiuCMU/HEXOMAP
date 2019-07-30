@@ -20,6 +20,7 @@ from pycuda.compiler import SourceModule
 from pycuda.curandom import MRG32k3aRandomNumberGenerator
 from hexomap import sim_utilities
 from hexomap.past import *
+from hexomap.RotRep import Misorien2FZ1
 from hexomap import IntBin
 from hexomap.past import generate_random_rot_mat
 from   hexomap.utility import load_kernel_code
@@ -34,6 +35,7 @@ import importlib
 from weakref import WeakValueDictionary
 import h5py
 from hexomap.utility import print_h5
+from hexomap import MicFileTool
 #global ctx
 #ctx = None
 #cuda.init()
@@ -158,9 +160,10 @@ class Reconstructor_GPU():
         self.postWindow = 3              #voxels in the nxn window around the seeds voxels selected above will be processed
         self.postRandomRange = 0.01       # decripted, the random angle range generated in post process
         self.postConvergeMisOrien = 0.001   # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
-        self.postNRandom = 50             # number of random angle generated in each orientation seed
+        self.postNRandom = 50             # number of random angle generated in each orientation seed # 10: 223s, 50: 
         self.postOriSeedWindow = 5         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
         self.postNIteration = 2            # number of iteration to optimize in post process
+        self.postThreshold = 0.15           # voxel with confidence below this level won't conduct postprocess, avoid endless loop
         self.expansionStopHitRatio = 0.5    # when continuous 2 voxel hitratio below this value, voxels outside this region will not be reconstructed
         # retrieve gpu kernel
         if ctx is None:
@@ -169,6 +172,11 @@ class Reconstructor_GPU():
             if gpuID is not None:
                 self.gpuID = int(gpuID) 
             else:
+                self.gpuID = int(0)
+            NGPU = cuda.Device.count()
+            if self.gpuID>=NGPU:
+                print(f'Warning:: gpuID is {self.gpuID}, but you only have {NGPU} GPUs!!!!')
+                print(f'Reasign to gpu 0!!!')
                 self.gpuID = int(0)
             self.cudadevice = cuda.Device(self.gpuID)
             self.ctx = self.cudadevice.make_context()
@@ -483,14 +491,17 @@ class Reconstructor_GPU():
         return 1.0 - maxHitRatio, rot
 
     def twiddle_refine(self, idxVoxel, centerL, centerJ, centerK, centerRot,
-                       rangeL=None, rangeJ=None, rangeK=None):
+                       rangeL=None, rangeJ=None, rangeK=None,optimizeDL=False,rangeDL=None):
         '''
         phase2: refine the geometry with voxels at grain boundaries., wribble search
+        currenly because optimize dL is added later, so code could be a little hard to read.
         :param idxVoxel: voxels at grain boundaries,output of geo_opt_phase1,
         :param NIterationPhase2: number of iteratio
         :param rangeL: mm
         :param rangeJ: pixel
         :param rangeK: pixel
+        :param optimizeDL: bool, if true, relative L position will also be optimized.
+        :param rangeDL: range of relative L, d(L1-L0)
         :param factor0: search box shrick by factor0 during each search
         :return:
         todo@hel1 clean up backup
@@ -503,54 +514,171 @@ class Reconstructor_GPU():
             rangeJ = 5 * self.detScale #pixel
         if rangeK is None:
             rangeK = 2 * self.detScale #pixel
+        if rangeDL is None:
+            rangeDL = 1  #mm
+        if not optimizeDL:
+            rangeDL = 0  # avoid calculade sum_dp is wrong
         p = [centerL, centerJ[0,0].reshape([1,1]), centerJ[0,1].reshape([1,1]), 
                       centerK[0,0].reshape([1,1]), centerK[0,1].reshape([1,1])]
-        dp = [rangeL, rangeJ, rangeJ, rangeK, rangeK]
-        factor = [1.0, self.pixelJ[0], self.pixelJ[1],self.pixelK[0], self.pixelK[1]]
+        dp = [rangeL, rangeJ, rangeJ, rangeK, rangeK,rangeDL] # one extra term compared to p is dL.
+        # factor will covert pixel value into mm, to make sure each dimension has the same metric.
+        factor = [1.0, self.pixelJ[0], self.pixelJ[1],self.pixelK[0], self.pixelK[1], 1.0] 
         dp = np.array(dp) * np.array(factor)
         # Calculate the error
         best_err, centerRot = self.twiddle_loss(idxVoxel, centerL, centerJ, centerK, centerRot)###
-        #print(dp)
-        #print(dp/np.array(factor))
-        threshold = 0.002
+        threshold = 0.0026
         improve = True
+        #print(f'p[0].shape is {p[0].shape}')
         while sum(dp) > threshold and dp[0]>0.0005:
-            i = np.random.choice(range(len(p)))
+            #print(dp)
+            i = np.random.choice(range(len(p)+1))  # randomly choose a parameter to optimize.
+            # lower limit of change is 0.5um, should be the sensitivity of parameter.
             if dp[i]<0.0005:
                 dp[i] = 0.0005
             # if nothing improved and already in small range, no need to compute anything. save some time.
             if dp[i]==0.0005 and not improve:
                 continue
-            p[i] += dp[i]/factor[i]
-            err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
-            if err < best_err:  # There was some improvement
-                best_err = err
-                centerRot = rotTmp
-                dp[i] *= 1.1
-                improve = True
-                #print(dp)
-                print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
-            else:  # There was no improvement
-                p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
-                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
+            # optimize relative L:
+            if i==len(p):    # optimize relative L
+                if not optimizeDL:
+                    continue
+                else:
+                    p[0][0, 1] += dp[i]  
+                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
+                    if err < best_err:  # There was some improvement
+                        best_err = err
+                        centerRot = rotTmp
+                        dp[i] *= 1.1
+                        improve = True
+                        #print(dp)
+                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
+                    else:  # There was no improvement
+                        p[0][0, 1] -= 2 * dp[i]/factor[i]  # Go into the other direction
+                        err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
 
-                if err < best_err:  # There was an improvement
+                        if err < best_err:  # There was an improvement
+                            best_err = err
+                            centerRot = rotTmp
+                            dp[i] *= 1.1 # was 1.1
+                            improve = True
+                            #print(dp)
+                            print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
+                        else:  # There was no improvement
+                            p[0][0, 1] += dp[i]/factor[i]
+                            improve = False
+                            # As there was no improvement, the step size in either
+                            # direction, the step size might simply be too big.
+                            dp[i] *= 0.9  # was 0.95
+            # optimize everything else:
+            else:                             # optimize everything else.
+                p[i] += dp[i]/factor[i]
+                err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot)
+                if err < best_err:  # There was some improvement
                     best_err = err
                     centerRot = rotTmp
-                    dp[i] *= 1.1 # was 1.1
+                    dp[i] *= 1.1
                     improve = True
                     #print(dp)
-                    print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, centerL: {p[0]}, centerJ: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, centerK: {p[3][0,0]:.2f} {p[4][0,0]:.2f}.   ')
+                    print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
                 else:  # There was no improvement
-                    p[i] += dp[i]/factor[i]
-                    improve = False
-                    # As there was no improvement, the step size in either
-                    # direction, the step size might simply be too big.
-                    dp[i] *= 0.9  # was 0.95
-            #sys.stdout.flush()
+                    p[i] -= 2 * dp[i]/factor[i]  # Go into the other direction
+                    err, rotTmp = self.twiddle_loss(idxVoxel, p[0], np.hstack([p[1], p[2]]), np.hstack([p[3],p[4]]), centerRot)
+
+                    if err < best_err:  # There was an improvement
+                        best_err = err
+                        centerRot = rotTmp
+                        dp[i] *= 1.1 # was 1.1
+                        improve = True
+                        #print(dp)
+                        print(f'\r loss: {best_err:.4f}, sumdp: {sum(dp):.4f}, L: {p[0]}, J: {p[1][0,0]:.2f} {p[2][0,0]:.2f}, K: {p[3][0,0]:.2f} {p[4][0,0]:.2f}...   ')
+                    else:  # There was no improvement
+                        p[i] += dp[i]/factor[i]
+                        improve = False
+                        # As there was no improvement, the step size in either
+                        # direction, the step size might simply be too big.
+                        dp[i] *= 0.9  # was 0.95
+                #sys.stdout.flush()
         #print(p)
+        print(f'\r dp: {dp}')
         return p[0], np.hstack([p[1], p[2]]),np.hstack([p[3],p[4]]), centerRot
 
+    def auto_twiddle(self, finishThreshold,recon=False, fileInitial=None, initialCnt=0, maxIteration=10,NVoxel=100, visualize=True,optimizeDL=False):
+        '''
+        automatic conduct twiddle refined, but may need human interupt to terminate and select the best one.
+        process terminates if maxhitratio> finishThreshold or iteration>maxIteration.
+        example usage: 
+            # recon first layer
+            c = config.Config().load('/home/heliu/work/krause_jul19/recon/s1350_100_1/s1350_100_1_conf.yml')
+            reconstroctor_c = config.Config().load('/home/heliu/work/krause_jul19/recon/reconstructor_config_krause_jul19.yml')
+            S.load_reconstructor_config(reconstroctor_c)
+            c.micsize = [20,20]
+            c.micVoxelSize = 0.002
+            for layer in [0]:
+                c.fileBinLayerIdx = layer
+                print(c)
+                S.load_config(c,reloadData=True)
+                S.serial_recon_multi_stage()
+                MicFileTool.plot_mic_and_conf(S.squareMicData, 0.2)
+            S.auto_twiddle(0.7)
+        : finishThreshold: 
+            if average of top NVoxel confidence above this value, search will terminate.
+        : recon:
+            if true, do recon at beginning, false: wound not do recon at beginning
+        : initialCnt:
+            start of file index
+        : maxIteration:
+            if iteration > maxIteration, process will also terminate.
+        : NVoxel:
+            number of voxel used, large number will reduce speed.
+        '''
+        c = self.config
+        if recon:
+            ############ reconstruct and see result ############
+            #self.load_config(c,reloadData=True)
+            self.serial_recon_multi_stage()
+
+            ################ visualize result ##################
+            if visualize:
+                MicFileTool.plot_mic_and_conf(self.squareMicData, 0.2)
+            print(c.detL, c.detJ, c.detK, c.detRot)
+        cnt = initialCnt
+        finish = False
+        while not finish:
+            squareMic = self.squareMicData
+            maskFinal = np.zeros(c.micsize)
+            threshold = 0.95
+            while np.sum(squareMic[:,:,6].ravel()>threshold) < NVoxel:
+                threshold -= 0.02
+            print(f'cnt: {cnt}, current threhold is {threshold}')
+            maskFinal[squareMic[:,:,6]>threshold] = 1
+            x,y = np.where(maskFinal==1)
+            aIdxVoxel = x * maskFinal.shape[0] + y
+
+            aIdxVoxel = np.random.choice(aIdxVoxel,NVoxel)
+            start = time.time()
+            c.detL, c.detJ, c.detK, c.detRot = self.twiddle_refine(aIdxVoxel,c.detL, c.detJ, c.detK, c.detRot,optimizeDL=optimizeDL)
+            end = time.time()
+            print(f'twiddle takes: {end- start} seconds')
+
+
+            ############ reconstruct and see result ############
+            self.load_config(c,reloadData=False)
+            self.serial_recon_multi_stage()
+
+            ################ visualize result ##################
+            if visualize:
+                MicFileTool.plot_mic_and_conf(self.squareMicData, threshold)
+            print(c.detL, c.detJ, c.detK, c.detRot)
+            if fileInitial is None:
+                fileInitial = c._initialString
+            costs = self.squareMicData[:,:,6].ravel()
+            maxAvg = costs[costs.argsort()[-NVoxel:]].mean()
+            fName = f'{fileInitial}_z{c.fileBinLayerIdx}_twiddle_{cnt}_{maxAvg:.03f}.yml'
+            c.save(fName)
+            print(fName)
+            cnt += 1
+            if maxAvg > finishThreshold:
+                finish = True
     def __get_neighbour_orien(self, lIdxVoxel, accMat, size=3):
         '''
         get the orientations of the neighbours of a voxel
@@ -784,6 +912,8 @@ class Reconstructor_GPU():
         try:
             getattr(config, 'micMask')        
             micMask=config.micMask
+            if isinstance(micMask, str) and micMask=='None':
+                micMask=None
         except AttributeError:
             micMask = None
         self.etalimit = config.etalimit
@@ -796,7 +926,7 @@ class Reconstructor_GPU():
         self.NRot = int(config.NRot)
         self.NDet = int(config.NDet)
         self.layerIdx = config.fileBinLayerIdx
-        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot)) # set parameter
+        self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot),NJ=np.array(config.detNJ), NK=np.array(config.detNK), pixelJ=np.array(config.detPixelJ),pixelK=np.array(config.detPixelK)) # set parameter
         self.create_square_mic(config.micsize,
                             voxelsize=config.micVoxelSize,
                             shift=config.micShift,
@@ -809,6 +939,34 @@ class Reconstructor_GPU():
         self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
         self.config=config
 
+    def load_reconstructor_config(self, c):
+        '''
+        load in config parameters for reconstructor
+        '''
+        self.detScale = c.detScale# scale down detector dimension to save memeory, usually don't change this other than 1
+        #self.dReconParam = {}
+        self.NIteration = c.NIteration           # number of orientation search iterations
+        self.BoundStart = c.BoundStart        # initial random orientation range
+        self.intensity_threshold = c.intensity_threshold # only keep peaks with intensity larger than this value
+        self.floodFillStartThreshold = c.floodFillStartThreshold# orientation with hit ratio larger than this value is used for flood fill.
+        self.floodFillSelectThreshold = c.floodFillSelectThreshold# voxels with hitratio less than this value will be reevaluated in flood fill process.
+        self.floodFillAccptThreshold = c.floodFillAccptThreshold  #voxel with hit ratio > floodFillTrheshold will be accepted to voxelIdxStage1
+        self.floodFillRandomRange = c.floodFillRandomRange   # voxel in fill process will generate random angles in this window, todo@he1
+        self.floodFillNumberAngle = c.floodFillNumberAngle # number of rangdom angles generated to voxel in voxelIdxStage1
+        self.floodFillNumberVoxel = c.floodFillNumberVoxel  # number of orientations for flood fill process each time, due to GPU memory size.
+        self.floodFillNIteration = c.floodFillNIteration       # number of iteration for flood fill angles
+        self.searchBatchSize = c.searchBatchSize      # number of orientations to search per GPU call, due to GPU memory size
+        self.NSelect = c.NSelect                # number of orientations selected with maximum hitratio from last iteration
+        self.postMisOrienThreshold = c.postMisOrienThreshold  # voxel with misorientation larger than this will be post processed seeds voxel
+        self.postWindow = c.postWindow             #voxels in the nxn window around the seeds voxels selected above will be processed
+        self.postRandomRange = c.postRandomRange      # decripted, the random angle range generated in post process
+        self.postConvergeMisOrien = c.postConvergeMisOrien  # if the misorientation to the same voxel from last iteration of post process less than this value, considered converge
+        self.postNRandom = c.postNRandom            # number of random angle generated in each orientation seed
+        self.postOriSeedWindow = c.postOriSeedWindow         # orienatation in this nxn window around the voxel will be used as seed to generate raondom angle.
+        self.postNIteration = c.postNIteration            # number of iteration to optimize in post process
+        self.postThreshold = c.postThreshold
+        self.expansionStopHitRatio = c.expansionStopHitRatio    # when continuous 2 voxel hitratio below this value, voxels outside this region will not 
+        
     def create_square_mic(self, shape=(100, 100), shift=[0, 0, 0], voxelsize=0.01, mask=None):
         '''
         initialize a square mic file
@@ -899,7 +1057,7 @@ class Reconstructor_GPU():
         '''
         if format == 'npy':
             np.save(fName, self.squareMicData)
-            print('saved as npy format')
+            print(f'saved as npy format: {fName}')
         elif format == 'txt':
             print('not implemented')
             pass
@@ -910,6 +1068,7 @@ class Reconstructor_GPU():
 
     def load_square_mic(self, mic):
         self.squareMicData = mic
+        self.squareMicData[:, :, 7] = self.squareMicData[:, :, 7].astype(np.bool_)
         self.set_voxel_pos(self.squareMicData[:, :, :3].reshape([-1, 3]), self.squareMicData[:, :, 7].ravel())
         self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
         self.voxelAcceptedMat = EulerZXZ2MatVectorized(
@@ -1068,7 +1227,7 @@ class Reconstructor_GPU():
         self.expData = np.concatenate(
             [np.concatenate(lDet, axis=0), np.concatenate(lRot, axis=0), np.concatenate(lJ, axis=0),
              np.concatenate(lK, axis=0)], axis=1)
-        print('\r exp data loaded, shape is: {0}.'.format(self.expData.shape))
+        print('\rexp data loaded, shape is: {0}.'.format(self.expData.shape))
 
     def __load_exp_data(self, fInitials, digits, intensity_threshold=0, remove_overlap=True, lDetIdx=None):
         '''
@@ -1120,7 +1279,7 @@ class Reconstructor_GPU():
         self.expData = np.concatenate(
             [np.concatenate(lDet, axis=0), np.concatenate(lRot, axis=0), np.concatenate(lJ, axis=0),
              np.concatenate(lK, axis=0)], axis=1)
-        print('exp data loaded, shape is: {0}.'.format(self.expData.shape))
+        print('\rexp data loaded, shape is: {0}.'.format(self.expData.shape))
 
     def save_sim_mic_binary(self, fNameInitial='sim_output/sim_result_'):
         '''
@@ -1154,7 +1313,7 @@ class Reconstructor_GPU():
         #self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         #self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
         # acExpDataCpuRam: [NDet*NRot, max_NK, max_NJ]
-        print('=============start of copy exp data to CPU ===========')
+        print('start create exp data in cpu ram ...')
         if self.expData.shape[1]!=4:
             raise ValueError('expdata shape should be n_peaks*4')
         if np.max(self.expData[:,0])>self.NDet-1:
@@ -1183,7 +1342,7 @@ class Reconstructor_GPU():
             if self.detectors[i].NPixelJ >maxNJ:
                 maxNJ = self.detectors[i].NPixelJ
         self.acExpDataCpuRam = np.zeros([self.NDet*self.NRot,maxNK,maxNJ],dtype=np.uint8) # assuming all same detector!
-        print('assuming same type of detector in different distances')
+        #print('assuming same type of detector in different distances')
         self.iNPeak = np.int32(self.expData.shape[0])
         self.expData = self.expData.astype('int')
 
@@ -1194,14 +1353,14 @@ class Reconstructor_GPU():
                                 self.expData[i, 2]] = 1
 
 
-        print('=============end of copy exp data to CPU ===========')
+        #print('=============end of copy exp data to CPU ===========')
 
     def __cp_expdata_to_gpu(self):
         # try to use texture memory, assuming all detector have same size.
         # require have defiend self.NDet,self.NRot, and Detctor informations;
         # self.expData = np.array([[0,24,324,320],[0,0,0,1]]) # n_Peak*3,[detIndex,rotIndex,J,K] !!! be_careful this could go wrong is assuming wrong number of detectors
         # self.expData = np.array([[0,24,648,640],[0,172,285,631],[1,24,720,485],[1,172,207,478]]) #[detIndex,rotIndex,J,K]
-        print('=============start of copy exp data to gpu ===========')
+        print('copy exp data to gpu memory ...')
         #         if self.detectors[0].NPixelJ!=self.detectors[1].NPixelJ or self.detectors[0].NPixelK!=self.detectors[1].NPixelK:
         #             raise ValueError(' This version requare all detector have same dimension')
         if self.expData.shape[1] != 4:
@@ -1218,16 +1377,16 @@ class Reconstructor_GPU():
             if i < (self.NDet - 1):
                 self.aiDetStartIdxH.append(self.iExpDetImageSize)
         # create texture memory
-        print('start of create data on cpu ram')
+        #print('start of create data on cpu ram')
         self.__create_acExpDataCpuRam()
-        print('start of creating texture memory')
+        #print('start of creating texture memory')
         # self.texref = mod.get_texref("tcExpData")
         self.texref.set_array(cuda.np_to_array(self.acExpDataCpuRam, order='C'))
         self.texref.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
         # del self.acExpDetImages
-        print('end of creating texture memory')
+        #print('end of creating texture memory')
         # del self.acExpDetImages
-        print('=============end of copy exp data to gpu ===========')
+        #print('=============end of copy exp data to gpu ===========')
 
     def recon_prepare(self,reverseRot=False, bReloadExpData=True, clearCpuMemory=True):
         '''
@@ -1285,7 +1444,7 @@ class Reconstructor_GPU():
         #         self.ctx.push()
         start = cuda.Event()
         end = cuda.Event()
-        print('==========start of reconstruction======== \n')
+        print('start reconstruction ... \n')
         start.record()  # start timing
         self.NFloodFill = 0
         cnt = 0
@@ -1306,14 +1465,15 @@ class Reconstructor_GPU():
                 self.voxelIdxStage0.remove(voxelIdx)
             except ValueError:
                 pass
-        print('\r number of flood fills: {0}'.format(self.NFloodFill))
+        print('\n ')  
+        print('\rnumber of flood fills: {0}'.format(self.NFloodFill))
         if enablePostProcess:
             self.post_process()
-        print('===========end of reconstruction========== \n')
+        print('reconstruction finished \n')
         end.record()  # end timing
         end.synchronize()
         secs = start.time_till(end) * 1e-3
-        print("SourceModule time {0} seconds.".format(secs))
+        print("SourceModule time:  {0:.03f} seconds.".format(secs))
         # save roconstruction result
         self.squareMicData[:, :, 3:6] = (
                 Mat2EulerZXZVectorized(self.voxelAcceptedMat) / np.pi * 180).reshape(
@@ -1384,6 +1544,83 @@ class Reconstructor_GPU():
         if self.squareMicData is None:
             raise ValueError('have not initiate square mic yet')
 
+            
+    def post_process_exp(self):
+        '''
+        In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
+        new candidate orientations are taken from the neighbours around this voxel, random orientations will be generated
+        based on these candidate orientations. this process repeats until no orientations of these grain boundary voxels
+        does not change anymore.
+        need load squareMicData
+        need self.voxelAccptMat
+        :return:
+        '''
+        ############# test section #####################
+        # self.__load_exp_data('/home/heliu/work/I9_test_data/Integrated/S18_z1_', 6)
+        # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
+        # self.__cp_expdata_to_gpu()
+        ############### test section edn ###################
+        print('start of post processing, moving grain boundaries untile stable')
+        NVoxelX = self.squareMicData.shape[0]
+        NVoxelY = self.squareMicData.shape[1]
+        accMat = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
+        print('check0')
+        print(time.time())
+        misOrienTmp = self.get_misorien_map(accMat)
+        print('check1')
+        print(time.time())
+        self.NPostProcess = 0
+        self.NPostVoxelVisited = 0
+        start = time.time()
+        NIterationMax = 2000
+        NIteration = 0
+        print('check2')
+        print(time.time())
+        #self.extract_orientations()
+        while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
+            NIteration +=1
+            self.NPostProcess += 1
+            hitratioMask = (self.voxelHitRatio>self.postThreshold).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
+            maxMisOrien = np.max(misOrienTmp)
+            misOrienTmp = ndi.maximum_filter(misOrienTmp * hitratioMask, self.postWindow) # due to expansion mode
+            finalMask = np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1)
+            print('check3')
+            print(time.time())
+            eulers = self.extract_orientations(mask=finalMask)
+            print('check4')
+            print(time.time())
+            mat = EulerZXZ2MatVectorized(eulers / 180.0 * np.pi)
+            print('check5')
+            print(time.time())
+            if mat.shape[0]%self.NSelect!=0:
+                mat = np.concatenate(mat, np.zeros([self.NSelect-mat.shape[0]%self.NSelect,3,3]))
+            rotMatSearchD = gpuarray.to_gpu(mat.astype(np.float32))
+            x, y = np.where(finalMask)
+            xMin = np.minimum(np.maximum(0, x - (self.postOriSeedWindow-1)//2), NVoxelX - self.postOriSeedWindow)
+            yMin = np.minimum(np.maximum(0, y - (self.postOriSeedWindow-1)//2), NVoxelY - self.postOriSeedWindow)
+            aIdx = x * NVoxelY + y
+            previousHitRatio = np.copy(self.voxelHitRatio)
+            previousAccMat = np.copy(self.voxelAcceptedMat)
+            #self.extract_orientations()
+            print('check6')
+            for i, idx in enumerate(aIdx):
+                self.NPostVoxelVisited += 1
+                self.single_voxel_recon(idx,rotMatSearchD,mat.shape[0],
+                                        NIteration=self.postNIteration, BoundStart=maxMisOrien, verbose=False) # was BoundStart=maxMisOrien*5
+                if self.voxelHitRatio[idx] < previousHitRatio[idx]:
+                    self.voxelHitRatio[idx] = previousHitRatio[idx]
+                    self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
+            print('check7')
+            accMatNew = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
+            misOrienTmpNew = self.misorien(accMatNew, accMat, self.symMat).reshape([NVoxelX,NVoxelY])
+            misOrienTmp = misOrienTmpNew.copy()* (self.voxelHitRatio>0).reshape([NVoxelX,NVoxelY])
+            accMat = accMatNew.copy()
+            sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
+            sys.stdout.flush()
+        print('\r number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
+        end = time.time()
+        print(' post process takes is {0} seconds'.format(end-start))
+        
     def post_process(self):
         '''
         In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
@@ -1399,7 +1636,8 @@ class Reconstructor_GPU():
         # self.expData[:, 2:4] = self.expData[:, 2:4] / 4  # half the detctor size, to rescale real data
         # self.__cp_expdata_to_gpu()
         ############### test section edn ###################
-
+        print('start post processing, moving grain boundaries untile stable ...')
+        start = time.time()
         NVoxelX = self.squareMicData.shape[0]
         NVoxelY = self.squareMicData.shape[1]
         accMat = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
@@ -1410,11 +1648,10 @@ class Reconstructor_GPU():
         start = time.time()
         NIterationMax = 2000
         NIteration = 0
-        print('start of post processing, moving grain boundaries untile stable')
         while np.max(misOrienTmp) > self.postConvergeMisOrien and NIteration<NIterationMax:
             NIteration +=1
             self.NPostProcess += 1
-            hitratioMask = (self.voxelHitRatio>0.3).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
+            hitratioMask = (self.voxelHitRatio>self.postThreshold).reshape([NVoxelX,NVoxelY]) # avoid very low confidence area that may cause infinate loop
             maxMisOrien = np.max(misOrienTmp)
             misOrienTmp = ndi.maximum_filter(misOrienTmp * hitratioMask, self.postWindow) # due to expansion mode
             x, y = np.where(np.logical_and(misOrienTmp > self.postMisOrienThreshold, self.squareMicData[:, :, 7] == 1))
@@ -1423,13 +1660,16 @@ class Reconstructor_GPU():
             aIdx = x * NVoxelY + y
             previousHitRatio = np.copy(self.voxelHitRatio)
             previousAccMat = np.copy(self.voxelAcceptedMat)
+            NIdx = len(aIdx)
             for i, idx in enumerate(aIdx):
+                sys.stdout.write(f'\r postprocess voxel: {i} out of {NIdx} .....')
+                sys.stdout.flush()
                 self.NPostVoxelVisited += 1
                 rotMatSeed = accMat[xMin[i]:xMin[i]+self.postOriSeedWindow,yMin[i]:yMin[i]+self.postOriSeedWindow,:].astype(np.float32)
                 rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
-                rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom, maxMisOrien)
+                rotMatSearchD = self.gen_random_matrix(rotMatSeedD,self.postOriSeedWindow**2,self.postNRandom, self.postRandomRange)
                 self.single_voxel_recon(idx,rotMatSearchD,self.postNRandom * self.postOriSeedWindow ** 2,
-                                        NIteration=self.postNIteration, BoundStart=maxMisOrien*5, verbose=False)
+                                        NIteration=self.postNIteration, BoundStart=self.postRandomRange, verbose=False,twiddle=False) #maxMisOrien*5
                 if self.voxelHitRatio[idx] < previousHitRatio[idx]:
                     self.voxelHitRatio[idx] = previousHitRatio[idx]
                     self.voxelAcceptedMat[idx, :, :] = previousAccMat[idx,:,:]
@@ -1439,9 +1679,9 @@ class Reconstructor_GPU():
             accMat = accMatNew.copy()
             sys.stdout.write(f'\r Iteration: {NIteration}, max misorien: {np.max(misOrienTmp)}')
             sys.stdout.flush()
-        print('\r number of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
+        print('\rnumber of post process iteration: {0}, number of voxel revisited: {1}'.format(self.NPostProcess,self.NPostVoxelVisited))
         end = time.time()
-        print(' post process takes is {0} seconds'.format(end-start))
+        print('post process takes is {0:.03f} seconds'.format(end-start))
         # self.squareMicData[:,:,3:6] = (Mat2EulerZXZVectorized(self.voxelAcceptedMat)/np.pi*180).reshape([self.squareMicData.shape[0],self.squareMicData.shape[1],3])
         # self.squareMicData[:,:,6] = self.voxelHitRatio.reshape([self.squareMicData.shape[0],self.squareMicData.shape[1]])
         # self.save_square_mic('SquareMicTest2_postprocess.npy')
@@ -1517,6 +1757,8 @@ class Reconstructor_GPU():
         '''
         # print('====================== entering flood fill ===================================')
         # select voxels for filling
+        sys.stdout.write('\r flood filling ...')
+        sys.stdout.flush()
         lFloodFillIdx = list(
             np.where(np.logical_and(self.voxelHitRatio < self.floodFillSelectThreshold, self.voxelMask == 1))[0])
         if not lFloodFillIdx:
@@ -1555,7 +1797,7 @@ class Reconstructor_GPU():
                 1, self.floodFillNumberAngle, self.floodFillRandomRange)
             self.single_voxel_recon(idxTmp, rotMatSearchD, self.floodFillNumberAngle,
                                     NIteration=self.floodFillNIteration, BoundStart=self.floodFillRandomRange,
-                                    verbose=False)
+                                    verbose=False,twiddle=False)
             #             if self.voxelHitRatio[idxTmp]<=previousHitRatio[idxTmp]:
             #                 self.voxelHitRatio[idxTmp] = previousHitRatio[idxTmp]
             #                 self.voxelAcceptedMat[idxTmp, :, :] = previousAccMat[idxTmp,:,:]
@@ -1897,15 +2139,26 @@ class Reconstructor_GPU():
         self.additionalFZ = eulers
         self.serial_recon_multi_stage()
 
-    def get_misorien_map(self,m0):
+    def get_misorien_map(self,m0=None):
         '''
         map the misorienation map
         e.g. a 100x100 square voxel will give 99x99 misorientations if axis=0,
         but it will still return 100x100, filling 0 to the last row/column
         the misorientatino on that voxel is the max misorientation to its right or up side voxel
+        example usage:
+
+            help(S.get_misorien_map)
+            misOrienMap = S.get_misorien_map()
+            plt.imshow(misOrienMap*(S.squareMicData[:,:,6]>0.7), vmin=0,vmax=0.01)
+            plt.colorbar()
+            plt.show()
+            print(np.max(misOrienMap*(S.squareMicData[:,:,6]>0.7)).ravel())
+
         :param m0: rotation matrix size=[nx,ny,9]
-        :return:
+        :return: misOrientation map in radian.
         '''
+        if m0 is None:
+            m0 = self.accMat
         if m0.ndim!=3:
             raise ValueError('input should be [nvoxelx,nvoxely,9] matrix')
         NVoxelX = m0.shape[0]
@@ -1975,9 +2228,10 @@ class Reconstructor_GPU():
         confs = self.squareMicData[:, :, 6]
         visited = np.zeros([NX, NY])
         visited[self.squareMicData[:,:,6] < 0.3 ] = 1  # exclude low confidence area
-        visited[mask==0] = 1
+        visited[mask==0] = 1 # exclued unmasked region
         xs, ys  = np.nonzero(1 - visited)
         lEulerOut = []
+        lMatOut = []
         while xs.size>1:
             xOld = xs[0]
             yOld = ys[0]
@@ -1997,7 +2251,8 @@ class Reconstructor_GPU():
                                 lEulerOneGrain.append(eulers[x, y, :])
                                 lConfOneGrain.append(confs[x, y])
 
-            avgEuler = np.average(np.array(lEulerOneGrain),axis=0)
+            #avgEuler = np.average(np.array(lEulerOneGrain),axis=0)
+            avgEuler = np.median(np.array(lEulerOneGrain),axis=0)
             maxConfEuler = lEulerOneGrain[np.argmax(lConfOneGrain)]
             lEulerOut.append(avgEuler)
             lEulerOut.append(maxConfEuler)
@@ -2074,19 +2329,43 @@ class Reconstructor_GPU():
         #self.ctx.detach()
         self.texref.set_array(cuda.np_to_array(np.zeros([3,3,3]).astype(np.uint8), order='C'))
         
-
-
+def test_new_post_process():
+    from hexomap import MicFileTool     # io for reconstruction rst
+    from hexomap import IntBin          # io for binary image (reduced data)
+    from hexomap import config
+    # test for post process
+    #c = config.Config().load('../scripts/ConfigExample.yml')
+    #print(c)
+    #c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    #c.micVoxelSize = 0.005
+    #c.micsize = [15,15]
+    S = Reconstructor_GPU(gpuID=3)
+    #S.load_config(c)
+    #S.load_square_mic_file('demo_gold__q9_rot180_z0_15x15_0.005_shift_0_0_0.npy')
+    #S.load_config(config.Config().load('/home/heliu/work/krause_jul19/recon/layer0_config.yml'))
+    #S.load_square_mic_file('/home/heliu/work/krause_jul19/recon/part_1_q9_rot180_z0_500x500_0.002_shift_0.0_0.0_0.0.npy')
+    c = config.Config().load('/home/heliu/work/krause_jul19/recon/layer0_config.yml')
+    # c.micVoxelSize = 0.01
+    # c.micsize = [100,100]
+    # c.micMask = 'None'
+    print(c)
+    S.load_config(c)
+    S.load_square_mic_file('/home/heliu/work/krause_jul19/recon/s1400poly1_q9_rot180_z0_500x500_0.002_shift_0.0_0.0_0.0.npy')
+    #S.load_square_mic_file('/home/heliu/work/krause_jul19/recon/part_1_q9_rot180_z0_500x500_0.002_shift_0.0_0.0_0.0.npy') # 632seconds
+    #S.load_square_mic_file('/home/heliu/work/krause_jul19/s1400poly1_q9_rot180_z0_100x100_0.01_shift_0.0_0.0_0.0.npy')
+    S.post_process()
 if __name__ == "__main__":
+    #test_new_post_process()
     import config
     import numpy as np
     import reconstruction
     import MicFileTool
     import os
     import hexomap
-    c = config.Config().load('examples/johnson_aug18_demo/demo_gold_twiddle_3.h5')
+    c = config.Config().load('../scripts/ConfigExample.yml')
     print(c)
-    c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
-    c.fileBin= 'examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
+    #c.fileFZ = os.path.join( os.path.dirname(hexomap.__file__), 'data/fundamental_zone/cubic.dat')
+    c.fileBin= '../examples/johnson_aug18_demo/Au_reduced_1degree/Au_int_1degree_suter_aug18_z'
     c.micVoxelSize = 0.005
     c.micsize = [15,15]
 
@@ -2097,8 +2376,8 @@ if __name__ == "__main__":
     except NameError:
         pass
 
-    S = reconstruction.Reconstructor_GPU()
+    S = reconstruction.Reconstructor_GPU(gpuID=3)
     S.load_config(c)
     S.serial_recon_multi_stage()
 
-    MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)
+    #MicFileTool.plot_mic_and_conf(S.squareMicData, 0.5)

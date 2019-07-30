@@ -34,7 +34,11 @@ Au_Config={
     'NRot' : 180,
     'NDet' : 2,
     'searchBatchSize' : 6000,
-    'reverseRot' : True,          # for aero, is True, for rams: False
+    'reverseRot' : True,          # for aero, is True, for rams: False    
+    'detNJ': np.array([2048, 2048]),
+    'detNK': np.array([2048, 2048]),
+    'detPixelJ': np.array([0.00148, 0.00148]),
+    'detPixelK': np.array([0.00148, 0.00148]),
     'detL' : np.array([[4.53571404, 6.53571404]]),
     'detJ' : np.array([[1010.79405782, 1027.43844558]]),
     'detK' : np.array([[2015.95118521, 2014.30163539]]),
@@ -50,6 +54,7 @@ def main():
     parser = argparse.ArgumentParser(description='single thread hedm reconstruction')
     parser.add_argument('-c','--config', help='config file, .yml ,.yaml, h5, hdf5', default="no config")
     parser.add_argument('-g','--gpu', help='which gpu to use(0-4)', default="0")
+    parser.add_argument('-r','--reconstructor_config', help='reconstructor config file, .yml ,.yaml, h5, hdf5', default="no config")
     args = vars(parser.parse_args())
     
     gpu=args['gpu']
@@ -62,12 +67,21 @@ def main():
         c = config.Config(**Au_Config)
         print(c)
         print('============  loaded internal config ===================')
+    if args['reconstructor_config'].endswith(('.yml','.yaml','h5','hdf5')):
+        c_reconstructor = config.Config().load(args['reconstructor_config'])
+        print(c_reconstructor)
+        print(f"===== loaded external reconstructor config file: {args['reconstructor_config']}  =====")
+    else:  
+        c_reconstructor = None
+        print('============  loaded default reconstructor config ===================')
     ################# reconstruction #########################
     try:
         S.clean_up()
     except NameError:
         pass
     S = reconstruction.Reconstructor_GPU(gpuID=gpu)  # each run should contain just one reconstructor instance, other wise GPU memory may not be released correctly.
+    if c_reconstructor is not None:
+        S.load_reconstructor_config(c_reconstructor)
     for i in range(1):
         S.load_config(c)
         S.serial_recon_multi_stage()
