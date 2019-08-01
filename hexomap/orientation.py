@@ -484,18 +484,28 @@ class Quaternion:
         # NOTE:
         #   single dispatch based polymorphysm did not work for static method
         #   therefore using try-catch block for a temp solution
+        
         try:
             ee = 0.5*euler
         except:
             ee = 0.5*euler.as_array
-        cPhi = np.cos(ee[1])
-        sPhi = np.sin(ee[1])
+
+        c1,c,c2 = np.cos(ee)
+        s1,s,s2 = np.sin(ee)
+        
+        # NOTE: the following formular is derived from 
+        #      q_euler = q_phi1*q_phi*q_phi2
+        # where
+        #   q_phi1 = Quaternion(np.cos(ee[0]), 0, 0, np.sin(ee[0]))  // rot_z
+        #   q_phi  = Quaternion(np.cos(ee[1]), np.sin(ee[1]), 0, 0)  // rot_x
+        #   q_phi2 = Quaternion(np.cos(ee[2]), 0, 0, np.sin(ee[2]))  // rot_z
         return Quaternion(
-            +cPhi*np.cos(ee[0]+ee[2]),
-            -sPhi*np.cos(ee[0]-ee[2]),
-            -sPhi*np.sin(ee[0]-ee[2]),
-            -cPhi*np.sin(ee[0]+ee[2]),
+            c1*c*c2 - s1*c*s2,
+            c1*s*c2 + s1*s*s2,
+           -c1*s*s2 + s1*s*c2,
+            c1*c*s2 + s1*c*c2,
         )
+
     @staticmethod
     def quaternions_from_eulers(eulers: np.ndarray) -> np.ndarray:
         """ Return a quaternion based on given Euler Angles """
