@@ -802,13 +802,8 @@ class Orientation:
         # 2. To calculate disorientation other -> me, we need to do the 
         #    conjudate of other to bring ? to reference frame, then from 
         #    reference frame to me, hence other.conjugate * me
-        # 3. Symmetry operators are required for both, fortunately the
-        #    quaternion based calculation is really cheap. 
-        _drs = [
-            (other.q*symop_tu).conjugate * (self.q*symop_mi)
-                        for symop_mi in sym_ops
-                        for symop_tu in sym_ops 
-            ]
+        # 3. Only one symop is necessary for this process
+        _drs = [other.q.conjugate * self.q * op for op in sym_ops]
         # Step_4: Locate the one pair with the smallest rotation angle
         _dr = _drs[np.argmin([me.rot_angle for me in _drs])]
         return (_dr.rot_angle, _dr.rot_axis)
