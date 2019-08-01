@@ -360,7 +360,7 @@ class Quaternion:
 
     @property
     def rot_angle(self):
-        return abs(np.arccos(self.w)*2)
+        return np.arccos(self.w)*2
     
     @property
     def rot_axis(self):
