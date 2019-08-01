@@ -34,12 +34,13 @@ quaternion_from_matrix = lambda m: Quaternion.from_matrix(m).as_array.ravel()
 rod_from_quaternion = lambda qs: Rodrigues.rodrigues_from_quaternions(qs.T).T.ravel()
 # -- Misorien2FZ1
 def Misorien2FZ1(m1, m2, symtype='Cubic'):
-    _f = Frame()
-    o1 = Orientation(Quaternion.from_matrix(m1), _f)
-    o2 = Orientation(Quaternion.from_matrix(m2), _f)
+    q1 = Quaternion.from_matrix(m1)
+    q2 = Quaternion.from_matrix(m2)
     
-    ang, axis = o1.misorientation(o2, symtype)
-    return Quaternion.from_angle_axis(ang, axis).as_matrix, ang
+    dqs  = [q1.conjugate*q2*op for op in sym_operator(symtype)]
+    angs = [q.rot_angle for q in dqs]
+    idx  = np.argmin(angs)
+    return dqs[idx].as_matrix, angs[idx]
 # -- GetSymRotMat
 GetSymRotMat = lambda s='Cubic': np.array([q.as_matrix for q in sym_operator(s)])
 
