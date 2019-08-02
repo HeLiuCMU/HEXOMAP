@@ -360,7 +360,7 @@ class Quaternion:
 
     @property
     def rot_angle(self):
-        return abs(np.arccos(self.w)*2)
+        return np.arccos(self.w)*2
     
     @property
     def rot_axis(self):
@@ -484,46 +484,51 @@ class Quaternion:
         # NOTE:
         #   single dispatch based polymorphysm did not work for static method
         #   therefore using try-catch block for a temp solution
+        
         try:
             ee = 0.5*euler
         except:
             ee = 0.5*euler.as_array
-        cPhi = np.cos(ee[1])
-        sPhi = np.sin(ee[1])
+
+        c1,c,c2 = np.cos(ee)
+        s1,s,s2 = np.sin(ee)
+        
+        # NOTE: the following formular is derived from 
+        #      q_euler = q_phi1*q_phi*q_phi2
+        # where
+        #   q_phi1 = Quaternion(np.cos(ee[0]), 0, 0, np.sin(ee[0]))  // rot_z
+        #   q_phi  = Quaternion(np.cos(ee[1]), np.sin(ee[1]), 0, 0)  // rot_x
+        #   q_phi2 = Quaternion(np.cos(ee[2]), 0, 0, np.sin(ee[2]))  // rot_z
         return Quaternion(
-            +cPhi*np.cos(ee[0]+ee[2]),
-            -sPhi*np.cos(ee[0]-ee[2]),
-            -sPhi*np.sin(ee[0]-ee[2]),
-            -cPhi*np.sin(ee[0]+ee[2]),
+            c1*c*c2 - s1*c*s2,
+            c1*s*c2 + s1*s*s2,
+           -c1*s*s2 + s1*s*c2,
+            c1*c*s2 + s1*c*c2,
         )
+
     @staticmethod
     def quaternions_from_eulers(eulers: np.ndarray) -> np.ndarray:
         """ Return a quaternion based on given Euler Angles """
         # allow euler as an numpy array
-        # NOTE:
-        #   single dispatch based polymorphysm did not work for static method
-        #   therefore using try-catch block for a temp solution
-        # ensure shape is correct
         try:
             eulers = eulers.reshape((-1, 3))
         except:
             raise ValueError(f"Eulers angles much be ROW/horizontal stacked")
-        eulers = standarize_euler(eulers)
-        ee = 0.5*eulers
-        cPhi = np.cos(ee[:,1])
-        sPhi = np.sin(ee[:,1])
-        quats = np.empty([eulers.shape[0], 4])
-        #print(cPhi.shape,sPhi.shape,ee.shape)
-        quats[:,0] = +cPhi*np.cos(ee[:, 0] + ee[:, 2])
-        quats[:,1] = -sPhi*np.cos(ee[:, 0] - ee[:, 2])
-        quats[:,2] = -sPhi*np.sin(ee[:, 0] - ee[:, 2])
-        quats[:,3] = -cPhi*np.sin(ee[:, 0] + ee[:, 2])
 
-        _sgn = np.ones(quats.shape[0])
-        _sgn[quats[:,0] < 0] = - 1
-        _norm = np.linalg.norm(quats, axis=1) * _sgn
-        quats = quats / _norm[:,np.newaxis].repeat(4,axis=1)
-        return quats
+        ee = 0.5*eulers
+        cs = np.cos(ee)
+        ss = np.sin(ee)
+        c1, c, c2 = cs[:,0], cs[:,1], cs[:,2]
+        s1, s, s2 = ss[:,0], ss[:,1], ss[:,2]
+        
+        quats = np.empty([eulers.shape[0], 4])
+        quats[:,0] =  c1*c*c2 - s1*c*s2
+        quats[:,1] =  c1*s*c2 + s1*s*s2
+        quats[:,2] = -c1*s*s2 + s1*s*c2
+        quats[:,3] =  c1*c*s2 + s1*c*c2
+
+        return (quats/np.linalg.norm(quats, axis=1)[:,None]) * np.sign(quats[:,0])[:,None]
+
     @staticmethod
     def from_rodrigues(ro: 'Rodrigues') -> 'Quaternion':
         """Construct an equivalent quaternion from given Rodrigues"""
@@ -797,13 +802,8 @@ class Orientation:
         # 2. To calculate disorientation other -> me, we need to do the 
         #    conjudate of other to bring ? to reference frame, then from 
         #    reference frame to me, hence other.conjugate * me
-        # 3. Symmetry operators are required for both, fortunately the
-        #    quaternion based calculation is really cheap. 
-        _drs = [
-            (other.q*symop_tu).conjugate * (self.q*symop_mi)
-                        for symop_mi in sym_ops
-                        for symop_tu in sym_ops 
-            ]
+        # 3. Only one symop is necessary for this process
+        _drs = [other.q.conjugate * self.q * op for op in sym_ops]
         # Step_4: Locate the one pair with the smallest rotation angle
         _dr = _drs[np.argmin([me.rot_angle for me in _drs])]
         return (_dr.rot_angle, _dr.rot_axis)

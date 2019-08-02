@@ -15,7 +15,7 @@ def h5print(filename):
         print(filename)
         h5printR(h, '  ')
         
-def npy2h5(fName, h5Name, material,lLayerIdx, q=11):
+def npy2h5(lFName, h5Name, material,lLayerIdx, q=11):
     '''
     lFName: list of filenames
     lLayerIdx: list of layer index

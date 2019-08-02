@@ -454,6 +454,7 @@ def Misorien2FZ2(m1, m2, symtype='Cubic'):
     dm = (m2.T).dot(m1)
     ops = GetSymRotMat(symtype)
     angle = 6.3
+    axis  = np.array([0,0,1])
     for op1 in ops:
         for op2 in ops:
             tmp = op2.dot(dm.dot(op1))
