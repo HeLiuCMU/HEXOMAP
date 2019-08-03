@@ -20,7 +20,7 @@ from pycuda.compiler import SourceModule
 from pycuda.curandom import MRG32k3aRandomNumberGenerator
 from hexomap import sim_utilities
 from hexomap.past import *
-from hexomap.RotRep import Misorien2FZ1
+from hexomap.RotRep import Misorien2FZ1, Orien2FZ
 from hexomap import IntBin
 from hexomap.past import generate_random_rot_mat
 from   hexomap.utility import load_kernel_code
@@ -478,14 +478,14 @@ class Reconstructor_GPU():
             rotMatSeedD = gpuarray.to_gpu(rotMatSeed)
             searchMatD = self.gen_random_matrix(rotMatSeedD,
                                                 rotMatSeed.shape[0] * rotMatSeed.shape[1] * rotMatSeed.shape[2],
-                                                40, 0.1)
+                                                40, 0.005)
             lSearchMatD.append(searchMatD)
         NSearchOrien = rotMatSeed.shape[1] * rotMatSeed.shape[2] * 40
 
         ######### generate detecter rotation
         aDetRot = generarte_random_eulerZXZ(centerRot, 0.3, 2).reshape([-1, self.NDet, 3])
         ######### calculate cost, take the maximum hit ratio
-        self.geometry_grid_search(centerL, centerJ, centerK, aDetRot, idxVoxel, lSearchMatD, NSearchOrien, NIteration=2, BoundStart=0.01)
+        self.geometry_grid_search(centerL, centerJ, centerK, aDetRot, idxVoxel, lSearchMatD, NSearchOrien, NIteration=1, BoundStart=0.01)
         maxHitRatio = self.geoSearchHitRatio.max()
         rot = aDetRot[np.argmax(self.geoSearchHitRatio.ravel()), :, :].reshape([1, self.NDet, 3])
         return 1.0 - maxHitRatio, rot
@@ -916,6 +916,13 @@ class Reconstructor_GPU():
                 micMask=None
         except AttributeError:
             micMask = None
+        try:
+            getattr(config, 'addtionalEuler')        
+            addtionalEuler=config.addtionalEuler
+            if isinstance(addtionalEuler, str) and addtionalEuler=='None':
+                addtionalEuler=None
+        except AttributeError:
+            addtionalEuler = None
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
         self.set_Q(config.maxQ)
@@ -936,6 +943,8 @@ class Reconstructor_GPU():
                             + f'{"x".join(map(str,config.micsize))}_{config.micVoxelSize}' \
                             + f'_shift_{"_".join(map(str, config.micShift))}.npy' # output file name
         self.searchBatchSize = int(config.searchBatchSize)    # number of orientations search at each iteration, larger number will take longer time.
+        if addtionalEuler is not None:
+            self.additionalFZ = addtionalEuler
         self.recon_prepare(config.reverseRot, bReloadExpData=reloadData)
         self.config=config
 
@@ -1199,6 +1208,7 @@ class Reconstructor_GPU():
                 sys.stdout.flush()
                 x, y, intensity, id = IntBin.ReadI9BinaryFiles(fName)
                 # print(x,type(x))
+                #print(x,y)
                 if x.size == 0:
                     continue
 
@@ -1285,6 +1295,7 @@ class Reconstructor_GPU():
         '''
         save simulated result as binary files
         '''
+        #print('saving simulate pattern')
         directory = os.path.dirname(fNameInitial)
         if directory != '':
             if not os.path.exists(directory):
@@ -1299,8 +1310,12 @@ class Reconstructor_GPU():
                 idxSelect = np.where(np.logical_and(rot==idxRot,aDetIdx==idxDet))
                 jTmp = j[idxSelect]
                 kTmp = k[idxSelect]
-                snp = [jTmp,kTmp,np.zeros(jTmp.size,dtype=np.int32),np.zeros(jTmp.size,dtype=np.int32)]
-                fName = fNameInitial + f'z{self.layerIdx}_{idxRot:06d}.bin{idxDet}'
+                snp = [jTmp,kTmp,np.ones(jTmp.size,dtype=np.int32),np.ones(jTmp.size,dtype=np.int32)]
+                #print(snp)
+                if self.config.reverseRot:
+                    fName = fNameInitial + f'z{self.layerIdx}_{(self.NRot-1-idxRot):06d}.bin{idxDet}'
+                else:
+                    fName = fNameInitial + f'z{self.layerIdx}_{idxRot:06d}.bin{idxDet}'
                 IntBin.WritePeakBinaryFile(snp, fName)
         return 1
 
@@ -1417,8 +1432,12 @@ class Reconstructor_GPU():
                 self.acExpDataCpuRam = None
         #self.__create_acExpDataCpuRam()
         # setup serial Reconstruction rotMatCandidate
+        while self.searchBatchSize < self.FZMat.shape[0]:
+            self.searchBatchSize += self.NSelect
+        print(f'\r reset searchBatchSize into {self.searchBatchSize }')
         self.FZMatH = np.empty([self.searchBatchSize,3,3])
         if self.searchBatchSize > self.FZMat.shape[0]:
+            #print(f'self.FZMat.shape[0]: {self.FZMat.shape[0]}')
             self.FZMatH[:self.FZMat.shape[0], :, :] = self.FZMat
             self.FZMatH[self.FZMat.shape[0]:,:,:] = generate_random_rot_mat(self.searchBatchSize - self.FZMat.shape[0])
         else:
@@ -1621,7 +1640,7 @@ class Reconstructor_GPU():
         end = time.time()
         print(' post process takes is {0} seconds'.format(end-start))
         
-    def post_process(self):
+    def post_process(self,startMask=None):
         '''
         In this process, voxels with misorientation to its  neighbours greater than certain level will be revisited,
         new candidate orientations are taken from the neighbours around this voxel, random orientations will be generated
@@ -1641,8 +1660,10 @@ class Reconstructor_GPU():
         NVoxelX = self.squareMicData.shape[0]
         NVoxelY = self.squareMicData.shape[1]
         accMat = self.voxelAcceptedMat.copy().reshape([NVoxelX, NVoxelY, 9])
-
-        misOrienTmp = self.get_misorien_map(accMat)
+        if startMask is None:
+            misOrienTmp = self.get_misorien_map(accMat)
+        else:
+            misOrienTmp = startMask
         self.NPostProcess = 0
         self.NPostVoxelVisited = 0
         start = time.time()
@@ -1832,10 +1853,12 @@ class Reconstructor_GPU():
         x, y = np.where(simMask.astype(bool)==True)
         #print(x,y)
         self.voxelPos4Sim = self.squareMicData[x,y,0:3].reshape([-1,3])
-        print(self.voxelPos4Sim.shape)
+        #print(self.voxelPos4Sim)
         euler = self.squareMicData[x, y, 3:6] / 180 * np.pi
+        #print(euler)
         self.oriMatToSim = EulerZXZ2MatVectorized(euler)
-        print(self.oriMatToSim.shape)
+        #print(self.oriMatToSim.shape)
+        #print(self.oriMatToSim)
         self.run_sim(self.voxelPos4Sim, self.oriMatToSim)
 
     def run_sim(self, voxelPos, oriMatToSim):
@@ -1853,21 +1876,21 @@ class Reconstructor_GPU():
         end = cuda.Event()
         start.record()  # start timing
         # initialize Scattering Vectors
-        self.sample.getRecipVec()
-        self.sample.getGs(self.maxQ)
+        #self.sample.getRecipVec()
+        #self.sample.getGs(self.maxQ)
 
         # initialize orientation Matrices !!! implement on GPU later
 
         #initialize device parameters and outputs
         NVoxel = voxelPos.shape[0]
         afOrientationMatD = gpuarray.to_gpu(oriMatToSim.astype(np.float32)) # NVoxel*NOriPerVoxel
-        afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
+        #afGD = gpuarray.to_gpu(self.sample.Gs.astype(np.float32))
         afVoxelPosD = gpuarray.to_gpu(voxelPos.astype(np.float32))
-        afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
+        #afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
         if oriMatToSim.shape[0]%NVoxel !=0:
             raise ValueError('dimension of oriMatToSim should be integer number  of NVoxel')
         NOriPerVoxel = oriMatToSim.shape[0]/NVoxel
-        self.NG = self.sample.Gs.shape[0]
+        #self.NG = self.sample.Gs.shape[0]
         #output device parameters:
         aiJD = gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet),np.int32)
         aiKD = gpuarray.empty(int(NVoxel*NOriPerVoxel*self.NG*2*self.NDet),np.int32)
@@ -2135,7 +2158,7 @@ class Reconstructor_GPU():
         shape = (self.squareMicData.shape[0], self.squareMicData.shape[1])
         self.create_square_mic(shape=shape, voxelsize=voxelsize, mask=mask)
         self.squareMicData[:,:, 3:6] = newSquareMic[:,:,3:6]
-        eulers, label, numFeatures = self.extract_orientations()
+        eulers = self.extract_orientations()
         self.additionalFZ = eulers
         self.serial_recon_multi_stage()
 
