@@ -312,34 +312,26 @@ class Quaternion:
         """
         Quaternion to Euler angles
         """
-        qu = self.as_array
-
-        q03 = qu[0]**2+qu[3]**2
-        q12 = qu[1]**2+qu[2]**2
-        chi = np.sqrt(q03*q12)
-
-        if iszero(chi):
-            if iszero(q12):
-                eu = np.array([
-                    np.arctan2(-1*2.0*qu[0]*qu[3],qu[0]**2-qu[3]**2), 
-                    0.0,   
-                    0.0,
-                    ]) 
-            else: 
-                eu = np.array([
-                    np.arctan2(2.0*qu[1]*qu[2],qu[1]**2-qu[2]**2),         
-                    np.pi, 
-                    0.0,
-                    ])
-        else:
-            eu = np.array([
-                np.arctan2((-1*qu[0]*qu[2]+qu[1]*qu[3])*chi, (-1*qu[0]*qu[1]-qu[2]*qu[3])*chi ),
-                np.arctan2( 2.0*chi, q03-q12 ), 
-                np.arctan2(( 1*qu[0]*qu[2]+qu[1]*qu[3])*chi, (-1*qu[0]*qu[1]+qu[2]*qu[3])*chi ),
-                ])
-
-        # reduce Euler angles to definition range, i.e a lower limit of 0.0
-        return Eulers(*eu)
+        # NOTE: assuming Bunge Euler angle (z->x->z)
+        #   w = cos(Phi/2) * cos(phi1/2 + phi2/2)
+        #   x = sin(Phi/2) * cos(phi1/2 - phi2/2)
+        #   y = sin(Phi/2) * sin(phi1/2 - phi2/2)
+        #   z = cos(Phi/2) * sin(phi1/2 + phi2/2)
+        # ==>
+        #   Phi = arcsin(sqrt(x^2+y^2)) * 2  \in [0, pi]
+        # and
+        #   phi1/2 - phi2/2 = arctan2(y, x)
+        #   phi1/2 + phi2/2 = arctan2(z, w)
+        # ==>
+        #   phi1 = arctan2(z, w) + arctan2(y, x)
+        #   phi2 = arctan2(z, w) - arctan2(y, x)
+        
+        w, x, y, z = self.as_array
+        return Eulers(
+            np.arctan2(z, w) + np.arctan2(y, x),
+            2*np.arcsin(np.sqrt(x**2+y**2)),
+            np.arctan2(z, w) - np.arctan2(y, x),
+            )
 
     @property
     def as_matrix(self) -> np.ndarray:
