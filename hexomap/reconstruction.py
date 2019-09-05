@@ -288,7 +288,7 @@ class Reconstructor_GPU():
 
     def set_det_param(self,L,J,K, rot,
                       NJ=[2048,2048,2048],NK=[2048,2048,2048],
-                      pixelJ=[0.00148,0.00148,0.00148],pixelK=[0.00148,0.00148,0.00148], detIdx=None):
+                      pixelJ=[0.00148,0.00148,0.00148],pixelK=[0.00148,0.00148,0.00148], detIdx=None,):
         '''
         set geometry parameters,
         :param L: array, [1,nDet], detector distance to rotation center
@@ -343,7 +343,7 @@ class Reconstructor_GPU():
             lDetInfoTmp.append(np.concatenate([np.array([self.detectors[i].NPixelJ,self.detectors[i].NPixelK,
                                                          self.detectors[i].PixelJ,self.detectors[i].PixelK]),
                                                 self.detectors[i].CoordOrigin,self.detectors[i].Norm,self.detectors[i].Jvector,
-                                               self.detectors[i].Kvector,np.array([self.NRot,-np.pi/2,np.pi/2])]))
+                                               self.detectors[i].Kvector,np.array([self.NRot,self.detOmegaStart,self.detOmegaRange + self.detOmegaStart])]))
         self.afDetInfoH = np.concatenate(lDetInfoTmp)
         self.afDetInfoD = gpuarray.to_gpu(self.afDetInfoH.astype(np.float32))
 
@@ -908,6 +908,8 @@ class Reconstructor_GPU():
         '''
         load any configuration from config class
         config: Config(), defined in config.py
+        detOmegaStart: -np.pi * 0.5, in radian
+        detOmegaRange: np.pi , in radian
         '''
         try:
             getattr(config, 'micMask')        
@@ -932,6 +934,16 @@ class Reconstructor_GPU():
         self.detIdx = config.fileBinDetIdx
         self.NRot = int(config.NRot)
         self.NDet = int(config.NDet)
+        try:
+            getattr(config, 'detOmegaStart') 
+            self.detOmegaStart = config.detOmegaStart    
+        except AttributeError:
+            self.detOmegaStart = - np.pi * 0.5
+        try:
+            getattr(config, 'detOmegaRange') 
+            self.detOmegaRange = config.detOmegaRange     
+        except AttributeError:
+            self.detOmegaRange = np.pi
         self.layerIdx = config.fileBinLayerIdx
         self.set_det_param(np.array(config.detL), np.array(config.detJ), np.array(config.detK), np.array(config.detRot),NJ=np.array(config.detNJ), NK=np.array(config.detNK), pixelJ=np.array(config.detPixelJ),pixelK=np.array(config.detPixelK)) # set parameter
         self.create_square_mic(config.micsize,
