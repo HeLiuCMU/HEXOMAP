@@ -265,7 +265,7 @@ class CrystalStr:
             F += self.AtomZs[ii] * np.exp(-2 * np.pi * 1j * (hkl.dot(self.AtomPos[ii])))
         return F
 
-    def getGs(self, maxQ):
+    def getGs(self, maxQ,minQ=0):
         self.Gs = []
         maxh = int(maxQ / float(np.linalg.norm(self.RecipA)))
         maxk = int(maxQ / float(np.linalg.norm(self.RecipB)))
@@ -277,7 +277,7 @@ class CrystalStr:
                         pass
                     else:
                         G = h * self.RecipA + k * self.RecipB + l * self.RecipC
-                        if np.linalg.norm(G) <= maxQ:
+                        if np.linalg.norm(G) <= maxQ and np.linalg.norm(G)>=minQ :
                             if np.absolute(self.calStructFactor(np.array([h, k, l]))) > 1e-6:
                                 self.Gs.append(G)
         self.Gs = np.array(self.Gs)

@@ -263,7 +263,7 @@ class Reconstructor_GPU():
             self.set_Q(self.maxQ)
             print(f'set Q automatically to {self.maxQ}')
 
-    def set_Q(self,Q):
+    def set_Q(self,maxQ,minQ=0):
         '''
         set maximum Q vector to use
         if Q is too large so that number of reciprical lattice vector is larger than 1024, GPU grid number will overflow, so it will automaticlly tune down Q if this happens.
@@ -271,18 +271,22 @@ class Reconstructor_GPU():
             this usually end up with 7-11
         
         '''
-        self.maxQ = Q
+        self.maxQ = maxQ
+        self.minQ = minQ
         self.sample.getRecipVec()
-        self.sample.getGs(self.maxQ)
+        self.sample.getGs(self.maxQ,minQ=minQ)
         self.NG = self.sample.Gs.shape[0]
         if self.NG > 1024:
             print('WARNING: Number of G vector exceed 1024, need to reduce maxQ! This limit is due to GPU block size')
             while self.NG > 1024:
                 self.maxQ -= 1
-                self.sample.getGs(self.maxQ)
+                self.sample.getGs(self.maxQ,minQ=minQ)
                 self.NG = self.sample.Gs.shape[0]
-            print(f'WARNING: maxQ has been reset to {self.maxQ}!')
+            print(f'WARNING: maxQ has been reset to {self.maxQ}!,minQ={self.minQ}')
         #self.tfG = mod.get_texref("tfG")
+        print(f'maxQ: {self.maxQ}, minQ: {self.minQ}, NG: {self.NG}')
+        if self.NG==0:
+            raise ValueError(f'NG is 0, please check lattice constant(in Angstrom) and maxQ!')
         self.tfG.set_array(cuda.np_to_array(self.sample.Gs.astype(np.float32),order='C'))
         self.tfG.set_flags(cuda.TRSA_OVERRIDE_FORMAT)
 
@@ -925,9 +929,14 @@ class Reconstructor_GPU():
                 addtionalEuler=None
         except AttributeError:
             addtionalEuler = None
+        try:
+            getattr(config, 'minQ')        
+            minQ=config.minQ
+        except AttributeError:
+            minQ = 0
         self.etalimit = config.etalimit
         self.set_sample(config.sample)
-        self.set_Q(config.maxQ)
+        self.set_Q(config.maxQ,minQ=minQ)
         self.energy = config.energy
         self.expDataInitial = f'{config.fileBin}{config.fileBinLayerIdx}_'      # reduced binary data
         self.expdataNDigit = config.fileBinDigit               # number of digit in the binary file name
