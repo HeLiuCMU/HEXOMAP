@@ -2161,6 +2161,28 @@ class Reconstructor_GPU():
             self.NFloodFill += 1
 
     # ================== others ===========================================================
+    def get_mic_conf(self, mic, mask=None):
+        '''
+        this function will input a mic and then calculate the coresponding confidence level
+        mic: 
+            input mic,numpy array, [n,n,10]
+        return:
+            confidence, numpy array,[n,n] 
+        '''
+        if mask is None:
+            mask = np.ones([mic.shape[0],mic.shape[1]])
+        mask = mask.astype(np.bool_)
+        x = np.where(mask.ravel())[0]
+        aVoxelPos = mic[:,:,0:3].reshape([-1,3])[x,:]
+        aEuler = mic[:,:,3:6].reshape([-1,3])[x,:]
+        aRotMat = EulerZXZ2MatVectorized(aEuler / 180.0 * np.pi)
+        afVoxelPosD = gpuarray.to_gpu(aVoxelPos.astype(np.float32))
+        afRotMatD = gpuarray.to_gpu(aRotMat.astype(np.float32))
+        afHitRatioH, afPeakCntH = self.unit_run_hitratio(afVoxelPosD, afRotMatD, x.size, 1)
+        result = np.zeros(mic.shape[0]*mic.shape[1])
+        result[x] = afHitRatioH
+        result = result.reshape([mic.shape[0],mic.shape[1]])
+        return result
 
     def increase_resolution(self, factor, maskThreshold=0.3):
         '''
