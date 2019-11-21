@@ -915,6 +915,12 @@ class Reconstructor_GPU():
         detOmegaStart: -np.pi * 0.5, in radian
         detOmegaRange: np.pi , in radian
         '''
+        if reloadData:
+            print('try to clean up gpu memory')
+            try:
+                self.clean_up()
+            except:
+                pass
         try:
             getattr(config, 'micMask')        
             micMask=config.micMask
