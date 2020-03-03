@@ -175,6 +175,9 @@ def WritePeakBinaryFile(snp,sFilename):
         f.write(struct.pack('{0:d}f'.format(n),*snp[2]))
     WriteUFFHeader(f,headerPeakID)
     if n>0:
+        if np.sum(snp[3]>65324)>0:
+            print('WARNING: too many peaks, check baseline setting.')
+            snp[3][snp[3]>65534] = 65534
         f.write(struct.pack('{0:d}H'.format(n),*snp[3]))
     f.close()
 
