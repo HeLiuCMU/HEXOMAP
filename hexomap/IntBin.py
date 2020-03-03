@@ -110,8 +110,11 @@ def ReadI9BinaryFiles(filename):
 #    print Header1['NameSize']
     if nCheck!=nElements:
         raise Exception('Number of elements mismatch')
-    PeakID=struct.unpack('{0:d}H'.format(nElements),fid.read(2*nElements))
-
+    try:
+        PeakID=struct.unpack('{0:d}H'.format(nElements),fid.read(2*nElements))
+    except struct.error:
+        print('errror reading peak id, assigning 0s.')
+        PeakID = [0]*nElements
     fid.close()
     return np.array(x),np.array(y),np.array(intensity),np.array(PeakID)
 
@@ -136,6 +139,8 @@ def WritePeakBinaryFile(snp,sFilename):
     headerY={'BlockType':1,'DataFormat':1,'NumChildren':0,'NameSize':12,'BlockName':'PixelCoord1','DataSize':0,'ChunkNumber':0,'TotalChunks':0}
     headerInt={'BlockType':1,'DataFormat':1,'NumChildren':0,'NameSize':10,'BlockName':'Intensity','DataSize':0,'ChunkNumber':0,'TotalChunks':0}
     headerPeakID={'BlockType':1,'DataFormat':1,'NumChildren':0,'NameSize':7,'BlockName':'PeakID','DataSize':0,'ChunkNumber':0,'TotalChunks':0}
+    if len(snp[0])!=len(snp[1]) or len(snp[1])!=len(snp[2]) or len(snp[2])!=len(snp[3]):
+        raise ValueError('length of x,y,intensity and id are different!')
     n=len(snp[0])
     headerPeakID['DataSize']=n*2+7
     headerInt['DataSize']=n*4+10
