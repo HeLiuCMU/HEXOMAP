@@ -9,7 +9,8 @@ import os
 import sys
 import cv2
 
-def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],end='.tif', imgshape=[2048,2048],logfile=None):
+
+def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,layerIdx=[0],digitLength=6,end='.tif', imgshape=[2048,2048],logfile=None):
     '''
     take median over omega as background
     initial: finle name initial. e.g.:'/home/heliu/work/shahani_feb19_part/nf_part/dummy_2_rt_before_heat_nf/dummy_2_rt_before_heat_nf_'
@@ -19,6 +20,7 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
     NDet: number of detector.
     NLayer: number of layer.
     layerIdx: the index used for layers
+    digitLength: length of digit in file name.
     end: file end format.
     imgshape: image resolution
     '''
@@ -36,7 +38,7 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
             for rot in range(NRot):
                 print(f'rot: {rot}')
                 idx = layer * NDet * NRot + det * NRot + rot + startIdx
-                fName = f'{initial}{idx:06d}{end}'
+                fName = f'{initial}{str(idx).zfill(digitLength)}{end}'
                 print(fName)
                 if logfile is not None:
                     logfile.write(f'layer: {layerIdx[layer]}, det: {det}, rot: {rot}, {fName} \n')
@@ -47,6 +49,10 @@ def median_background(initial,startIdx,outInitial, NRot=720, NDet=2,NLayer=1,lay
                     print(f'FILE NOT FOUND!!! {fName}')
                     if logfile is not None:
                         logfile.write(f'FILE NOT FOUND!!! {fName} \n ')
+                except IndexError:
+                    imgStack[:,:,rot] = np.zeros([2048,2048])
+                    if logfile is not None:
+                        logfile.write(f'FILE DESTROYED!!! {fName} \n ')
                 #sys.stdout.write(f'\r {rot}')
                 #sys.stdout.flush()
             if logfile is not None:
@@ -218,7 +224,7 @@ def segmentation(img, bkg, baseline=10, minNPixel=4, medianSize=3):
     print(f'time taken:{end- start}')
     return (img.shape[1]- 1 - np.array(lY)).astype(np.int32), np.array(lX).astype(np.int32), np.array(lIntensity).astype(np.int32), np.array(lID).astype(np.int32)
 
-def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer=1,idxLayer=[0],end='.tif', imgshape=[2048,2048],
+def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer=1,idxLayer=[0],digitLength=6,end='.tif', imgshape=[2048,2048],
                 baseline=10, minNPixel=4):
     '''
     example usage:
@@ -247,7 +253,7 @@ def reduce_image(initial,startIdx,bkgInitial,binInitial, NRot=720, NDet=2,NLayer
                 idx = layer * NDet * NRot + det * NRot + rot + startIdx
                 fName = f'{initial}{str(idx).zfill(digitLength)}{end}'
                 img = tifffile.imread(fName)
-                binFileName = f'{binInitial}z{idxLayer[layer]}_{rot.zfill(digitLength)}.bin{det}'
+                binFileName = f'{binInitial}z{idxLayer[layer]}_{rot}.bin{det}'
                 print(binFileName)
                 snp = segmentation(img, bkg, baseline=baseline, minNPixel=minNPixel)
                 IntBin.WritePeakBinaryFile(snp, binFileName)
