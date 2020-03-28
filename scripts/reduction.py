@@ -87,8 +87,12 @@ initial = c.initial
 digitLength  = c.digitLength 
 outputDirectory = c.outputDirectory 
 identifier = c.identifier 
-generateBkg = c.generateBkg 
-generateBin = c.generateBin 
+generateBkg = True
+generateBin = True
+if c.generateBkg=='false':
+    generateBkg=False
+if c.generateBin=='false':
+    generateBin=False  
 baseline = c.baseline 
 minNPixel = c.minNPixel 
 medianSize = c.medianSize
@@ -132,6 +136,8 @@ for layer in range(NLayer):
         logfile.write('start generating bkg \n')
         start =  time.time()
     if generateBkg:
+        print(generateBkg)
+        print('generate bkg')
         if rank==0:
             lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[idxLayer[layer]],digitLength=digitLength, end=extention)
         else:
@@ -139,6 +145,7 @@ for layer in range(NLayer):
         lBkg = comm.bcast(lBkg, root=0)
 
     else:
+        print('skip bkg')
         lBkg = []
         logfile.write(f'loading bkg, rank{rank}...')
         for det in range(NDet):
@@ -168,7 +175,7 @@ for layer in range(NLayer):
                 print(f'file destroyed: {fName}')
                 logfile.write(f"ERROR: FILE NOT COMPLETE: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} Destroyed\n")
             #img = tifffile.imread(fName)
-            binFileName = f'{binInitial}z{lIdxLayer[i]}_{str(lIdxRot[i]).zfill(digitLength)}.bin{lIdxDet[i]}'
+            binFileName = f'{binInitial}z{lIdxLayer[i]}_{str(lIdxRot[i]).zfill(6)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
             IntBin.WritePeakBinaryFile(snp, binFileName)
         logfile.write(f'rank {rank}: finish segmentation') 
