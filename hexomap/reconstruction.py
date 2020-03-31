@@ -1109,6 +1109,7 @@ class Reconstructor_GPU():
         self.voxelAcceptedMat = np.zeros([self.NVoxel, 3, 3])
         self.voxelAcceptedMat = EulerZXZ2MatVectorized(
             self.squareMicData[:, :, 3:6].reshape([-1, 3]) / 180.0 * np.pi)
+        self.accMat = self.voxelAcceptedMat.copy().reshape([self.squareMicData.shape[0], self.squareMicData.shape[1], 9])
         self.voxelHitRatio = self.squareMicData[:, :, 6].ravel()
 
     def load_square_mic_file(self, fName, format='npy'):
