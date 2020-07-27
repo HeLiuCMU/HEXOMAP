@@ -19,16 +19,29 @@ fadelity and efficiency.
 1. install cuda-toolkit
 
     *    reconmmend cuda9.1 but any version supported by pycuda is fine
-1. create python virtual environment
+2. create python virtual environment(step by step):
 
-    *   insall from environment file:
+	* conda create --name hexomap_env_test python=3.6
+	* conda activate hexomap_env_test
 
-        *	install anaconda
-
-        * conda env create -f environment.yml
-        * under HEXOMAP/: python setup.py install
+	* conda install numpy scipy numba matplotlib h5py jupyter
+	* conda install -c anaconda yaml pyyaml dataclasses tifffile opencv
+	* pip install pycuda
+    
+	> Or reference https://wiki.tiker.net/PyCuda/Installation/Linux/
+    
+    > To test installation, Type ‘python’ in terminal to enter python terminal, then try: ">>>from pycuda import autoinit"
+	
+	
+3. Install HEXOMAP:
+    * git clone https://github.com/HeLiuCMU/HEXOMAP.git
+	* cd HEXOMAP/
+	* python setup.py install
+    
+### to activate mpi usage you would need to install mpi4py. This could be tricky and varies from machine to machine. Please contact your administrator or look for documentation to install mpi4py successfully.
         
-1. check installation:
+4
+. check installation:
     * under HEXOMAP/: run "python -m hexomap"
 
 ## Usage and Examples
