@@ -4,23 +4,29 @@ sys.path.insert(0, '..')
 import hexomap
 from hexomap import reduction
 import numpy as np
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError: 
+    mpi4py = None
 import atexit
 import matplotlib.pyplot as plt
 import time
 from hexomap.reduction import segmentation_numba
 from hexomap import IntBin
 import time
-from hexomap import mpi_log
 from hexomap import config
 import os
 import argparse
 import tifffile
-atexit.register(MPI.Finalize)
-comm = MPI.COMM_WORLD
-size = comm.Get_size()
-rank = comm.Get_rank()
-
+if mpi4py is not None:
+    from hexomap import mpi_log
+    atexit.register(MPI.Finalize)
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+else:
+    size = 1
+    rank = 0
 ############################# Example useage: #######################################
 '''
 mpirun -n 1 python mpi_reduction_Au2_NF_LineFocus.py
@@ -100,18 +106,19 @@ medianSize = c.medianSize
 
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
 binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
-logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
+if mpi4py is not None:
+    logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
 
 if rank==0:
     if not os.path.exists(outputDirectory):
         os.makedirs(outputDirectory)
-comm.Barrier()
-
-logfile = mpi_log.MPILogFile(
-    comm, logFileName, 
-    MPI.MODE_WRONLY | MPI.MODE_CREATE | MPI.MODE_APPEND
-)
-logfile.write(f"rank: {rank} : hello\n")
+if mpi4py is not None:
+    comm.Barrier()
+    logfile = mpi_log.MPILogFile(
+        comm, logFileName, 
+        MPI.MODE_WRONLY | MPI.MODE_CREATE | MPI.MODE_APPEND
+    )
+    logfile.write(f"rank: {rank} : hello\n")
 for layer in range(NLayer):
     NTotal = NDet * NRot
     if aIdxImg is None:
@@ -133,7 +140,8 @@ for layer in range(NLayer):
     print(lIdxLayer, lIdxDet, lIdxRot, lBkgIdx,lIdxImg)
     # generate background:
     if rank==0:
-        logfile.write('start generating bkg \n')
+        if mpi4py is not None:
+            logfile.write('start generating bkg \n')
         start =  time.time()
     if generateBkg:
         print(generateBkg)
@@ -142,26 +150,33 @@ for layer in range(NLayer):
             lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[idxLayer[layer]],digitLength=digitLength, end=extention)
         else:
             lBkg = None
-        lBkg = comm.bcast(lBkg, root=0)
+        if mpi4py is not None:
+            lBkg = comm.bcast(lBkg, root=0)
 
     else:
         print('skip bkg')
         lBkg = []
-        logfile.write(f'loading bkg, rank{rank}...')
+        if mpi4py is not None:
+            logfile.write(f'loading bkg, rank{rank}...')
         for det in range(NDet):
             lBkg.append(np.load(f'{bkgInitial}_z{idxLayer[layer]}_det_{det}.npy'))
-        logfile.write(f'end loading bkg, rank{rank}')
-    comm.Barrier()
+        if mpi4py is not None:
+            logfile.write(f'end loading bkg, rank{rank}')
+    if mpi4py is not None:
+        comm.Barrier()
     if rank==0:
-        logfile.write('end generating bkg \n')
+        if mpi4py is not None:
+            logfile.write('end generating bkg \n')
         end = time.time()
-        logfile.write(f'time take generating bkg: {end-start} \n')
+        if mpi4py is not None:
+            logfile.write(f'time take generating bkg: {end-start} \n')
         start = time.time()
     if generateBin:
         for i in range(NPerCore):
             bkg = lBkg[lBkgIdx[i]]
             fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
-            logfile.write(f"generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
+            if mpi4py is not None:
+                logfile.write(f"generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.flush()
             try:
@@ -169,22 +184,28 @@ for layer in range(NLayer):
             except FileNotFoundError:
                 print('file not found')
                 img = np.zeros([2048,2048])
-                logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
+                if mpi4py is not None:
+                    logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
             except IndexError:
                 img = np.zeros([2048,2048])
                 print(f'file destroyed: {fName}')
-                logfile.write(f"ERROR: FILE NOT COMPLETE: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} Destroyed\n")
+                if mpi4py is not None:
+                    logfile.write(f"ERROR: FILE NOT COMPLETE: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} Destroyed\n")
             #img = tifffile.imread(fName)
             binFileName = f'{binInitial}z{lIdxLayer[i]}_{str(lIdxRot[i]).zfill(6)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
             IntBin.WritePeakBinaryFile(snp, binFileName)
-        logfile.write(f'rank {rank}: finish segmentation') 
+        if mpi4py is not None:
+            logfile.write(f'rank {rank}: finish segmentation') 
     del lBkg, snp 
-    comm.Barrier()
+    if mpi4py is not None:
+        comm.Barrier()
 
     if rank==0:
         end = time.time()
-        logfile.write(f'time taken generating binary: {end - start} seconds \n')
+        if mpi4py is not None:
+            logfile.write(f'time taken generating binary: {end - start} seconds \n')
     startIdx += NTotal
-logfile.close() 
+if mpi4py is not None:
+    logfile.close() 
     
