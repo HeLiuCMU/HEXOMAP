@@ -389,6 +389,55 @@ def Orien2FZ(m, symtype='Cubic'):
 #                break
 #        return oRes
 
+def Misorien2FZ1Vectorized(m1, m2, symtype='Cubic'):
+    """
+    Careful, it is m1*op*m2T, the misorientation in sample frame, the order matters. Only returns the angle, doesn't calculate the right axis direction
+
+    Parameters
+    -----------
+    m1:     ndarray
+            Matrix representation of orientation1
+    m2:     ndarray
+            Matrix representation of orientation2
+    symtype:string
+            The crystal symmetry
+
+    Returns
+    -----------
+    oRes:   ndarray
+            The misorientation matrix after reduced. Note that this function doesn't actually
+            reduce the orientation to fundamental zone, only make sure the angle is the
+            smallest one, so there are multiple orientations have the same angle but
+            different directions. oRes is only one of them.
+    angle:  scalar
+            The misorientation angle.
+    """
+    if m1.ndim==2:
+        m1 = m1.reshape([1,3,3])
+    if m2.ndim==2:
+        m2 = m2.reshape([1,3,3])
+    n = m1.shape[0]
+    ops = GetSymRotMat(symtype) #[24,3,3]
+    nSym = ops.shape[0]
+    #print(f'ops.shape: {ops.shape}, m2.shape: {m2.shape}')
+    angle = 6.3
+    # tmp = m1.dot(op.dot(m2.T))
+    tmp = np.transpose(np.dot(ops, np.transpose(m2,(0,2,1))), (0,2,1,3)) #[ns,n,3,3]
+    #print(f'tmp.shape: {tmp.shape}')
+    tmp = np.matmul(m1.reshape([1,n,3,3]), tmp) #[ns,n,3,3]
+    #print(f'tmp.shape: {tmp.shape}')    
+    #cosangle = 0.5 * (tmp.trace() - 1)
+    cosangle = 0.5*(tmp.trace(axis1=2,axis2=3)-1)
+    cosangle[cosangle>0.9999999999] = 0.9999999999
+    cosangle[cosangle<-0.9999999999] = -0.9999999999
+    #print(f'cosangle.shape: {cosangle.shape}')
+    newangle = np.arccos(cosangle)
+    idx = np.argmin(newangle,axis=0)
+    angle = np.take_along_axis(newangle, np.expand_dims(idx,axis=0), axis=0).ravel()
+
+    oRes=None
+    return oRes, angle
+
 def Misorien2FZ1(m1, m2, symtype='Cubic'):
     """
     Careful, it is m1*op*m2T, the misorientation in sample frame, the order matters. Only returns the angle, doesn't calculate the right axis direction
@@ -572,9 +621,7 @@ def MisorinEulerZXZ(euler1,euler2, symtype='Cubic', degree=True):
         m1 = EulerZXZ2MatVectorized(euler1 * np.pi / 180.0)
         m2 = EulerZXZ2MatVectorized(euler2 * np.pi / 180.0)
         misorien = np.empty(m1.shape[0])
-        for i in range(m1.shape[0]):
-            _, misorien[i] = Misorien2FZ1(m1[i,:],m2[i,:],symtype)
-        print('misorien in degree')
+        _, misorien = Misorien2FZ1Vectorized(m1,m2,symtype)
         return misorien * 180.0 / np.pi
     else:
         print('to be implemented')
@@ -752,6 +799,7 @@ def benchmark_m2e():
 def test_gen_random_eulerzxz():
     euler = np.array([[90.0,90.0,0.0]])
     eulerOut = generarte_random_eulerZXZ(euler, 1)
+    #eulerOut = euler.repeat(10,axis=0)+np.array([[0,0,4]])
     print(MisorinEulerZXZ(euler.repeat(10,axis=0),eulerOut,symtype='Hexagonal'))
     print(eulerOut)
 
