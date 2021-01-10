@@ -434,7 +434,7 @@ def Misorien2FZ1Vectorized(m1, m2, symtype='Cubic'):
     newangle = np.arccos(cosangle)
     idx = np.argmin(newangle,axis=0)
     angle = np.take_along_axis(newangle, np.expand_dims(idx,axis=0), axis=0).ravel()
-    print(tmp.shape,idx.shape,idx)
+    #print(tmp.shape,idx.shape,idx)
     oRes=np.take_along_axis(tmp, idx[np.newaxis,:,np.newaxis,np.newaxis], axis=0)[0,:,:,:]
     return oRes, angle
 
