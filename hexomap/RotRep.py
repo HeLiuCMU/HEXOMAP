@@ -614,7 +614,11 @@ def Mat2Euler(m):
     if z < 0: z = z + 2 * np.pi
     return x, y, z
 
-def MisorinEulerZXZ(euler1,euler2, symtype='Cubic', degree=True):
+def MisorinEulerZXZ(euler1,euler2, symtype='Cubic', degree=True,returnRotMat=False):
+    '''
+    :params
+        returnRotMat: boolean, True to return rot mat along with angle, 
+    '''
     if euler2.shape != euler1.shape:
         raise  ValueError('input euler shape need to be the same')
     if degree:
@@ -622,7 +626,10 @@ def MisorinEulerZXZ(euler1,euler2, symtype='Cubic', degree=True):
         m2 = EulerZXZ2MatVectorized(euler2 * np.pi / 180.0)
         misorien = np.empty(m1.shape[0])
         res, misorien = Misorien2FZ1Vectorized(m1,m2,symtype)
-        return res, misorien * 180.0 / np.pi
+        if returnRotMat:
+            return res, misorien * 180.0 / np.pi
+        else: 
+            return misorien * 180.0 / np.pi
     else:
         print('to be implemented')
 
@@ -805,7 +812,7 @@ def test_gen_random_eulerzxz():
 def test_misorien_euler_zxz():
     e1 = np.array([[10,10,10],[10,100,10]])
     e2 = np.array([[10,11,10],[10,110,10]])
-    res,angle = MisorinEulerZXZ(e1,e2)
+    res,angle = MisorinEulerZXZ(e1,e2,returnRotMat=True)
     res_, angle_ = Misorien2FZ1(EulerZXZ2MatVectorized(e1/180.0*np.pi)[0,:,:], EulerZXZ2MatVectorized(e2/180.0*np.pi)[0,:,:])
     print(f'res: {res}, angle: {angle}\n res_: {res_}, angle_: {angle_/np.pi*180.0}')
     print(f'res.shape: {res.shape}')
