@@ -434,8 +434,8 @@ def Misorien2FZ1Vectorized(m1, m2, symtype='Cubic'):
     newangle = np.arccos(cosangle)
     idx = np.argmin(newangle,axis=0)
     angle = np.take_along_axis(newangle, np.expand_dims(idx,axis=0), axis=0).ravel()
-
-    oRes=None
+    print(tmp.shape,idx.shape,idx)
+    oRes=np.take_along_axis(tmp, idx[np.newaxis,:,np.newaxis,np.newaxis], axis=0)[0,:,:,:]
     return oRes, angle
 
 def Misorien2FZ1(m1, m2, symtype='Cubic'):
@@ -621,8 +621,8 @@ def MisorinEulerZXZ(euler1,euler2, symtype='Cubic', degree=True):
         m1 = EulerZXZ2MatVectorized(euler1 * np.pi / 180.0)
         m2 = EulerZXZ2MatVectorized(euler2 * np.pi / 180.0)
         misorien = np.empty(m1.shape[0])
-        _, misorien = Misorien2FZ1Vectorized(m1,m2,symtype)
-        return misorien * 180.0 / np.pi
+        res, misorien = Misorien2FZ1Vectorized(m1,m2,symtype)
+        return res, misorien * 180.0 / np.pi
     else:
         print('to be implemented')
 
@@ -802,7 +802,19 @@ def test_gen_random_eulerzxz():
     #eulerOut = euler.repeat(10,axis=0)+np.array([[0,0,4]])
     print(MisorinEulerZXZ(euler.repeat(10,axis=0),eulerOut,symtype='Hexagonal'))
     print(eulerOut)
-
+def test_misorien_euler_zxz():
+    e1 = np.array([[10,10,10],[10,100,10]])
+    e2 = np.array([[10,11,10],[10,110,10]])
+    res,angle = MisorinEulerZXZ(e1,e2)
+    res_, angle_ = Misorien2FZ1(EulerZXZ2MatVectorized(e1/180.0*np.pi)[0,:,:], EulerZXZ2MatVectorized(e2/180.0*np.pi)[0,:,:])
+    print(f'res: {res}, angle: {angle}\n res_: {res_}, angle_: {angle_/np.pi*180.0}')
+    print(f'res.shape: {res.shape}')
+    print(f'np.sum(res[0]- res_):{np.sum(res[0]- res_)}')
+    res_, angle_ = Misorien2FZ1(EulerZXZ2MatVectorized(e1/180.0*np.pi)[1,:,:], EulerZXZ2MatVectorized(e2/180.0*np.pi)[1,:,:])
+    print(f'res: {res}, angle: {angle}\n res_: {res_}, angle_: {angle_/np.pi*180.0}')
+    print(f'res.shape: {res.shape}')
+    print(f'np.sum(res[1]- res_):{np.sum(res[1]- res_)}')
 if __name__ =='__main__':
     #benchmark_m2e()
-    test_gen_random_eulerzxz()
+    #test_gen_random_eulerzxz()
+    test_misorien_euler_zxz()
