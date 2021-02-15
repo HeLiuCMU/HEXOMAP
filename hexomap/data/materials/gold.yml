@@ -1,0 +1,27 @@
+atomic_number: &atomz 79
+atomic_weight: 196.966569
+variants:
+  gold_fcc:
+    crystal_structure: "FCC"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 4.0782
+      b: 4.0782
+      c: 4.0782
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0, 0.5, 0.5]
+        atomic_number: *atomz
+      - atom_3:
+        pos: [0.5, 0, 0.5]
+        atomic_number: *atomz
+      - atom_4:
+        pos: [0.5, 0.5, 0]
+        atomic_number: *atomz
+    source: "https://www.webelements.com/gold/crystal_structure.html"

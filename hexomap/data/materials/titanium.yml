@@ -1,0 +1,57 @@
+atomic_number: &atomz 22
+atomic_weight: 47.867
+variants:
+  Ti7:
+    crystal_structure: "HCP"
+    lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 2.92539
+      b: 2.92539
+      c: 4.67399
+      alpha: 90
+      beta:  90
+      gamma: 120
+    atoms:
+      - atom_1:
+        pos: [1/3, 2/3, 1/4]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [2/3, 1/3, 3/4]
+        atomic_number: *atomz
+    source: "?"
+  Ti64_alpha:
+    crystal_structure: "HCP"
+    lattice constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 2.930
+      b: 2.930
+      c: 4.677
+      alpha: 90
+      beta:  90
+      gamma: 120
+    atoms:
+      - atom_1:
+        pos: [1/3, 2/3, 1/4]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [2/3, 1/3, 3/4]
+        atomic_number: *atomz
+    source: "?"
+  Ti64_beta:
+    crystal_structure: "BCC"
+    lattice constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 3.224
+      b: 3.224
+      c: 3.224
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0.5, 0.5, 0.5]
+        atomic_number: *atomz
+    source: "?"

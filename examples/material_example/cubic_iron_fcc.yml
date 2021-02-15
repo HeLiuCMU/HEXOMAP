@@ -1,0 +1,29 @@
+Atom:
+  '0':
+    atomNumber: 26
+    pos:
+    - 0
+    - 0
+    - 0
+  '1':
+    atomNumber: 26
+    pos:
+    - 0
+    - 0.5
+    - 0.5
+  '2':
+    atomNumber: 26
+    pos:
+    - 0.5
+    - 0
+    - 0.5
+  '3':
+    atomNumber: 26
+    pos:
+    - 0.5
+    - 0.5
+    - 0
+PrimA: 2.856
+PrimB: 2.856
+PrimC: 2.856
+symtype: Cubic

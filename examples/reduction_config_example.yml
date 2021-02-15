@@ -1,0 +1,17 @@
+NDet: 5
+NLayer: 1
+NRot: 360
+aIdxImg: None
+baseline: 10
+digitLength: 6
+extention: .tif
+generateBin: true
+generateBkg: false
+identifier: Au_calibrate
+idxLayer:
+- 3
+initial: /home/heliu/work/Au_calibrate/Raw/Integrated-fullRotation/Au_volume2_NSUM10_bsf_fullrotation_
+minNPixel: 4
+medianSize: 3
+outputDirectory: /home/heliu/work/Au_calibrate/Reduction/reduced_z3_new/
+startIdx: 0

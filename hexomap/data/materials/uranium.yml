@@ -1,0 +1,22 @@
+atomic_number: &atomz 92
+atomic-weight: 238.02891
+variants:
+  uo2:
+    crystal_structure: "FCC"
+    lattice_constant:
+      lattice_constant:
+      # -- unit: nm, nm, nm, degree, degree, degree
+      a: 5.47127
+      b: 5.47127
+      c: 5.47127
+      alpha: 90
+      beta:  90
+      gamma: 90
+    atoms:
+      - atom_1:
+        pos: [0, 0, 0]
+        atomic_number: *atomz
+      - atom_2:
+        pos: [0.5, 0.5, 0.5]
+        atomic_number: *atomz
+    source: "https://doi.org/10.1016/j.jnucmat.2015.01.029"
