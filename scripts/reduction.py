@@ -6,8 +6,9 @@ from hexomap import reduction
 import numpy as np
 try:
     from mpi4py import MPI
+    mpi4py_ = True
 except ImportError: 
-    mpi4py = None
+    mpi4py_ = None
 import atexit
 import matplotlib.pyplot as plt
 import time
@@ -18,7 +19,7 @@ from hexomap import config
 import os
 import argparse
 import tifffile
-if mpi4py is not None:
+if mpi4py_ is not None:
     from hexomap import mpi_log
     atexit.register(MPI.Finalize)
     comm = MPI.COMM_WORLD
@@ -106,13 +107,13 @@ medianSize = c.medianSize
 
 bkgInitial = os.path.join(outputDirectory, f'{identifier}_bkg')
 binInitial = os.path.join(outputDirectory, f'{identifier}_bin')
-if mpi4py is not None:
+if mpi4py_ is not None:
     logFileName = os.path.join(outputDirectory, f'{identifier}_reduction.log')
 
 if rank==0:
     if not os.path.exists(outputDirectory):
         os.makedirs(outputDirectory)
-if mpi4py is not None:
+if mpi4py_ is not None:
     comm.Barrier()
     logfile = mpi_log.MPILogFile(
         comm, logFileName, 
@@ -140,7 +141,7 @@ for layer in range(NLayer):
     print(lIdxLayer, lIdxDet, lIdxRot, lBkgIdx,lIdxImg)
     # generate background:
     if rank==0:
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write('start generating bkg \n')
         start =  time.time()
     if generateBkg:
@@ -150,32 +151,32 @@ for layer in range(NLayer):
             lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[idxLayer[layer]],digitLength=digitLength, end=extention)
         else:
             lBkg = None
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             lBkg = comm.bcast(lBkg, root=0)
 
     else:
         print('skip bkg')
         lBkg = []
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write(f'loading bkg, rank{rank}...')
         for det in range(NDet):
             lBkg.append(np.load(f'{bkgInitial}_z{idxLayer[layer]}_det_{det}.npy'))
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write(f'end loading bkg, rank{rank}')
-    if mpi4py is not None:
+    if mpi4py_ is not None:
         comm.Barrier()
     if rank==0:
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write('end generating bkg \n')
         end = time.time()
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write(f'time take generating bkg: {end-start} \n')
         start = time.time()
     if generateBin:
         for i in range(NPerCore):
             bkg = lBkg[lBkgIdx[i]]
             fName = f'{initial}{str(lIdxImg[i]).zfill(digitLength)}{extention}'
-            if mpi4py is not None:
+            if mpi4py_ is not None:
                 logfile.write(f"generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.write(f"\r generate binary: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)}\n")
             sys.stdout.flush()
@@ -184,28 +185,28 @@ for layer in range(NLayer):
             except FileNotFoundError:
                 print('file not found')
                 img = np.zeros([2048,2048])
-                if mpi4py is not None:
+                if mpi4py_ is not None:
                     logfile.write(f"ERROR: FILEMISSING: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} MISSING\n")
             except IndexError:
                 img = np.zeros([2048,2048])
                 print(f'file destroyed: {fName}')
-                if mpi4py is not None:
+                if mpi4py_ is not None:
                     logfile.write(f"ERROR: FILE NOT COMPLETE: rank: {rank} : layer: {lIdxLayer[i]}, det: {lIdxDet[i]}, rot: {lIdxRot[i]}, {os.path.basename(fName)} Destroyed\n")
             #img = tifffile.imread(fName)
             binFileName = f'{binInitial}z{lIdxLayer[i]}_{str(lIdxRot[i]).zfill(6)}.bin{lIdxDet[i]}'
             snp = segmentation_numba(img, bkg, baseline=baseline, minNPixel=minNPixel,medianSize=medianSize)
             IntBin.WritePeakBinaryFile(snp, binFileName)
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write(f'rank {rank}: finish segmentation') 
     del lBkg, snp 
-    if mpi4py is not None:
+    if mpi4py_ is not None:
         comm.Barrier()
 
     if rank==0:
         end = time.time()
-        if mpi4py is not None:
+        if mpi4py_ is not None:
             logfile.write(f'time taken generating binary: {end - start} seconds \n')
     startIdx += NTotal
-if mpi4py is not None:
+if mpi4py_ is not None:
     logfile.close() 
     
