@@ -148,7 +148,8 @@ for layer in range(NLayer):
         print(generateBkg)
         print('generate bkg')
         if rank==0:
-            lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[idxLayer[layer]],digitLength=digitLength, end=extention)
+            img = tifffile.imread(f'{initial}{str(startIdx).zfill(digitLength)}{extention}')
+            lBkg = reduction.median_background(initial, startIdx, bkgInitial,NRot=NRot, NDet=NDet, NLayer=1,layerIdx=[idxLayer[layer]],digitLength=digitLength, end=extention,imgshape=img.shape)
         else:
             lBkg = None
         if mpi4py_ is not None:
