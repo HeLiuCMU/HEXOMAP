@@ -46,7 +46,7 @@ fadelity and efficiency.
 
 ## Usage and Examples
 1. reconstruction	
-    * see jupyter notebook: examples/
+    * see jupyter notebook: demonotebooks/*, it contains a full recontruction step ( parameter optimization and recosntruction).
     *    recon.py --config config.yml
     *    mpirun -n 4 recon_mpi.py --config config.yml
 1. reduction
