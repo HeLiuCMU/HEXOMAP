@@ -45,7 +45,8 @@ fadelity and efficiency.
     * under HEXOMAP/: run "python -m hexomap"
 
 ## Usage and Examples
-1. reconstruction
+1. reconstruction	
+    * see jupyter notebook: examples/
     *    recon.py --config config.yml
     *    mpirun -n 4 recon_mpi.py --config config.yml
 1. reduction
