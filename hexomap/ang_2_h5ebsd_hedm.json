@@ -1,0 +1,36 @@
+{
+    "0": {
+        "EulerTransformation": {
+            "angle": 0,
+            "h": 0,
+            "k": 0,
+            "l": 1
+        },
+        "FileExtension": "ang",
+        "FilePrefix": "nf_s1400_100_1_t2_z",
+        "FileSuffix": "",
+        "FilterVersion": "6.5.133",
+        "Filter_Enabled": true,
+        "Filter_Human_Label": "Import Orientation File(s) to H5EBSD",
+        "Filter_Name": "EbsdToH5Ebsd",
+        "Filter_Uuid": "{6e332fca-0475-5fec-821e-e01f668ec1d3}",
+        "InputPath": "/Users/heliu/work/nf_s1400_100_1_t2_ang_stack",
+        "OutputFile": "/Users/heliu/work/nf_s1400_100_1_t2.h5ebsd",
+        "PaddingDigits": 1,
+        "RefFrameZDir": 1,
+        "SampleTransformation": {
+            "angle": 0,
+            "h": 0,
+            "k": 0,
+            "l": 1
+        },
+        "ZEndIndex": "3",
+        "ZResolution": 2,
+        "ZStartIndex": "1"
+    },
+    "PipelineBuilder": {
+        "Name": "ang_2_h5ebsd_hedm",
+        "Number_Filters": 1,
+        "Version": 6
+    }
+}
