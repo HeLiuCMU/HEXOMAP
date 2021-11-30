@@ -1,0 +1,52 @@
+NDet: 2
+NRot: 180
+_initialString: demo_gold_
+detJ:
+- - 1012.4139699760619
+  - 1029.7954493469792
+detK:
+- - 2015.878333242745
+  - 2013.304075614405
+detL:
+- - 4.520409189805704
+  - 6.520409189805705
+detNJ:
+- 2048
+- 2048
+detNK:
+- 2048
+- 2048
+detPixelJ:
+- 0.00148
+- 0.00148
+detPixelK:
+- 0.00148
+- 0.00148
+detRot:
+- - - 89.43312997965678
+    - 90.16445525497576
+    - -0.36068625937687593
+  - - 89.32178598239284
+    - 89.93680938296261
+    - -0.3139935788916643
+energy: 65.351
+etalimit: 1.413716694115407
+expdataNDigit: 6
+fileBin: ../examples/johnson_aug18_demo/Au_reduced_1degree//Au_int_1degree_suter_aug18_z
+fileBinDetIdx:
+- 0
+- 1
+fileBinDigit: 6
+fileBinLayerIdx: 0
+maxQ: 9
+micShift:
+- 0.0
+- 0.0
+- 0.0
+micVoxelSize: 0.001
+micsize:
+- 20
+- 20
+reverseRot: true
+sample: gold
+searchBatchSize: 6000
