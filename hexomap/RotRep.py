@@ -2,6 +2,41 @@ import numpy as np
 from math import atan2
 
 
+def rotmat_from_axis_angle(axis,angle,degree=True):
+    '''
+    generate the rotation matrix based on angle and axis.
+    to use this matrix: np.matmul(mat971,R)
+    example::
+    e971 = np.array([150.12811415,  44.9348406 , 244.18429138])
+    e1011 = np.array([ 8.28995421, 30.17243155, 17.42393146])
+    axis,angle =RotRep.Misorien2FZ2(RotRep.EulerZXZ2Mat(e971/180*np.pi),
+                             RotRep.EulerZXZ2Mat(e1011/180*np.pi))
+    angle = angle[0]/np.pi*180
+    print(f'angle: {angle}')
+    R = rotmat_from_axis_angle(axis, angle)
+    #print(f'R: {R}')
+    mat971 = RotRep.EulerZXZ2Mat(e971/180*np.pi)
+    mat1011 = RotRep.EulerZXZ2Mat(e1011/180*np.pi)
+    print(f'mat1011.shape: {mat1011.shape}, R.shape: {R.shape}')
+    mis = RotRep.Misorien2FZ2(np.matmul(mat971,R), mat1011)
+    print(mis[1]/np.pi*180)
+    ::params:
+        axis: unit vector of 3
+        angle: degree by default
+    ::returns:
+        rotmat: 3x3 rotation matrix
+    '''
+    axis = np.array(axis)
+    axis = axis/np.linalg.norm(axis)
+    ux,uy,uz = axis
+    angle = angle/180*np.pi
+    cos = np.cos(angle)
+    sin = np.sin(angle)
+    R = np.array([[cos + ux**2*(1-cos),    ux*uy*(1-cos )- uz*sin, ux*uz*(1-cos) + uy*sin],
+                  [uy*ux*(1-cos) + uz*sin, cos + uy**2*(1-cos),    uy*uz*(1-cos) - ux*sin],
+                  [uz*ux*(1-cos) - uy*sin, uz*uy*(1-cos) + ux*sin, cos + uz**2*(1-cos)]
+                 ])
+    return R.reshape([3,3])
 
 def rod_from_quaternion(quat):
     '''
