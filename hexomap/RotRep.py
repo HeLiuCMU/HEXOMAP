@@ -723,6 +723,18 @@ def Mat2EulerZXZVectorized(m):
     euler[euler[:, 1] < 0, 1] = euler[euler[:, 1] < 0, 1] + 2 * np.pi
     euler[euler[:, 2] < 0, 2] = euler[euler[:, 2] < 0, 2] + 2 * np.pi
     return euler
+
+def eulerzxz2rgb(euler,degree=True):
+    from hexomap.orientation import Quaternion
+    from hexomap.orientation import Eulers
+    from hexomap.orientation import Rodrigues
+    if degree:
+        euler = euler/180*np.pi
+    quats = Quaternion.quaternions_from_eulers(euler)
+    rods = Rodrigues.rodrigues_from_quaternions(quats)
+    rgb = (rods + np.array([1, 1, 1])) / 2
+    return rgb
+
 def benchmark_e2m():
     # benchmark speed of vectorized version and not
     nEuler = 10000
