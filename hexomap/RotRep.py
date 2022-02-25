@@ -1,6 +1,41 @@
 import numpy as np
 from math import atan2
 
+def get_mackenzie_distribution():
+    print('try to plot mackenzie distribution')
+    lA = np.arange(0,60.72,0.2)
+    lP = np.zeros_like(lA)
+    for i,a in enumerate(lA):
+        if a<45:
+            p = 2/15*(1-np.cos(a/180*np.pi))
+            lP[i] = p
+        elif a>=45 and a<60:
+            phi = a/180*np.pi
+            p = 2/15*(3*(np.sqrt(2)-1)*np.sin(phi)-2*(1-np.cos(phi)))
+            lP[i] = p
+        elif a>=60 and a<60.72:
+            phi = a/180*np.pi
+            p = 2/15*((3*(np.sqrt(2)-1)+4/np.sqrt(3))*np.sin(phi)-6*(1-np.cos(phi)))
+            lP[i] = p
+    #     elif a>=60.72 and a<62.8:
+    #         phi = a/180*np.pi
+    #         print(phi)
+    #         cot = np.cos(phi/2)/np.sin(phi/2)
+    #         X = (np.sqrt(2)-1)/((1-(np.sqrt(2)-1)**2)*(cot**2))**(1/2)
+    #         Y = ((np.sqrt(2)-1)**2)/(3-(cot**2))**(1/2)
+    #         p = 2/15*((3*(np.sqrt(2)-1)+4/np.sqrt(3))*np.sin(phi)-6*(1-np.cos(phi)))\
+    #             - (8/5/np.pi)*(2*(np.sqrt(2)-1)*np.arccos(X*cot) \
+    #                            + (1/np.sqrt(3))*np.arccos(Y*cot))*np.sin(phi)\
+    #             + (8/5/np.pi)*(2*np.arccos((np.sqrt(2)+1)*X/np.sqrt(2)) + np.arccos((np.sqrt(2)+1)*Y/np.sqrt(2)))*(1-np.cos(phi))
+    #         lP[i] = p
+    lA = list(lA)
+    lP = list(lP)
+    lA+=[61,61.4,61.8,62.2,62.6]
+    lP+=[0.00283,0.00151,0.0007,0.00024,0.00003]
+#     plt.plot(lA,lP)
+#     plt.show()
+    #print(lA)
+    return lA, lP
 
 def rotmat_from_axis_angle(axis,angle,degree=True):
     '''
