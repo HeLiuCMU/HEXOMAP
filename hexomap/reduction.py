@@ -178,7 +178,7 @@ def segmentation_numba(img, bkg, baseline=10, minNPixel=4,medianSize=3):
     #log = ndi.gaussian_laplace(imgBaseMedian,sigma=1.5)
     fillHole = ndi.binary_fill_holes(log<0)
     label,N = ndi.label(fillHole)
-    label = ndi.grey_dilation(label,size=(3,3))
+    #label = ndi.grey_dilation(label,size=(3,3))
     #start = time.time()
     lX, lY, lID, lIntensity = extract_peak(label,N, imgSubMed,imgSub, minNPixel, baseline)
     #end = time.time()
