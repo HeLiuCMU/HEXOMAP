@@ -96,9 +96,10 @@ outputDirectory = c.outputDirectory
 identifier = c.identifier 
 generateBkg = True
 generateBin = True
-if c.generateBkg=='false':
+#print(f'c.generateBkg: {c.generateBkg}')
+if c.generateBkg=='false' or c.generateBkg==False:
     generateBkg=False
-if c.generateBin=='false':
+if c.generateBin=='false' or c.generateBin==False:
     generateBin=False  
 baseline = c.baseline 
 minNPixel = c.minNPixel 
