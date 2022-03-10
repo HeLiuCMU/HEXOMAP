@@ -32,6 +32,8 @@ fadelity and efficiency.
     
     > To test installation, Type ‘python’ in terminal to enter python terminal, then try: ">>>from pycuda import autoinit"
 	
+2. install mpi4py:
+    * conda install -c conda-forge mpi4py
 	
 3. Install HEXOMAP:
     * git clone https://github.com/HeLiuCMU/HEXOMAP.git
