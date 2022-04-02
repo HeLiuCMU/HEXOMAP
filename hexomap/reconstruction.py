@@ -380,7 +380,7 @@ class Reconstructor_GPU():
                                relativeL=0.05, relativeJ=15, relativeK=5,
                                rate=1, update_threshold=0.1, NIteration=30, factor=0.85, NStep=11, geoSearchNVoxel=1,
                                lVoxel=None, lSearchMatD=None, NSearchOrien=None, useNeighbour=False,
-                               NOrienIteration=10, BoundStart=0.5, rotOptimization=False):
+                               NOrienIteration=10, BoundStart=0.5, rotOptimization=False,isRoot=True):
         '''
         phase 0: line search through each parameter
         :param mask:
@@ -391,6 +391,7 @@ class Reconstructor_GPU():
         :param rangeL:
         :param rangeJ:
         :param rangeK:
+        :param isRoot=True, if this is the root of blind search, used for auto adjust starting points
         :return:
         '''
         if mask is None:
@@ -430,7 +431,32 @@ class Reconstructor_GPU():
                            NOrienIteration=NOrienIteration, BoundStart=BoundStart, rangeRot=rangeRot,rotOptimization=rotOptimization)
             NPhase0Iteration +=1
         print(centerL, centerJ, centerK, centerRot)
-        return centerL, centerJ, centerK, centerRot
+        if maxHitRatio<0.1 and isRoot:
+            print('==============================================')
+            print('fail to find parameter at inputed starting point')
+            print('start to find parameter in multiple starting point, this may take longer time:')
+            lInitial = self.config.detL.copy()
+            for rot in [True,False]:
+                for dl in [1,-1,2,-2,3,-3,4,-4]:
+                    self.config.reverseRot = rot
+                    self.config.detL = lInitial + dl
+                    if np.all(self.config.detL>0):
+                        print('==============================================')
+                        print(f'det: {self.config.detL},reverseRot: {self.config.reverseRot}')
+                        print('==============================================')
+                        self.load_config(self.config,reloadData=False)   # input config into reconstructor
+                        # blind search parameters, and save to c:
+                        centerL, centerJ, centerK, centerRot,maxHitRatio = self.blind_search_parameter(centerL=np.array(self.config.detL), rotOptimization=True,isRoot=False) 
+                    else:
+                        maxHitRatio=0.0
+                    if maxHitRatio>0.2:
+                        break
+                if maxHitRatio>0.2:
+                    break
+        if isRoot:
+            return centerL, centerJ, centerK, centerRot
+        else: 
+            return centerL, centerJ, centerK, centerRot, maxHitRatio
 
     def select_grain_boundary_voxel(self, centerL, centerJ, centerK, centerRot, mask=None, expandSize=1):
         '''
