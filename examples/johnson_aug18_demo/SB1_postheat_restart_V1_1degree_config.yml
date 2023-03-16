@@ -1,0 +1,40 @@
+NDet: 2
+NRot: 180
+_initialString: ../examples/johnson_aug18_demo/SB1_postheat_restart_V1_1degree
+detJ:
+- - 1011.9519962387784
+  - 1029.5322654065667
+detK:
+- - 2016.3648150661434
+  - 2013.785803241113
+detL:
+- - 4.554034285714251
+  - 6.554034285714249
+detRot:
+- - - 89.06101471998832
+    - 88.29380707624405
+    - -0.34491293837344855
+  - - 88.94013450305705
+    - 88.21982684534217
+    - -0.3024725430222107
+energy: 65.351
+etalimit: 1.413716694115407
+expdataNDigit: 6
+fileBin: ../examples/johnson_aug18_demo/SB1_postheat_restart_V1_1degree/SB1_V1_1degree_z
+fileBinDetIdx:
+- 0
+- 1
+fileBinDigit: 6
+fileBinLayerIdx: 0
+maxQ: 9
+micShift:
+- 0.0
+- 0.0
+- 0.0
+micVoxelSize: 0.01
+micsize:
+- 150
+- 150
+reverseRot: true
+sample: iron_bcc
+searchBatchSize: 6000
